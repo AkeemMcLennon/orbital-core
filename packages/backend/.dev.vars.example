@@ -1,0 +1,11 @@
+# Database Provider (sqlite or d1)
+DB_PROVIDER=sqlite
+
+# Google OAuth (optional - for Contacts integration)
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:8787/api/integrations/google/callback
+
+# External APIs (optional)
+APOLLO_API_KEY=your-apollo-api-key
+CLEARBIT_API_KEY=your-clearbit-api-key

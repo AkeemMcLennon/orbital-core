@@ -1,0 +1,28 @@
+{
+  "name": "orbital",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:backend": "bun run --filter='@orbital/backend' dev",
+    "build:backend": "bun run --filter='@orbital/backend' build",
+    "deploy:backend": "bun run --filter='@orbital/backend' deploy",
+    "db:generate": "bun run --filter='@orbital/backend' db:generate",
+    "db:migrate:local": "bun run --filter='@orbital/backend' db:migrate:local",
+    "db:migrate:d1": "bun run --filter='@orbital/backend' db:migrate:d1",
+    "db:studio": "bun run --filter='@orbital/backend' db:studio",
+    "test": "bun run --filter='@orbital/backend' test",
+    "typecheck": "bun run --filter='./packages/*' typecheck",
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{ts,json,md}\""
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.5",
+    "typescript": "^5.3.3"
+  }
+}

@@ -1,0 +1,74 @@
+name = "orbital-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-15"
+node_compat = true
+
+# Rules for esbuild bundling
+rules = [
+  { type = "Text", globs = ["**/*.sql"], fallthrough = true }
+]
+
+# Mark bun-specific modules as external since Workers can't use them
+[build]
+command = ""
+
+[[unsafe.bindings]]
+name = "EXTERNAL_MODULES"
+type = "plain_text"
+text = "bun:sqlite,drizzle-orm/bun-sqlite"
+
+[env.development]
+vars = { ENVIRONMENT = "development" }
+
+# For local development with SQLite
+# Create a D1 database for local testing: wrangler d1 create orbital-db-dev
+[env.development.d1_databases]
+binding = "DB"
+database_name = "orbital-db-dev"
+database_id = "preview"
+
+[env.production]
+vars = { ENVIRONMENT = "production" }
+
+# For production with Cloudflare D1
+# Create production database: wrangler d1 create orbital-db
+[env.production.d1_databases]
+binding = "DB"
+database_name = "orbital-db"
+database_id = "<your-d1-prod-database-id>"
+
+# KV for JWKS caching
+[[kv_namespaces]]
+binding = "KV"
+id = "<your-kv-namespace-id-here>"
+preview_id = "<your-kv-preview-id-here>"
+
+# Cron trigger for cadence-based action items
+[triggers]
+crons = ["0 9 * * *"]  # Daily at 9 AM UTC
+
+# Secrets (set via: wrangler secret put SECRET_NAME)
+# Required:
+# - JWKS_URL              (e.g., https://your-auth.auth0.com/.well-known/jwks.json)
+# - JWT_AUDIENCE          (expected aud claim)
+# - JWT_ISSUER            (expected iss claim)
+#
+# Optional (for integrations):
+# - GOOGLE_CLIENT_ID
+# - GOOGLE_CLIENT_SECRET
+# - GOOGLE_REDIRECT_URI
+# - APOLLO_API_KEY
+# - CLEARBIT_API_KEY
+
+# Setup commands:
+# 1. Create D1 databases:
+#    wrangler d1 create orbital-db-dev
+#    wrangler d1 create orbital-db
+# 2. Create KV namespace:
+#    wrangler kv:namespace create KV
+#    wrangler kv:namespace create KV --preview
+# 3. Update database_id and kv id values above
+# 4. Set secrets:
+#    wrangler secret put JWKS_URL
+#    wrangler secret put JWT_AUDIENCE
+#    wrangler secret put JWT_ISSUER

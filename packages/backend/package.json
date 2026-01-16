@@ -1,0 +1,47 @@
+{
+  "name": "@orbital/backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun src/main.ts",
+    "dev": "wrangler dev",
+    "build": "wrangler deploy --dry-run",
+    "deploy": "wrangler deploy",
+    "db:generate": "drizzle-kit generate --config=drizzle.config.local.ts",
+    "db:migrate:local": "bun run migrate.ts",
+    "db:migrate:d1": "wrangler d1 migrations apply orbital-db",
+    "db:push": "drizzle-kit push:sqlite --config=drizzle.config.local.ts",
+    "db:studio": "drizzle-kit studio",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "test:watch": "bun test --watch"
+  },
+  "dependencies": {
+    "@orbital/types": "workspace:*",
+    "@orbital/utils": "workspace:*",
+    "@orpc/contract": "^1.13.2",
+    "@orpc/openapi": "^1.13.2",
+    "@orpc/server": "^1.13.2",
+    "@orpc/zod": "^1.13.2",
+    "@t3-oss/env-core": "^0.13.10",
+    "@types/uuid": "^11.0.0",
+    "bs58": "^6.0.0",
+    "drizzle-orm": "^0.36.4",
+    "hono": "^4.0.2",
+    "jose": "^5.2.0",
+    "uuid": "^13.0.0",
+    "uuidv7": "^1.1.0",
+    "zod": "^4.3.5"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240208.0",
+    "@types/bun": "latest",
+    "@types/node": "^25.0.7",
+    "drizzle-kit": "^0.29.1",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.28.2",
+    "vitest": "^1.2.0",
+    "@vitest/coverage-v8": "^1.2.0"
+  }
+}
