@@ -1,6 +1,6 @@
-import { eq, and, desc, type SQL } from "drizzle-orm";
+import { eq, and, desc, or, like, isNull, type SQL } from "drizzle-orm";
 import * as z from "zod";
-import { contacts } from "../database/schema";
+import { contacts, directory } from "../database/schema";
 import { authProc } from "../middleware/auth";
 import { ORPCError } from "@orpc/server";
 import { base58IdSchema } from "@orbital/utils";
@@ -39,9 +39,9 @@ export const listContacts = authProc
   });
 
 /**
- * Find a single contact by ID
+ * Get a single contact by ID
  */
-export const findContact = authProc
+export const getContact = authProc
   .route({ method: "GET", path: "/contacts/{id}" })
   .input(z.object({ id: base58IdSchema }))
   .handler(async ({ input, context }) => {
@@ -183,14 +183,120 @@ export const deleteContact = authProc
   });
 
 /**
+ * Search for contacts in managed contacts by name, email, or company
+ */
+export const searchContacts = authProc
+  .route({ method: "GET", path: "/contacts/search/managed" })
+  .input(
+    z.object({
+      query: z.string().min(1),
+      limit: z.coerce.number().int().positive().max(100).default(50),
+      offset: z.coerce.number().int().nonnegative().default(0),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const { db, user } = context;
+    const queryPattern = `%${input.query}%`;
+
+    const results = await db
+      .select()
+      .from(contacts)
+      .where(
+        and(
+          eq(contacts.userId, user.id),
+          or(
+            like(contacts.name, queryPattern),
+            like(contacts.email, queryPattern),
+            like(contacts.company, queryPattern),
+          ) as SQL,
+        ),
+      )
+      .orderBy(desc(contacts.updatedAt))
+      .limit(input.limit)
+      .offset(input.offset);
+
+    return results;
+  });
+
+/**
+ * List available contacts (from directory, not yet promoted)
+ */
+export const listAvailable = authProc
+  .route({ method: "GET", path: "/contacts/available" })
+  .input(
+    z.object({
+      limit: z.coerce.number().int().positive().max(100).default(50),
+      offset: z.coerce.number().int().nonnegative().default(0),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const { db, user } = context;
+
+    const results = await db
+      .select()
+      .from(directory)
+      .where(
+        and(
+          eq(directory.userId, user.id),
+          isNull(directory.activeContactId),
+        ),
+      )
+      .orderBy(desc(directory.id))
+      .limit(input.limit)
+      .offset(input.offset);
+
+    return results;
+  });
+
+/**
+ * Search for contacts in available contacts (directory)
+ */
+export const searchAvailable = authProc
+  .route({ method: "GET", path: "/contacts/search/available" })
+  .input(
+    z.object({
+      query: z.string().min(1),
+      limit: z.coerce.number().int().positive().max(100).default(50),
+      offset: z.coerce.number().int().nonnegative().default(0),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const { db, user } = context;
+    const queryPattern = `%${input.query}%`;
+
+    const results = await db
+      .select()
+      .from(directory)
+      .where(
+        and(
+          eq(directory.userId, user.id),
+          isNull(directory.activeContactId),
+          or(
+            like(directory.name, queryPattern),
+            like(directory.email, queryPattern),
+            like(directory.company, queryPattern),
+          ) as SQL,
+        ),
+      )
+      .orderBy(desc(directory.id))
+      .limit(input.limit)
+      .offset(input.offset);
+
+    return results;
+  });
+
+/**
  * Export router with all contact procedures
  */
 export const router = {
   list: listContacts,
-  find: findContact,
+  get: getContact,
   create: createContact,
   update: updateContact,
   delete: deleteContact,
+  search: searchContacts,
+  listAvailable,
+  searchAvailable,
 };
 
 export default router;

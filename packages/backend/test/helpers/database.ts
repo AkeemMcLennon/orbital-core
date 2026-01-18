@@ -108,3 +108,37 @@ export async function seedTestContacts(
 
   await db.insert(schema.contacts).values(contacts);
 }
+
+/**
+ * Seed test directory entries
+ * @param db - Database client
+ * @param userExternalId - The externalId of the user (from JWT sub)
+ * @param count - Number of directory entries to create
+ */
+export async function seedTestDirectory(
+  db: DatabaseClient,
+  userExternalId: string,
+  count: number = 5
+): Promise<void> {
+  // Look up the user by externalId to get their database ID
+  const [user] = await db
+    .select()
+    .from(schema.users)
+    .where(eq(schema.users.externalId, userExternalId))
+    .limit(1);
+
+  if (!user) {
+    throw new Error(`User with externalId ${userExternalId} not found. Make sure to seed the user first.`);
+  }
+
+  const entries = Array.from({ length: count }, (_, i) => ({
+    userId: user.id,
+    source: 'manual',
+    name: `Available Contact ${i + 1}`,
+    email: `available${i + 1}@example.com`,
+    company: i % 2 === 0 ? 'Company A' : 'Company B',
+    activeContactId: null,
+  }));
+
+  await db.insert(schema.directory).values(entries);
+}

@@ -5,6 +5,7 @@ import {
   clearDatabase,
   seedTestUser,
   seedTestContacts,
+  seedTestDirectory,
 } from '../helpers/database';
 import { createTestToken } from '../helpers/jwt';
 import type { DatabaseClient } from '../../src/database/client';
@@ -546,6 +547,304 @@ describe('Contacts API', () => {
         );
         expect(response.status).toBe(404);
       }
+    });
+  });
+
+  describe('GET /rpc/contacts/search/managed', () => {
+    beforeEach(async () => {
+      await seedTestContacts(db, 'user-1', 5);
+      await seedTestContacts(db, 'user-2', 3);
+    });
+
+    it('should search contacts by name', async () => {
+      const response = await fetch(
+        `${server.url}/rpc/contacts/search/managed?query=Contact%202`,
+        {
+          headers: {
+            Authorization: `Bearer ${user1Token}`,
+          },
+        }
+      );
+
+      expect(response.status).toBe(200);
+
+      const results = await response.json();
+      expect(results).toHaveLength(1);
+      expect(results[0].name).toContain('Contact 2');
+    });
+
+    it('should search contacts by email', async () => {
+      const response = await fetch(
+        `${server.url}/rpc/contacts/search/managed?query=contact3%40example.com`,
+        {
+          headers: {
+            Authorization: `Bearer ${user1Token}`,
+          },
+        }
+      );
+
+      expect(response.status).toBe(200);
+
+      const results = await response.json();
+      expect(results).toHaveLength(1);
+      expect(results[0].email).toContain('contact3@example.com');
+    });
+
+    it('should support pagination in search results', async () => {
+      const response1 = await fetch(
+        `${server.url}/rpc/contacts/search/managed?query=Contact&limit=2&offset=0`,
+        {
+          headers: {
+            Authorization: `Bearer ${user1Token}`,
+          },
+        }
+      );
+
+      const page1 = await response1.json();
+      expect(page1.length).toBeLessThanOrEqual(2);
+
+      const response2 = await fetch(
+        `${server.url}/rpc/contacts/search/managed?query=Contact&limit=2&offset=2`,
+        {
+          headers: {
+            Authorization: `Bearer ${user1Token}`,
+          },
+        }
+      );
+
+      const page2 = await response2.json();
+      // Results should be different or second page should be smaller
+      if (page1.length === 2 && page2.length > 0) {
+        expect(page1[0].id).not.toBe(page2[0].id);
+      }
+    });
+
+    it('should return empty results for non-matching query', async () => {
+      const response = await fetch(
+        `${server.url}/rpc/contacts/search/managed?query=NonExistent`,
+        {
+          headers: {
+            Authorization: `Bearer ${user1Token}`,
+          },
+        }
+      );
+
+      expect(response.status).toBe(200);
+
+      const results = await response.json();
+      expect(results).toHaveLength(0);
+    });
+
+    it('should enforce user isolation in search', async () => {
+      const response = await fetch(
+        `${server.url}/rpc/contacts/search/managed?query=Contact`,
+        {
+          headers: {
+            Authorization: `Bearer ${user2Token}`,
+          },
+        }
+      );
+
+      expect(response.status).toBe(200);
+
+      const results = await response.json();
+      // User-2 should only see their own contacts (3 total)
+      expect(results.length).toBeLessThanOrEqual(3);
+    });
+
+    it('should reject empty query string', async () => {
+      const response = await fetch(
+        `${server.url}/rpc/contacts/search/managed?query=`,
+        {
+          headers: {
+            Authorization: `Bearer ${user1Token}`,
+          },
+        }
+      );
+
+      expect(response.status).toBe(400); // Validation error
+    });
+  });
+
+  describe('GET /rpc/contacts/available', () => {
+    beforeEach(async () => {
+      await seedTestDirectory(db, 'user-1', 8);
+      await seedTestDirectory(db, 'user-2', 4);
+    });
+
+    it('should list available contacts from directory', async () => {
+      const response = await fetch(`${server.url}/rpc/contacts/available`, {
+        headers: {
+          Authorization: `Bearer ${user1Token}`,
+        },
+      });
+
+      expect(response.status).toBe(200);
+
+      const available = await response.json();
+      expect(available.length).toBeGreaterThan(0);
+      // Verify all entries have activeContactId as null
+      available.forEach((entry: any) => {
+        expect(entry.activeContactId).toBeNull();
+      });
+    });
+
+    it('should support pagination for available contacts', async () => {
+      const response1 = await fetch(
+        `${server.url}/rpc/contacts/available?limit=3&offset=0`,
+        {
+          headers: {
+            Authorization: `Bearer ${user1Token}`,
+          },
+        }
+      );
+
+      const page1 = await response1.json();
+      expect(page1.length).toBeLessThanOrEqual(3);
+
+      const response2 = await fetch(
+        `${server.url}/rpc/contacts/available?limit=3&offset=3`,
+        {
+          headers: {
+            Authorization: `Bearer ${user1Token}`,
+          },
+        }
+      );
+
+      const page2 = await response2.json();
+      if (page1.length === 3 && page2.length > 0) {
+        expect(page1[0].id).not.toBe(page2[0].id);
+      }
+    });
+
+    it('should enforce user isolation for available contacts', async () => {
+      const response1 = await fetch(`${server.url}/rpc/contacts/available`, {
+        headers: {
+          Authorization: `Bearer ${user1Token}`,
+        },
+      });
+
+      const user1Available = await response1.json();
+
+      const response2 = await fetch(`${server.url}/rpc/contacts/available`, {
+        headers: {
+          Authorization: `Bearer ${user2Token}`,
+        },
+      });
+
+      const user2Available = await response2.json();
+
+      // User-1 should have 8, user-2 should have 4
+      expect(user1Available.length).toBe(8);
+      expect(user2Available.length).toBe(4);
+    });
+  });
+
+  describe('GET /rpc/contacts/search/available', () => {
+    beforeEach(async () => {
+      await seedTestDirectory(db, 'user-1', 6);
+      await seedTestDirectory(db, 'user-2', 3);
+    });
+
+    it('should search available contacts by name', async () => {
+      const response = await fetch(
+        `${server.url}/rpc/contacts/search/available?query=Available%20Contact%202`,
+        {
+          headers: {
+            Authorization: `Bearer ${user1Token}`,
+          },
+        }
+      );
+
+      expect(response.status).toBe(200);
+
+      const results = await response.json();
+      expect(results.length).toBeGreaterThan(0);
+      results.forEach((entry: any) => {
+        expect(entry.name).toContain('Available Contact 2');
+      });
+    });
+
+    it('should search available contacts by company', async () => {
+      const response = await fetch(
+        `${server.url}/rpc/contacts/search/available?query=Company%20A`,
+        {
+          headers: {
+            Authorization: `Bearer ${user1Token}`,
+          },
+        }
+      );
+
+      expect(response.status).toBe(200);
+
+      const results = await response.json();
+      expect(results.length).toBeGreaterThan(0);
+      results.forEach((entry: any) => {
+        expect(entry.company).toBe('Company A');
+      });
+    });
+
+    it('should support pagination in available search', async () => {
+      const response1 = await fetch(
+        `${server.url}/rpc/contacts/search/available?query=Available&limit=2&offset=0`,
+        {
+          headers: {
+            Authorization: `Bearer ${user1Token}`,
+          },
+        }
+      );
+
+      const page1 = await response1.json();
+      expect(page1.length).toBeLessThanOrEqual(2);
+
+      const response2 = await fetch(
+        `${server.url}/rpc/contacts/search/available?query=Available&limit=2&offset=2`,
+        {
+          headers: {
+            Authorization: `Bearer ${user1Token}`,
+          },
+        }
+      );
+
+      const page2 = await response2.json();
+      if (page1.length === 2 && page2.length > 0) {
+        expect(page1[0].id).not.toBe(page2[0].id);
+      }
+    });
+
+    it('should only return available (non-promoted) contacts', async () => {
+      const response = await fetch(
+        `${server.url}/rpc/contacts/search/available?query=Available`,
+        {
+          headers: {
+            Authorization: `Bearer ${user1Token}`,
+          },
+        }
+      );
+
+      expect(response.status).toBe(200);
+
+      const results = await response.json();
+      results.forEach((entry: any) => {
+        expect(entry.activeContactId).toBeNull();
+      });
+    });
+
+    it('should enforce user isolation in available search', async () => {
+      const response = await fetch(
+        `${server.url}/rpc/contacts/search/available?query=Available`,
+        {
+          headers: {
+            Authorization: `Bearer ${user2Token}`,
+          },
+        }
+      );
+
+      expect(response.status).toBe(200);
+
+      const results = await response.json();
+      // User-2 should only see their own available contacts (max 3)
+      expect(results.length).toBeLessThanOrEqual(3);
     });
   });
 });
