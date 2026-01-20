@@ -1,0 +1,25 @@
+{
+  "name": "@orbital/client",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Type-safe OpenAPI TypeScript client generated from Orbital backend",
+  "exports": {
+    ".": "./src/index.ts",
+    "./api": "./src/generated/client.ts",
+    "./types": "./src/generated/types.ts"
+  },
+  "scripts": {
+    "gen:client": "orval --config orval.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@orbital/types": "workspace:*",
+    "neverthrow": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.7",
+    "orval": "^8.0.2",
+    "typescript": "^5.3.3"
+  }
+}

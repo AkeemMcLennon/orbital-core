@@ -6,6 +6,9 @@
     "packages/*"
   ],
   "scripts": {
+    "gen:openapi": "bun run --filter='@orbital/backend' openapi:generate",
+    "gen:client": "bun run --filter='@orbital/client' gen:client",
+    "gen": "bun run gen:openapi && bun run gen:client",
     "dev:backend": "bun run --filter='@orbital/backend' dev",
     "build:backend": "bun run --filter='@orbital/backend' build",
     "deploy:backend": "bun run --filter='@orbital/backend' deploy",
@@ -13,7 +16,7 @@
     "db:migrate:local": "bun run --filter='@orbital/backend' db:migrate:local",
     "db:migrate:d1": "bun run --filter='@orbital/backend' db:migrate:d1",
     "db:studio": "bun run --filter='@orbital/backend' db:studio",
-    "test": "bun run --filter='@orbital/backend' test",
+    "test": "bun run gen:openapi && bun run gen:client && bun run --filter='@orbital/backend' test",
     "typecheck": "bun run --filter='./packages/*' typecheck",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,json,md}\""
@@ -21,6 +24,7 @@
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
+    "ajv": "^8.17.1",
     "eslint": "^8.56.0",
     "prettier": "^3.2.5",
     "typescript": "^5.3.3"

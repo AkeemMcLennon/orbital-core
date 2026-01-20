@@ -1,0 +1,13 @@
+# Generated files - must be regenerated from OpenAPI spec
+src/generated/**
+!src/generated/.gitkeep
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Dependencies
+node_modules/
+
+# OS
+.DS_Store

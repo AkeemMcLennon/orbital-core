@@ -5,11 +5,53 @@ import { authProc } from "../middleware/auth";
 import { ORPCError } from "@orpc/server";
 import { base58IdSchema } from "@orbital/utils";
 
+// Helper for date fields that can be Date objects or ISO strings
+const dateField = () =>
+  z
+    .union([z.date(), z.string().datetime()])
+    .transform((val) => (val instanceof Date ? val.toISOString() : val));
+
+// Shared output schemas
+const ContactOutputSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  name: z.string(),
+  email: z.string().nullable(),
+  phone: z.string().nullable(),
+  avatarUrl: z.string().nullable(),
+  jobTitle: z.string().nullable(),
+  company: z.string().nullable(),
+  notes: z.string().nullable(),
+  group: z.enum(["work", "personal"]).nullable(),
+  lastInteractionAt: dateField().nullable(),
+  createdAt: dateField(),
+  updatedAt: dateField(),
+});
+
+const DirectoryEntryOutputSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  name: z.string(),
+  email: z.string().nullable(),
+  phone: z.string().nullable(),
+  avatarUrl: z.string().nullable(),
+  company: z.string().nullable(),
+  source: z.string(),
+  externalId: z.string().nullable(),
+  activeContactId: z.string().nullable(),
+  rawMetadata: z.any().nullable(),
+});
+
 /**
  * List contacts with optional filtering
  */
 export const listContacts = authProc
-  .route({ method: "GET", path: "/contacts" })
+  .route({
+    method: "GET",
+    path: "/contacts",
+    summary: "List contacts",
+    operationId: "getContacts",
+  })
   .input(
     z.object({
       group: z.string().optional(),
@@ -17,6 +59,7 @@ export const listContacts = authProc
       offset: z.coerce.number().int().nonnegative().default(0),
     }),
   )
+  .output(z.array(ContactOutputSchema))
   .handler(async ({ input, context }) => {
     const { db, user } = context;
     const conditions: SQL[] = [eq(contacts.userId, user.id) as SQL];
@@ -42,8 +85,14 @@ export const listContacts = authProc
  * Get a single contact by ID
  */
 export const getContact = authProc
-  .route({ method: "GET", path: "/contacts/{id}" })
+  .route({
+    method: "GET",
+    path: "/contacts/{id}",
+    summary: "Get contact by ID",
+    operationId: "getContactById",
+  })
   .input(z.object({ id: base58IdSchema }))
+  .output(ContactOutputSchema)
   .handler(async ({ input, context }) => {
     const { db, user } = context;
 
@@ -69,7 +118,12 @@ export const getContact = authProc
  * Create a new contact
  */
 export const createContact = authProc
-  .route({ method: "POST", path: "/contacts" })
+  .route({
+    method: "POST",
+    path: "/contacts",
+    summary: "Create contact",
+    operationId: "createContact",
+  })
   .input(
     z.object({
       name: z.string().min(1),
@@ -82,6 +136,7 @@ export const createContact = authProc
       group: z.string().optional(),
     }),
   )
+  .output(ContactOutputSchema)
   .handler(async ({ input, context }) => {
     const { db, user } = context;
 
@@ -107,7 +162,12 @@ export const createContact = authProc
  * Update an existing contact
  */
 export const updateContact = authProc
-  .route({ method: "PUT", path: "/contacts/{id}" })
+  .route({
+    method: "PUT",
+    path: "/contacts/{id}",
+    summary: "Update contact",
+    operationId: "updateContact",
+  })
   .input(
     z.object({
       id: base58IdSchema,
@@ -121,6 +181,7 @@ export const updateContact = authProc
       group: z.string().optional(),
     }),
   )
+  .output(ContactOutputSchema)
   .handler(async ({ input, context }) => {
     const { db, user } = context;
 
@@ -160,19 +221,20 @@ export const updateContact = authProc
  * Delete a contact
  */
 export const deleteContact = authProc
-  .route({ method: "DELETE", path: "/contacts/{id}" })
+  .route({
+    method: "DELETE",
+    path: "/contacts/{id}",
+    summary: "Delete contact",
+    operationId: "deleteContact",
+  })
   .input(z.object({ id: base58IdSchema }))
+  .output(z.object({ success: z.boolean() }))
   .handler(async ({ input, context }) => {
     const { db, user } = context;
 
     const result = await db
       .delete(contacts)
-      .where(
-        and(
-          eq(contacts.id, input.id) as SQL,
-          eq(contacts.userId, user.id) as SQL,
-        ),
-      )
+      .where(and(eq(contacts.id, input.id), eq(contacts.userId, user.id)))
       .returning();
 
     if (!result || result.length === 0) {
@@ -186,7 +248,12 @@ export const deleteContact = authProc
  * Search for contacts in managed contacts by name, email, or company
  */
 export const searchContacts = authProc
-  .route({ method: "GET", path: "/contacts/search/managed" })
+  .route({
+    method: "GET",
+    path: "/contacts/search/managed",
+    summary: "Search contacts",
+    operationId: "searchContacts",
+  })
   .input(
     z.object({
       query: z.string().min(1),
@@ -194,6 +261,7 @@ export const searchContacts = authProc
       offset: z.coerce.number().int().nonnegative().default(0),
     }),
   )
+  .output(z.array(ContactOutputSchema))
   .handler(async ({ input, context }) => {
     const { db, user } = context;
     const queryPattern = `%${input.query}%`;
@@ -222,13 +290,19 @@ export const searchContacts = authProc
  * List available contacts (from directory, not yet promoted)
  */
 export const listAvailable = authProc
-  .route({ method: "GET", path: "/contacts/available" })
+  .route({
+    method: "GET",
+    path: "/contacts/available",
+    summary: "List available contacts",
+    operationId: "getAvailableContacts",
+  })
   .input(
     z.object({
       limit: z.coerce.number().int().positive().max(100).default(50),
       offset: z.coerce.number().int().nonnegative().default(0),
     }),
   )
+  .output(z.array(DirectoryEntryOutputSchema))
   .handler(async ({ input, context }) => {
     const { db, user } = context;
 
@@ -236,10 +310,7 @@ export const listAvailable = authProc
       .select()
       .from(directory)
       .where(
-        and(
-          eq(directory.userId, user.id),
-          isNull(directory.activeContactId),
-        ),
+        and(eq(directory.userId, user.id), isNull(directory.activeContactId)),
       )
       .orderBy(desc(directory.id))
       .limit(input.limit)
@@ -252,7 +323,12 @@ export const listAvailable = authProc
  * Search for contacts in available contacts (directory)
  */
 export const searchAvailable = authProc
-  .route({ method: "GET", path: "/contacts/search/available" })
+  .route({
+    method: "GET",
+    path: "/contacts/search/available",
+    summary: "Search available contacts",
+    operationId: "searchAvailableContacts",
+  })
   .input(
     z.object({
       query: z.string().min(1),
@@ -260,6 +336,7 @@ export const searchAvailable = authProc
       offset: z.coerce.number().int().nonnegative().default(0),
     }),
   )
+  .output(z.array(DirectoryEntryOutputSchema))
   .handler(async ({ input, context }) => {
     const { db, user } = context;
     const queryPattern = `%${input.query}%`;
