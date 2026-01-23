@@ -1,0 +1,9 @@
+dist
+build
+.react-router
+node_modules
+.git
+.gitignore
+.prettierignore
+*.pem
+public
