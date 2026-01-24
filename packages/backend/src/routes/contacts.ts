@@ -1,9 +1,20 @@
-import { eq, and, desc, or, like, isNull, sql, type SQL } from "drizzle-orm";
+import {
+  eq,
+  and,
+  asc,
+  desc,
+  or,
+  like,
+  isNull,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import * as z from "zod";
 import { contacts, directory } from "../database/schema";
 import { authProc } from "../middleware/auth";
 import { ORPCError } from "@orpc/server";
 import { base58IdSchema } from "@orbital/utils";
+import { PaginationInputSchema, paginatedSchema } from "../utils/pagination";
 
 // Helper for date fields that can be Date objects or ISO strings
 const dateField = () =>
@@ -53,14 +64,12 @@ export const listContacts = authProc
     operationId: "getContacts",
   })
   .input(
-    z.object({
+    PaginationInputSchema.extend({
       group: z.string().optional(),
-      sort: z.enum(["createdAt", "lastInteractionAt"]).optional(),
-      limit: z.coerce.number().int().positive().max(100).default(50),
-      offset: z.coerce.number().int().nonnegative().default(0),
+      sort: z.enum(["date", "name"]).optional().default("date"),
     }),
   )
-  .output(z.array(ContactOutputSchema))
+  .output(paginatedSchema(ContactOutputSchema))
   .handler(async ({ input, context }) => {
     const { db, user } = context;
     const conditions: SQL[] = [eq(contacts.userId, user.id) as SQL];
@@ -70,24 +79,33 @@ export const listContacts = authProc
         eq(contacts.group, input.group as "work" | "personal") as SQL,
       );
     }
-
-    const results = await db
-      .select()
-      .from(contacts)
-      .where(and(...conditions))
-      .orderBy(
-        input.sort === "createdAt"
-          ? desc(contacts.createdAt)
-          : input.sort === "lastInteractionAt"
-            ? desc(contacts.lastInteractionAt)
+    const [results, countResult] = await Promise.all([
+      db
+        .select()
+        .from(contacts)
+        .where(and(...conditions))
+        .orderBy(
+          input.sort === "name"
+            ? asc(contacts.createdAt)
             : desc(
                 sql`COALESCE(${contacts.lastInteractionAt}, ${contacts.createdAt})`,
               ),
-      )
-      .limit(input.limit)
-      .offset(input.offset);
+        )
+        .limit(input.limit)
+        .offset(input.offset),
+      db.$count(contacts, and(...conditions)),
+    ]);
 
-    return results;
+    const total = countResult ?? 0;
+
+    return {
+      items: results,
+      pagination: {
+        total,
+        limit: input.limit,
+        offset: input.offset,
+      },
+    };
   });
 
 /**
@@ -264,35 +282,44 @@ export const searchContacts = authProc
     operationId: "searchContacts",
   })
   .input(
-    z.object({
+    PaginationInputSchema.extend({
       query: z.string().min(1),
-      limit: z.coerce.number().int().positive().max(100).default(50),
-      offset: z.coerce.number().int().nonnegative().default(0),
     }),
   )
-  .output(z.array(ContactOutputSchema))
+  .output(paginatedSchema(ContactOutputSchema))
   .handler(async ({ input, context }) => {
     const { db, user } = context;
     const queryPattern = `%${input.query}%`;
+    const whereClause = and(
+      eq(contacts.userId, user.id),
+      or(
+        like(contacts.name, queryPattern),
+        like(contacts.email, queryPattern),
+        like(contacts.company, queryPattern),
+      ) as SQL,
+    );
 
-    const results = await db
-      .select()
-      .from(contacts)
-      .where(
-        and(
-          eq(contacts.userId, user.id),
-          or(
-            like(contacts.name, queryPattern),
-            like(contacts.email, queryPattern),
-            like(contacts.company, queryPattern),
-          ) as SQL,
-        ),
-      )
-      .orderBy(desc(contacts.updatedAt))
-      .limit(input.limit)
-      .offset(input.offset);
+    const [results, countResult] = await Promise.all([
+      db
+        .select()
+        .from(contacts)
+        .where(whereClause)
+        .orderBy(desc(contacts.updatedAt))
+        .limit(input.limit)
+        .offset(input.offset),
+      db.$count(contacts, whereClause),
+    ]);
 
-    return results;
+    const total = countResult ?? 0;
+
+    return {
+      items: results,
+      pagination: {
+        total,
+        limit: input.limit,
+        offset: input.offset,
+      },
+    };
   });
 
 /**
@@ -305,27 +332,36 @@ export const listAvailable = authProc
     summary: "List available contacts",
     operationId: "getAvailableContacts",
   })
-  .input(
-    z.object({
-      limit: z.coerce.number().int().positive().max(100).default(50),
-      offset: z.coerce.number().int().nonnegative().default(0),
-    }),
-  )
-  .output(z.array(DirectoryEntryOutputSchema))
+  .input(PaginationInputSchema)
+  .output(paginatedSchema(DirectoryEntryOutputSchema))
   .handler(async ({ input, context }) => {
     const { db, user } = context;
+    const whereClause = and(
+      eq(directory.userId, user.id),
+      isNull(directory.activeContactId),
+    );
 
-    const results = await db
-      .select()
-      .from(directory)
-      .where(
-        and(eq(directory.userId, user.id), isNull(directory.activeContactId)),
-      )
-      .orderBy(desc(directory.id))
-      .limit(input.limit)
-      .offset(input.offset);
+    const [results, countResult] = await Promise.all([
+      db
+        .select()
+        .from(directory)
+        .where(whereClause)
+        .orderBy(desc(directory.id))
+        .limit(input.limit)
+        .offset(input.offset),
+      db.$count(directory, whereClause),
+    ]);
 
-    return results;
+    const total = countResult ?? 0;
+
+    return {
+      items: results,
+      pagination: {
+        total,
+        limit: input.limit,
+        offset: input.offset,
+      },
+    };
   });
 
 /**
@@ -339,36 +375,45 @@ export const searchAvailable = authProc
     operationId: "searchAvailableContacts",
   })
   .input(
-    z.object({
+    PaginationInputSchema.extend({
       query: z.string().min(1),
-      limit: z.coerce.number().int().positive().max(100).default(50),
-      offset: z.coerce.number().int().nonnegative().default(0),
     }),
   )
-  .output(z.array(DirectoryEntryOutputSchema))
+  .output(paginatedSchema(DirectoryEntryOutputSchema))
   .handler(async ({ input, context }) => {
     const { db, user } = context;
     const queryPattern = `%${input.query}%`;
+    const whereClause = and(
+      eq(directory.userId, user.id),
+      isNull(directory.activeContactId),
+      or(
+        like(directory.name, queryPattern),
+        like(directory.email, queryPattern),
+        like(directory.company, queryPattern),
+      ) as SQL,
+    );
 
-    const results = await db
-      .select()
-      .from(directory)
-      .where(
-        and(
-          eq(directory.userId, user.id),
-          isNull(directory.activeContactId),
-          or(
-            like(directory.name, queryPattern),
-            like(directory.email, queryPattern),
-            like(directory.company, queryPattern),
-          ) as SQL,
-        ),
-      )
-      .orderBy(desc(directory.id))
-      .limit(input.limit)
-      .offset(input.offset);
+    const [results, countResult] = await Promise.all([
+      db
+        .select()
+        .from(directory)
+        .where(whereClause)
+        .orderBy(desc(directory.id))
+        .limit(input.limit)
+        .offset(input.offset),
+      db.$count(directory, whereClause),
+    ]);
 
-    return results;
+    const total = countResult ?? 0;
+
+    return {
+      items: results,
+      pagination: {
+        total,
+        limit: input.limit,
+        offset: input.offset,
+      },
+    };
   });
 
 /**

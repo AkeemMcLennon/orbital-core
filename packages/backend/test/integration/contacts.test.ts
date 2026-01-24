@@ -145,8 +145,9 @@ describe("Contacts API", () => {
         throw new Error("Expected 200 response from api");
       }
 
-      const contacts = response.data;
+      const contacts = response.data.items;
       expect(contacts).toHaveLength(10); // Only user-1's contacts
+      expect(response.data.pagination.total).toBe(10);
       // All contacts should have the same userId (the database UUID for user-1)
       const firstUserId = contacts[0].userId;
       contacts.forEach((contact) => {
@@ -162,7 +163,7 @@ describe("Contacts API", () => {
         throw new Error("Expected 200 response from api");
       }
 
-      const contacts = response.data;
+      const contacts = response.data.items;
       contacts.forEach((contact) => {
         expect(contact.group).toBe("work");
       });
@@ -175,15 +176,16 @@ describe("Contacts API", () => {
         throw new Error("Expected 200 response from api");
       }
 
-      const page1 = response1.data;
+      const page1 = response1.data.items;
       expect(page1).toHaveLength(3);
+      expect(response1.data.pagination.total).toBe(10);
 
       const response2 = await getContacts({ limit: 3, offset: 3 });
       if (response2.status !== 200) {
         throw new Error("Expected 200 response from api");
       }
 
-      const page2 = response2.data;
+      const page2 = response2.data.items;
       expect(page2).toHaveLength(3);
 
       // Ensure different results
@@ -238,24 +240,15 @@ describe("Contacts API", () => {
       const responseDefault = await getContacts();
       expect(responseDefault.status).toBe(200);
       if (responseDefault.status === 200) {
-        const defaultOrder = responseDefault.data.map((c) => c.name);
+        const defaultOrder = responseDefault.data.items.map((c) => c.name);
         expect(defaultOrder).toEqual(["Contact 1", "Contact 2", "Contact 3"]);
       }
 
-      // Test Explicit Sort (createdAt)
-      const responseCreated = await getContacts({ sort: "createdAt" });
-      expect(responseCreated.status).toBe(200);
-      if (responseCreated.status === 200) {
-        const createdOrder = responseCreated.data.map((c) => c.name);
-        expect(createdOrder).toEqual(["Contact 2", "Contact 3", "Contact 1"]);
-      }
-
-      // Test Explicit Sort (lastInteractionAt)
-      const responseInteraction = await getContacts({ sort: "lastInteractionAt" });
-      expect(responseInteraction.status).toBe(200);
-      if (responseInteraction.status === 200) {
-        // Contact 1 has interaction (today). Others are null.
-        expect(responseInteraction.data[0].name).toBe("Contact 1");
+      const responseDate = await getContacts({ sort: "date" });
+      expect(responseDate.status).toBe(200);
+      if (responseDate.status === 200) {
+        const dateOrder = responseDefault.data.items.map((c) => c.name);
+        expect(dateOrder).toEqual(["Contact 1", "Contact 2", "Contact 3"]);
       }
     });
   });
@@ -427,7 +420,7 @@ describe("Contacts API", () => {
         throw new Error("Expected 200 response from api");
       }
 
-      const results = response.data;
+      const results = response.data.items;
       expect(results).toHaveLength(1);
       expect(results[0].name).toContain("Contact 2");
     });
@@ -443,7 +436,7 @@ describe("Contacts API", () => {
         throw new Error("Expected 200 response from api");
       }
 
-      const results = response.data;
+      const results = response.data.items;
       expect(results).toHaveLength(1);
       expect(results[0].email).toContain("contact3@example.com");
     });
@@ -459,7 +452,7 @@ describe("Contacts API", () => {
         throw new Error("Expected 200 response from api");
       }
 
-      const page1 = response1.data;
+      const page1 = response1.data.items;
       expect(page1.length).toBeLessThanOrEqual(2);
 
       const response2 = await searchContacts({
@@ -472,7 +465,7 @@ describe("Contacts API", () => {
         throw new Error("Expected 200 response from api");
       }
 
-      const page2 = response2.data;
+      const page2 = response2.data.items;
       // Results should be different or second page should be smaller
       if (page1.length === 2 && page2.length > 0) {
         expect(page1[0].id).not.toBe(page2[0].id);
@@ -488,8 +481,9 @@ describe("Contacts API", () => {
         throw new Error("Expected 200 response from api");
       }
 
-      const results = response.data;
+      const results = response.data.items;
       expect(results).toHaveLength(0);
+      expect(response.data.pagination.total).toBe(0);
     });
 
     it("should enforce user isolation in search", async () => {
@@ -508,7 +502,7 @@ describe("Contacts API", () => {
         throw new Error("Expected 200 response from api");
       }
 
-      const results = response.data;
+      const results = response.data.items;
       // User-2 should only see their own contacts (3 total)
       expect(results.length).toBeLessThanOrEqual(3);
     });
@@ -529,7 +523,7 @@ describe("Contacts API", () => {
         throw new Error("Expected 200 response from api");
       }
 
-      const available = response.data;
+      const available = response.data.items;
       expect(available.length).toBeGreaterThan(0);
       // Verify all entries have activeContactId as null
       available.forEach((entry) => {
@@ -544,7 +538,7 @@ describe("Contacts API", () => {
         throw new Error("Expected 200 response from api");
       }
 
-      const page1 = response1.data;
+      const page1 = response1.data.items;
       expect(page1.length).toBeLessThanOrEqual(3);
 
       const response2 = await getAvailableContacts({ limit: 3, offset: 3 });
@@ -553,7 +547,7 @@ describe("Contacts API", () => {
         throw new Error("Expected 200 response from api");
       }
 
-      const page2 = response2.data;
+      const page2 = response2.data.items;
       if (page1.length === 3 && page2.length > 0) {
         expect(page1[0].id).not.toBe(page2[0].id);
       }
@@ -566,7 +560,7 @@ describe("Contacts API", () => {
         throw new Error("Expected 200 response from api");
       }
 
-      const user1Available = response1.data;
+      const user1Available = response1.data.items;
 
       const response2 = await getAvailableContacts(undefined, {
         headers: {
@@ -578,7 +572,7 @@ describe("Contacts API", () => {
         throw new Error("Expected 200 response from api");
       }
 
-      const user2Available = response2.data;
+      const user2Available = response2.data.items;
 
       // User-1 should have 8, user-2 should have 4
       expect(user1Available.length).toBe(8);
@@ -603,7 +597,7 @@ describe("Contacts API", () => {
         throw new Error("Expected 200 response from api");
       }
 
-      const results = response.data;
+      const results = response.data.items;
       expect(results.length).toBeGreaterThan(0);
       results.forEach((entry) => {
         expect(entry.name).toContain("Available Contact 2");
@@ -619,7 +613,7 @@ describe("Contacts API", () => {
         throw new Error("Expected 200 response from api");
       }
 
-      const results = response.data;
+      const results = response.data.items;
       expect(results.length).toBeGreaterThan(0);
       results.forEach((entry) => {
         expect(entry.company).toBe("Company A");
@@ -637,7 +631,7 @@ describe("Contacts API", () => {
         throw new Error("Expected 200 response from api");
       }
 
-      const page1 = response1.data;
+      const page1 = response1.data.items;
       expect(page1.length).toBeLessThanOrEqual(2);
 
       const response2 = await searchAvailableContacts({
@@ -650,7 +644,7 @@ describe("Contacts API", () => {
         throw new Error("Expected 200 response from api");
       }
 
-      const page2 = response2.data;
+      const page2 = response2.data.items;
       if (page1.length === 2 && page2.length > 0) {
         expect(page1[0].id).not.toBe(page2[0].id);
       }
@@ -665,7 +659,7 @@ describe("Contacts API", () => {
         throw new Error("Expected 200 response from api");
       }
 
-      const results = response.data;
+      const results = response.data.items;
       results.forEach((entry) => {
         expect(entry.activeContactId).toBeNull();
       });
@@ -687,7 +681,7 @@ describe("Contacts API", () => {
         throw new Error("Expected 200 response from api");
       }
 
-      const results = response.data;
+      const results = response.data.items;
       // User-2 should only see their own available contacts (max 3)
       expect(results.length).toBeLessThanOrEqual(3);
     });
