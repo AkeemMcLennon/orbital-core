@@ -19,6 +19,7 @@ import {
   expect,
   it,
 } from "bun:test";
+import { eq } from "drizzle-orm";
 import { loadSettings } from "../../src/config";
 import type { DatabaseClient } from "../../src/database/client";
 import * as schema from "../../src/database/schema";
@@ -188,6 +189,75 @@ describe("Contacts API", () => {
       // Ensure different results
       expect(page1[0].id).not.toBe(page2[0].id);
     });
+
+    it("should sort contacts by lastInteractionAt falling back to createdAt by default", async () => {
+      // Clear existing contacts to have a clean slate for this test
+      await backend.clearDatabase(db, { schema });
+      await backend.seedTestUser(db, "user-1", { schema });
+
+      // Get user ID
+      const [user] = await db
+        .select()
+        .from(schema.users)
+        .where(eq(schema.users.externalId, "user-1"))
+        .limit(1);
+
+      const now = new Date();
+      const oneDayAgo = new Date(now.getTime() - 86400000);
+      const twoDaysAgo = new Date(now.getTime() - 86400000 * 2);
+      const threeDaysAgo = new Date(now.getTime() - 86400000 * 3);
+
+      // Contact 1: Created 3 days ago, Interaction Today (Effective: Today)
+      await db.insert(schema.contacts).values({
+        userId: user.id,
+        name: "Contact 1",
+        createdAt: threeDaysAgo,
+        updatedAt: threeDaysAgo,
+        lastInteractionAt: now,
+      });
+
+      // Contact 2: Created Yesterday, No Interaction (Effective: Yesterday)
+      await db.insert(schema.contacts).values({
+        userId: user.id,
+        name: "Contact 2",
+        createdAt: oneDayAgo,
+        updatedAt: oneDayAgo,
+        lastInteractionAt: null,
+      });
+
+      // Contact 3: Created 2 days ago, No Interaction (Effective: 2 days ago)
+      await db.insert(schema.contacts).values({
+        userId: user.id,
+        name: "Contact 3",
+        createdAt: twoDaysAgo,
+        updatedAt: twoDaysAgo,
+        lastInteractionAt: null,
+      });
+
+      // Test Default Sort (Recency)
+      const responseDefault = await getContacts();
+      expect(responseDefault.status).toBe(200);
+      if (responseDefault.status === 200) {
+        const defaultOrder = responseDefault.data.map((c) => c.name);
+        expect(defaultOrder).toEqual(["Contact 1", "Contact 2", "Contact 3"]);
+      }
+
+      // Test Explicit Sort (createdAt)
+      const responseCreated = await getContacts({ sort: "createdAt" });
+      expect(responseCreated.status).toBe(200);
+      if (responseCreated.status === 200) {
+        const createdOrder = responseCreated.data.map((c) => c.name);
+        expect(createdOrder).toEqual(["Contact 2", "Contact 3", "Contact 1"]);
+      }
+
+      // Test Explicit Sort (lastInteractionAt)
+      const responseInteraction = await getContacts({ sort: "lastInteractionAt" });
+      expect(responseInteraction.status).toBe(200);
+      if (responseInteraction.status === 200) {
+        // Contact 1 has interaction (today). Others are null.
+        expect(responseInteraction.data[0].name).toBe("Contact 1");
+      }
+    });
   });
 
   describe("GET /rpc/contacts/{id}", () => {
@@ -333,7 +403,6 @@ describe("Contacts API", () => {
           Authorization: `Bearer ${user2Token}`,
         },
       });
-      console.log(response);
       expect(response.status).toBe(404);
 
       // Verify contact still exists for user-1

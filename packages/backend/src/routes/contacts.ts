@@ -1,4 +1,4 @@
-import { eq, and, desc, or, like, isNull, type SQL } from "drizzle-orm";
+import { eq, and, desc, or, like, isNull, sql, type SQL } from "drizzle-orm";
 import * as z from "zod";
 import { contacts, directory } from "../database/schema";
 import { authProc } from "../middleware/auth";
@@ -55,6 +55,7 @@ export const listContacts = authProc
   .input(
     z.object({
       group: z.string().optional(),
+      sort: z.enum(["createdAt", "lastInteractionAt"]).optional(),
       limit: z.coerce.number().int().positive().max(100).default(50),
       offset: z.coerce.number().int().nonnegative().default(0),
     }),
@@ -74,7 +75,15 @@ export const listContacts = authProc
       .select()
       .from(contacts)
       .where(and(...conditions))
-      .orderBy(desc(contacts.updatedAt))
+      .orderBy(
+        input.sort === "createdAt"
+          ? desc(contacts.createdAt)
+          : input.sort === "lastInteractionAt"
+            ? desc(contacts.lastInteractionAt)
+            : desc(
+                sql`COALESCE(${contacts.lastInteractionAt}, ${contacts.createdAt})`,
+              ),
+      )
       .limit(input.limit)
       .offset(input.offset);
 
