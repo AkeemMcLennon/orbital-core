@@ -1,5 +1,5 @@
 import { getAuthMe, initializeApiClient } from "@orbital/client";
-import { backend } from "@orbital/testing";
+import { backend, expectError } from "@orbital/testing";
 import {
   createExpiredToken,
   createInvalidAudienceToken,
@@ -89,13 +89,15 @@ describe("Authentication", () => {
         email: "test@example.com",
       });
 
-      const response = await fetch(`${server.url}/rpc/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      await expectError(async () => {
+        const response = await getAuthMe({
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-      expect(response.status).toBe(401);
+        expect(response.status).toBe(401);
+      });
     });
 
     it("should return 401 when issuer is invalid", async () => {
@@ -103,13 +105,15 @@ describe("Authentication", () => {
         sub: "user-123",
       });
 
-      const response = await fetch(`${server.url}/rpc/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      await expectError(async () => {
+        const response = await getAuthMe({
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-      expect(response.status).toBe(401);
+        expect(response.status).toBe(401);
+      });
     });
 
     it("should return 401 when audience is invalid", async () => {
@@ -117,35 +121,41 @@ describe("Authentication", () => {
         sub: "user-123",
       });
 
-      const response = await fetch(`${server.url}/rpc/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      await expectError(async () => {
+        const response = await getAuthMe({
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-      expect(response.status).toBe(401);
+        expect(response.status).toBe(401);
+      });
     });
 
     it("should return 401 with malformed token", async () => {
-      const response = await fetch(`${server.url}/rpc/auth/me`, {
-        headers: {
-          Authorization: "Bearer invalid-token-format",
-        },
-      });
+      await expectError(async () => {
+        const response = await getAuthMe({
+          headers: {
+            Authorization: "Bearer invalid-token-format",
+          },
+        });
 
-      expect(response.status).toBe(401);
+        expect(response.status).toBe(401);
+      });
     });
 
     it("should return 401 without Bearer prefix", async () => {
       const token = await createTestToken({ sub: "user-123" });
 
-      const response = await fetch(`${server.url}/rpc/auth/me`, {
-        headers: {
-          Authorization: token, // Missing "Bearer " prefix
-        },
-      });
+      await expectError(async () => {
+        const response = await getAuthMe({
+          headers: {
+            Authorization: token, // Missing "Bearer " prefix
+          },
+        });
 
-      expect(response.status).toBe(401);
+        expect(response.status).toBe(401);
+      });
     });
   });
 });

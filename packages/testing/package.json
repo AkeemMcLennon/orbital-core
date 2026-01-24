@@ -7,7 +7,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./backend": "./src/backend/index.ts",
-    "./backend/auth": "./src/backend/auth/index.ts"
+    "./backend/auth": "./src/backend/auth/index.ts",
+    "./backend/errors": "./src/backend/errors.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

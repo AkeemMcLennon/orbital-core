@@ -60,7 +60,10 @@ const handler = new OpenAPIHandler(router, {
   ],
   interceptors: [
     onError((error) => {
-      console.error("oRPC Error:", error);
+      // Skip logging errors during tests to reduce console noise
+      if (process.env.NODE_ENV !== 'test') {
+        console.error("oRPC Error:", error);
+      }
     }),
   ],
 });
