@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,40 +6,45 @@ import {
   TextInput,
   Pressable,
   Image,
-  FlatList,
   SafeAreaView,
-  StyleSheet,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useDrawerStatus } from '@react-navigation/drawer';
-import { useNavigation } from '@react-navigation/native';
-import { router } from 'expo-router';
-import { FaceAvatar, TimelineItem, QuizCard } from '../../src/components';
-import { directoryContacts, timelineItems, quizCards } from '../../src/dummy-data';
-import { colors, spacing, borderRadius, shadows } from '../../src/theme';
+  ActivityIndicator,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
+import { getContacts } from "@orbital/client";
+import { FaceAvatar, TimelineItem, QuizCard } from "../../src/components";
+import { timelineItems, quizCards } from "../../src/dummy-data";
+import { colors, spacing, borderRadius, shadows } from "../../src/theme";
 
 export default function DailyOrbitScreen() {
-  const [searchText, setSearchText] = useState('');
+  const [searchText, setSearchText] = useState("");
   const navigation = useNavigation();
 
-  const renderFaceStreamItem = (contact: typeof directoryContacts[0], index: number) => {
-    if (index === 0) {
-      return (
-        <FaceAvatar
-          key={contact.id}
-          name={contact.name}
-          avatar={contact.avatar}
-          isAddButton
-          onPress={() => router.push('/contact-add')}
-        />
-      );
-    }
+  // Fetch contacts from API
+  const {
+    data: contactsData,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["contacts"],
+    queryFn: () => getContacts({ limit: 50, offset: 0, sort: "date" }),
+    throwOnError: false,
+  });
+
+  const contacts = contactsData?.status === 200 ? contactsData.data.items : [];
+
+  const renderFaceStreamItem = (
+    contact: (typeof contacts)[0],
+    index: number,
+  ) => {
+    console.log(`Render ${contact}`);
     return (
       <FaceAvatar
         key={contact.id}
         name={contact.name}
-        avatar={contact.avatar}
-        isNew={contact.isNew}
+        avatar={contact.avatarUrl}
         onPress={() => alert(`Tapped ${contact.name}`)}
       />
     );
@@ -57,9 +62,9 @@ export default function DailyOrbitScreen() {
           style={{
             paddingHorizontal: spacing.lg,
             paddingVertical: spacing.md,
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
           <Pressable onPress={() => (navigation as any).openDrawer()}>
@@ -68,14 +73,16 @@ export default function DailyOrbitScreen() {
           <Text
             style={{
               fontSize: 20,
-              fontWeight: '700',
+              fontWeight: "700",
               color: colors.textMain,
             }}
           >
             Orbital
           </Text>
           <Image
-            source={{ uri: 'https://ui-avatars.com/api/?name=You&background=4F46E5&color=fff' }}
+            source={{
+              uri: "https://ui-avatars.com/api/?name=You&background=4F46E5&color=fff",
+            }}
             style={{
               width: 36,
               height: 36,
@@ -93,8 +100,8 @@ export default function DailyOrbitScreen() {
         >
           <View
             style={{
-              flexDirection: 'row',
-              alignItems: 'center',
+              flexDirection: "row",
+              alignItems: "center",
               backgroundColor: colors.card,
               borderRadius: borderRadius.full,
               paddingHorizontal: spacing.md,
@@ -131,29 +138,54 @@ export default function DailyOrbitScreen() {
               marginLeft: spacing.lg,
               marginBottom: spacing.md,
               fontSize: 14,
-              fontWeight: '600',
+              fontWeight: "600",
               color: colors.textMain,
             }}
           >
             Today's People
           </Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{
-              paddingHorizontal: spacing.lg,
-            }}
-          >
-            <FaceAvatar
-              name="+"
-              avatar=""
-              isAddButton
-              onPress={() => router.push('/contact-add')}
-            />
-            {directoryContacts.map((contact) =>
-              renderFaceStreamItem(contact, directoryContacts.indexOf(contact))
-            )}
-          </ScrollView>
+          {isLoading ? (
+            <View
+              style={{
+                paddingHorizontal: spacing.lg,
+                paddingVertical: spacing.md,
+                justifyContent: "center",
+                alignItems: "center",
+                height: 100,
+              }}
+            >
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          ) : error ? (
+            <View
+              style={{
+                paddingHorizontal: spacing.lg,
+                paddingVertical: spacing.md,
+              }}
+            >
+              <Text style={{ color: colors.error, textAlign: "center" }}>
+                Failed to load contacts. Please check your connection.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{
+                paddingHorizontal: spacing.lg,
+              }}
+            >
+              <FaceAvatar
+                name="+"
+                avatar=""
+                isAddButton
+                onPress={() => router.push("/contact-add")}
+              />
+              {contacts.map((contact) =>
+                renderFaceStreamItem(contact, contacts.indexOf(contact)),
+              )}
+            </ScrollView>
+          )}
         </View>
 
         {/* Memory Reps (Quiz Cards) */}
@@ -167,7 +199,7 @@ export default function DailyOrbitScreen() {
             style={{
               marginBottom: spacing.md,
               fontSize: 14,
-              fontWeight: '600',
+              fontWeight: "600",
               color: colors.textMain,
             }}
           >
@@ -181,7 +213,7 @@ export default function DailyOrbitScreen() {
               correctAnswer={quiz.correctAnswer}
               contactName={quiz.contactName}
               onAnswer={(isCorrect) => {
-                console.log(`Answer: ${isCorrect ? 'Correct' : 'Incorrect'}`);
+                console.log(`Answer: ${isCorrect ? "Correct" : "Incorrect"}`);
               }}
             />
           ))}
@@ -197,20 +229,20 @@ export default function DailyOrbitScreen() {
             style={{
               marginBottom: spacing.md,
               fontSize: 14,
-              fontWeight: '600',
+              fontWeight: "600",
               color: colors.textMain,
             }}
           >
             Recent Activity
           </Text>
-          {timelineItems.map((item, index) => (
+          {contacts.map((item, index) => (
             <TimelineItem
               key={item.id}
-              contactName={item.contactName}
-              avatar={item.avatar}
-              time={item.time}
-              description={item.description}
-              type={item.type}
+              contactName={item.name}
+              avatar={item.avatarUrl}
+              time={item.lastInteractionAt || item.createdAt}
+              description={item.notes}
+              type="interaction"
               isLast={index === timelineItems.length - 1}
             />
           ))}
@@ -220,7 +252,7 @@ export default function DailyOrbitScreen() {
       {/* Floating Command Button */}
       <Pressable
         style={{
-          position: 'absolute',
+          position: "absolute",
           bottom: spacing.lg,
           left: spacing.lg,
           right: spacing.lg,
@@ -228,9 +260,9 @@ export default function DailyOrbitScreen() {
           borderRadius: borderRadius.full,
           paddingVertical: spacing.md,
           paddingHorizontal: spacing.lg,
-          flexDirection: 'row',
-          justifyContent: 'center',
-          alignItems: 'center',
+          flexDirection: "row",
+          justifyContent: "center",
+          alignItems: "center",
           ...shadows.lg,
         }}
       >
@@ -240,7 +272,7 @@ export default function DailyOrbitScreen() {
             color: colors.card,
             marginLeft: spacing.sm,
             fontSize: 14,
-            fontWeight: '600',
+            fontWeight: "600",
           }}
         >
           Ask Orbital

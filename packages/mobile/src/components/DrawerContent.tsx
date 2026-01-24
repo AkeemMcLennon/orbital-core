@@ -7,13 +7,10 @@ import {
   ScrollView,
   SafeAreaView,
 } from 'react-native';
-import { DrawerNavigationProp } from '@react-navigation/drawer';
+import { useNavigation } from '@react-navigation/native';
+import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius } from '../theme';
-
-interface DrawerContentProps {
-  navigation: DrawerNavigationProp<any>;
-}
 
 const DRAWER_ITEMS = [
   {
@@ -36,7 +33,8 @@ const DRAWER_ITEMS = [
   },
 ];
 
-export function DrawerContent({ navigation }: DrawerContentProps) {
+export function DrawerContent() {
+  const navigation = useNavigation<DrawerNavigationProp<any>>();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
