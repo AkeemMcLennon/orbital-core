@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -7,34 +7,62 @@ import {
   Pressable,
   SafeAreaView,
   Image,
-  Switch,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { colors, spacing, borderRadius, shadows } from '../src/theme';
-import { searchResults } from '../src/dummy-data';
+  ActivityIndicator,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createContact } from "@orbital/client";
+import { colors, spacing, borderRadius, shadows } from "../src/theme";
+import { searchResults } from "../src/dummy-data";
 
 export default function AddContactScreen() {
   const [isAiMode, setIsAiMode] = useState(false);
-  const [searchText, setSearchText] = useState('');
-  const [selectedContact, setSelectedContact] = useState<(typeof searchResults)[0] | null>(null);
+  const [searchText, setSearchText] = useState("");
+  const [selectedContact, setSelectedContact] = useState<
+    (typeof searchResults)[0] | null
+  >(null);
   const [showResults, setShowResults] = useState(false);
-  const [contactName, setContactName] = useState('');
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState("");
+  const queryClient = useQueryClient();
 
-  const handleContactSelect = (contact: typeof searchResults[0]) => {
+  // Mutation for creating contact
+  const createContactMutation = useMutation({
+    mutationFn: (data: { name: string; email?: string; notes?: string }) =>
+      createContact(data),
+    onSuccess: () => {
+      // Invalidate and refetch contacts query
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      router.back();
+    },
+    onError: (error) => {
+      console.error("Failed to create contact:", error);
+      alert("Failed to create contact. Please try again.");
+    },
+  });
+
+  const handleContactSelect = (contact: (typeof searchResults)[0]) => {
     setSelectedContact(contact);
     setSearchText(contact.name);
     setShowResults(false);
   };
 
-  const handleAddContact = () => {
-    alert(`Added contact: ${selectedContact?.name || contactName}`);
-    router.back();
+  const handleAddContact = async () => {
+    const name = selectedContact?.name || searchText.trim();
+    if (!name) {
+      alert("Please enter a contact name");
+      return;
+    }
+
+    createContactMutation.mutate({
+      name,
+      email: selectedContact?.email,
+      notes: notes || undefined,
+    });
   };
 
   const filteredResults = searchResults.filter((contact) =>
-    contact.name.toLowerCase().includes(searchText.toLowerCase())
+    contact.name.toLowerCase().includes(searchText.toLowerCase()),
   );
 
   return (
@@ -42,9 +70,9 @@ export default function AddContactScreen() {
       {/* Header */}
       <View
         style={{
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
           paddingHorizontal: spacing.lg,
           paddingVertical: spacing.md,
           borderBottomWidth: 1,
@@ -54,22 +82,36 @@ export default function AddContactScreen() {
         <Pressable onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color={colors.textMain} />
         </Pressable>
-        <Text style={{ fontSize: 18, fontWeight: '700', color: colors.textMain }}>
+        <Text
+          style={{ fontSize: 18, fontWeight: "700", color: colors.textMain }}
+        >
           Add Contact
         </Text>
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.lg }}>
+      <ScrollView
+        contentContainerStyle={{
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.lg,
+        }}
+      >
         {/* Hybrid Search Input */}
         <View style={{ marginBottom: spacing.lg }}>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textMain, marginBottom: spacing.sm }}>
-            Search or Add
+          <Text
+            style={{
+              fontSize: 14,
+              fontWeight: "600",
+              color: colors.textMain,
+              marginBottom: spacing.sm,
+            }}
+          >
+            Name
           </Text>
           <View
             style={{
-              flexDirection: 'row',
-              alignItems: 'center',
+              flexDirection: "row",
+              alignItems: "center",
               backgroundColor: colors.card,
               borderRadius: borderRadius.md,
               paddingHorizontal: spacing.md,
@@ -79,12 +121,14 @@ export default function AddContactScreen() {
             }}
           >
             <Ionicons
-              name={isAiMode ? 'sparkles' : 'search'}
+              name={isAiMode ? "sparkles" : "search"}
               size={18}
               color={isAiMode ? colors.primary : colors.textTertiary}
             />
             <TextInput
-              placeholder={isAiMode ? 'Ask AI to find...' : 'Search contacts...'}
+              placeholder={
+                isAiMode ? "Ask AI to find..." : "Search contacts..."
+              }
               placeholderTextColor={colors.textTertiary}
               value={searchText}
               onChangeText={(text) => {
@@ -112,10 +156,10 @@ export default function AddContactScreen() {
                 style={{
                   color: isAiMode ? colors.card : colors.textTertiary,
                   fontSize: 11,
-                  fontWeight: '600',
+                  fontWeight: "600",
                 }}
               >
-                {isAiMode ? 'AI' : 'Local'}
+                {isAiMode ? "AI" : "Local"}
               </Text>
             </Pressable>
           </View>
@@ -127,7 +171,7 @@ export default function AddContactScreen() {
                 marginTop: spacing.md,
                 backgroundColor: colors.card,
                 borderRadius: borderRadius.md,
-                overflow: 'hidden',
+                overflow: "hidden",
                 borderColor: colors.border,
                 borderWidth: 1,
                 ...shadows.md,
@@ -138,10 +182,11 @@ export default function AddContactScreen() {
                   key={contact.id}
                   onPress={() => handleContactSelect(contact)}
                   style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
+                    flexDirection: "row",
+                    alignItems: "center",
                     padding: spacing.md,
-                    borderBottomWidth: index < filteredResults.length - 1 ? 1 : 0,
+                    borderBottomWidth:
+                      index < filteredResults.length - 1 ? 1 : 0,
                     borderBottomColor: colors.border,
                   }}
                 >
@@ -154,7 +199,13 @@ export default function AddContactScreen() {
                       marginRight: spacing.md,
                     }}
                   />
-                  <Text style={{ fontSize: 14, color: colors.textMain, fontWeight: '500' }}>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: colors.textMain,
+                      fontWeight: "500",
+                    }}
+                  >
                     {contact.name}
                   </Text>
                 </Pressable>
@@ -171,13 +222,13 @@ export default function AddContactScreen() {
               borderRadius: borderRadius.lg,
               padding: spacing.lg,
               marginBottom: spacing.lg,
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
               ...shadows.md,
             }}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
               <Image
                 source={{ uri: selectedContact.avatar }}
                 style={{
@@ -187,7 +238,9 @@ export default function AddContactScreen() {
                   marginRight: spacing.md,
                 }}
               />
-              <Text style={{ fontSize: 16, color: colors.card, fontWeight: '600' }}>
+              <Text
+                style={{ fontSize: 16, color: colors.card, fontWeight: "600" }}
+              >
                 {selectedContact.name}
               </Text>
             </View>
@@ -199,7 +252,14 @@ export default function AddContactScreen() {
 
         {/* Notes Field */}
         <View>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textMain, marginBottom: spacing.sm }}>
+          <Text
+            style={{
+              fontSize: 14,
+              fontWeight: "600",
+              color: colors.textMain,
+              marginBottom: spacing.sm,
+            }}
+          >
             Notes
           </Text>
           <View
@@ -233,7 +293,7 @@ export default function AddContactScreen() {
       {/* Action Buttons */}
       <View
         style={{
-          flexDirection: 'row',
+          flexDirection: "row",
           gap: spacing.md,
           paddingHorizontal: spacing.lg,
           paddingVertical: spacing.lg,
@@ -243,29 +303,60 @@ export default function AddContactScreen() {
       >
         <Pressable
           onPress={() => router.back()}
+          disabled={createContactMutation.isPending}
           style={{
             flex: 1,
             paddingVertical: spacing.md,
             borderRadius: borderRadius.lg,
             backgroundColor: colors.border,
+            opacity: createContactMutation.isPending ? 0.5 : 1,
           }}
         >
-          <Text style={{ textAlign: 'center', color: colors.textMain, fontWeight: '600' }}>
+          <Text
+            style={{
+              textAlign: "center",
+              color: colors.textMain,
+              fontWeight: "600",
+            }}
+          >
             Cancel
           </Text>
         </Pressable>
         <Pressable
           onPress={handleAddContact}
-          disabled={!selectedContact && !contactName}
+          disabled={
+            (!selectedContact && !searchText.trim()) ||
+            createContactMutation.isPending
+          }
           style={{
             flex: 1,
             paddingVertical: spacing.md,
             borderRadius: borderRadius.lg,
-            backgroundColor: selectedContact || contactName ? colors.primary : colors.border,
+            backgroundColor:
+              selectedContact || searchText.trim()
+                ? colors.primary
+                : colors.border,
+            opacity: !selectedContact && !searchText.trim() ? 0.5 : 1,
+            justifyContent: "center",
+            alignItems: "center",
+            flexDirection: "row",
           }}
         >
-          <Text style={{ textAlign: 'center', color: colors.card, fontWeight: '600' }}>
-            Add Contact
+          {createContactMutation.isPending ? (
+            <ActivityIndicator
+              size="small"
+              color={colors.card}
+              style={{ marginRight: spacing.sm }}
+            />
+          ) : null}
+          <Text
+            style={{
+              textAlign: "center",
+              color: colors.card,
+              fontWeight: "600",
+            }}
+          >
+            {createContactMutation.isPending ? "Adding..." : "Add Contact"}
           </Text>
         </Pressable>
       </View>
