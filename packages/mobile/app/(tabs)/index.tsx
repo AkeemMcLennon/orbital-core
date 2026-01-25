@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,8 +11,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import { useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { router, useFocusEffect } from "expo-router";
 import { getContacts } from "@orbital/client";
 import { FaceAvatar, TimelineItem, QuizCard } from "../../src/components";
 import { timelineItems, quizCards } from "../../src/dummy-data";
@@ -21,6 +21,18 @@ import { colors, spacing, borderRadius, shadows } from "../../src/theme";
 export default function DailyOrbitScreen() {
   const [searchText, setSearchText] = useState("");
   const navigation = useNavigation();
+  const queryClient = useQueryClient();
+
+  useFocusEffect(
+    useCallback(() => {
+      // 💡 This will ONLY trigger a fetch if the query was invalidated
+      // or if the 5-minute staleTime has passed.
+      queryClient.refetchQueries({
+        queryKey: ["contacts"],
+        type: "inactive",
+      });
+    }, [queryClient]),
+  );
 
   // Fetch contacts from API
   const {

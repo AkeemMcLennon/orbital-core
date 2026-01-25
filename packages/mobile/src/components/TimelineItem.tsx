@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, Text, Image } from 'react-native';
+import { View, Text } from 'react-native';
 import { spacing, colors, borderRadius, shadows } from '../theme';
+import { FaceAvatar } from './FaceAvatar';
 
 interface TimelineItemProps {
   contactName: string;
-  avatar: string;
+  avatar?: string;
   time: string;
   description: string;
   type: 'interaction' | 'action' | 'event';
@@ -66,37 +67,15 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
           zIndex: 1,
         }}
       >
-        <View
-          style={{
-            width: avatarSize,
-            height: avatarSize,
-            borderRadius: borderRadius.full,
-            borderWidth: 3,
-            borderColor: colors.card,
-            backgroundColor: colors.card,
-          }}
-        >
-          <Image
-            source={{ uri: avatar }}
-            style={{
-              width: '100%',
-              height: '100%',
-              borderRadius: borderRadius.full,
-            }}
-          />
-        </View>
-        <View
-          style={{
-            position: 'absolute',
-            bottom: -4,
-            right: -4,
-            width: 12,
-            height: 12,
-            borderRadius: borderRadius.full,
-            backgroundColor: getTypeColor(type),
-            borderWidth: 2,
-            borderColor: colors.card,
-          }}
+        <FaceAvatar
+          name={contactName}
+          avatar={avatar}
+          showLabel={false}
+          size={avatarSize}
+          badgeColor={getTypeColor(type)}
+          borderColor={colors.card}
+          borderWidth={3}
+          noMargin
         />
       </View>
 

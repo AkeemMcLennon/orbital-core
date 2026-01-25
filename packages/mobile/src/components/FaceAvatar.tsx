@@ -1,13 +1,33 @@
-import React from 'react';
-import { View, Text, Image, Pressable } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, Pressable } from 'react-native';
+import { Avatar } from 'tamagui';
+import ColorHash from 'color-hash';
 import { spacing, colors, borderRadius } from '../theme';
+
+const colorHash = new ColorHash({ lightness: 0.4 });
+
+const getInitials = (name: string) => {
+  if (!name) return '?';
+  return name
+    .split(' ')
+    .map((word) => word.charAt(0))
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+};
 
 interface FaceAvatarProps {
   name: string;
-  avatar: string;
+  avatar?: string;
   isNew?: boolean;
   onPress?: () => void;
   isAddButton?: boolean;
+  showLabel?: boolean;
+  size?: number;
+  badgeColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  noMargin?: boolean;
 }
 
 export const FaceAvatar: React.FC<FaceAvatarProps> = ({
@@ -16,8 +36,16 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
   isNew,
   onPress,
   isAddButton,
+  showLabel = true,
+  size = 60,
+  badgeColor,
+  borderColor,
+  borderWidth = 0,
+  noMargin = false,
 }) => {
-  const avatarSize = 60;
+  const avatarSize = size;
+  const bgColor = useMemo(() => colorHash.hex(name), [name]);
+  const initials = useMemo(() => getInitials(name), [name]);
 
   if (isAddButton) {
     return (
@@ -25,7 +53,7 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
         onPress={onPress}
         style={{
           alignItems: 'center',
-          marginHorizontal: spacing.sm,
+          marginHorizontal: noMargin ? 0 : spacing.sm,
         }}
       >
         <View
@@ -52,52 +80,80 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
     );
   }
 
+  const showBadge = isNew || badgeColor;
+  const effectiveBadgeColor = badgeColor || colors.success;
+
   return (
     <Pressable
       onPress={onPress}
       style={{
         alignItems: 'center',
-        marginHorizontal: spacing.sm,
+        marginHorizontal: noMargin ? 0 : spacing.sm,
       }}
     >
       <View style={{ position: 'relative' }}>
-        <Image
-          source={{ uri: avatar }}
-          style={{
-            width: avatarSize,
-            height: avatarSize,
-            borderRadius: borderRadius.full,
-            backgroundColor: colors.border,
-          }}
-        />
-        {isNew && (
+        <View
+          style={
+            borderWidth > 0
+              ? {
+                  borderRadius: borderRadius.full,
+                  borderWidth,
+                  borderColor: borderColor || colors.card,
+                  backgroundColor: borderColor || colors.card,
+                }
+              : undefined
+          }
+        >
+          <Avatar circular size={avatarSize}>
+            {avatar && <Avatar.Image src={avatar} />}
+            <Avatar.Fallback
+              delayMs={avatar ? 600 : 0}
+              backgroundColor={bgColor}
+              alignItems="center"
+              justifyContent="center"
+            >
+              <Text
+                style={{
+                  color: 'white',
+                  fontWeight: 'bold',
+                  fontSize: Math.floor(avatarSize / 3),
+                }}
+              >
+                {initials}
+              </Text>
+            </Avatar.Fallback>
+          </Avatar>
+        </View>
+        {showBadge && (
           <View
             style={{
               position: 'absolute',
-              bottom: 0,
-              right: 0,
+              bottom: borderWidth > 0 ? -4 : 0,
+              right: borderWidth > 0 ? -4 : 0,
               width: 16,
               height: 16,
               borderRadius: borderRadius.full,
-              backgroundColor: colors.success,
+              backgroundColor: effectiveBadgeColor,
               borderWidth: 2,
               borderColor: colors.card,
             }}
           />
         )}
       </View>
-      <Text
-        style={{
-          marginTop: spacing.sm,
-          fontSize: 12,
-          color: colors.textSecondary,
-          maxWidth: avatarSize + 20,
-          textAlign: 'center',
-        }}
-        numberOfLines={1}
-      >
-        {name}
-      </Text>
+      {showLabel && (
+        <Text
+          style={{
+            marginTop: spacing.sm,
+            fontSize: 12,
+            color: colors.textSecondary,
+            maxWidth: avatarSize + 20,
+            textAlign: 'center',
+          }}
+          numberOfLines={1}
+        >
+          {name}
+        </Text>
+      )}
     </Pressable>
   );
 };
