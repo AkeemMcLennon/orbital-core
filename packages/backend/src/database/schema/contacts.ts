@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index, unique } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 import { users } from './users';
 import { pk } from '../custom-types';
@@ -42,3 +42,49 @@ export const contacts = sqliteTable('contacts', {
 
 export type Contact = typeof contacts.$inferSelect;
 export type NewContact = typeof contacts.$inferInsert;
+
+/**
+ * Contact Channels table - overflow contact methods for managed contacts
+ * Handles multiple emails, phones, and social handles per contact
+ */
+export const contactChannels = sqliteTable(
+  'contact_channels',
+  {
+    id: pk(), // Base58 String (Stored as BLOB)
+    contactId: text('contact_id')
+      .notNull()
+      .references(() => contacts.id, { onDelete: 'cascade' }),
+
+    // Channel type (email, phone, or social)
+    type: text('type', { enum: ['email', 'phone', 'linkedin', 'twitter', 'other'] }).notNull(),
+
+    // The actual value (email address, phone number, or social URL)
+    value: text('value').notNull(),
+
+    // Optional label (e.g., 'work', 'home', 'personal')
+    label: text('label'),
+
+    // Mark if this is the primary channel of its type
+    isPrimary: integer('is_primary', { mode: 'boolean' }).default(false),
+
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    // Fast lookups for contact channels
+    contactIdIdx: index('contact_channels_contact_id_idx').on(table.contactId),
+
+    // O(log N) lookup by value for exact matching
+    valueIdx: index('contact_channels_value_idx').on(table.value),
+
+    // Filter by type
+    typeIdx: index('contact_channels_type_idx').on(table.type),
+
+    // Prevent duplicate channels on same contact
+    uniqueChannel: unique('contact_channels_unique').on(table.contactId, table.type, table.value),
+  }),
+);
+
+export type ContactChannel = typeof contactChannels.$inferSelect;
+export type NewContactChannel = typeof contactChannels.$inferInsert;

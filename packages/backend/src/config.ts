@@ -12,6 +12,14 @@ const envSchema = {
   DB_PROVIDER: z.enum(["sqlite", "d1"]).default("sqlite"),
   SQLITE_DB_PATH: z.string().default("./local.db"),
 
+  // Database Encryption (required for integrations)
+  DB_ENCRYPTION_KEY: z.string().optional(), // 32-byte base64url-encoded secret
+
+  // Google OAuth (required for Google Contacts integration)
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_REDIRECT_URI: z.string().url().optional(),
+
   // Server (optional with defaults)
   PORT: z.coerce.number().int().positive().default(8787),
   NODE_ENV: z
@@ -21,18 +29,9 @@ const envSchema = {
   // Testing (optional with defaults)
   DISABLE_JWT_VERIFICATION: z.enum(["true", "false"]).default("false"),
 };
-
+const envObject = z.object(envSchema);
 // Type for settings
-type SettingsType = {
-  JWKS_URL: string;
-  JWT_AUDIENCE: string;
-  JWT_ISSUER: string;
-  DB_PROVIDER: "sqlite" | "d1";
-  SQLITE_DB_PATH: string;
-  PORT: number;
-  NODE_ENV: "development" | "production" | "test";
-  DISABLE_JWT_VERIFICATION: "true" | "false";
-};
+type SettingsType = z.infer<typeof envObject>;
 
 // Create the settings object that will be mutated in place
 export const settings: SettingsType = {} as SettingsType;

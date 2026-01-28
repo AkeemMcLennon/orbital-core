@@ -4,6 +4,16 @@ import { contacts } from './contacts';
 import { pk, uuidV7 } from '../custom-types';
 
 /**
+ * Represents an overflow contact channel (email, phone, or social)
+ * Used in the secondaryData JSON array for contacts with multiple channels
+ */
+export type SecondaryChannel = {
+  type: 'email' | 'phone' | 'linkedin' | 'twitter' | 'other';
+  value: string;
+  label?: string; // e.g., 'work', 'home', 'personal'
+};
+
+/**
  * Directory table - staging area for ALL external contacts
  * Implements the "Promoted Pointer" pattern for contact promotion
  */
@@ -26,6 +36,10 @@ export const directory = sqliteTable('directory', {
   phone: text('phone'),
   avatarUrl: text('avatar_url'),
   company: text('company'),
+
+  // Overflow channels (JSON array of secondary contact methods)
+  // First email/phone go to top-level fields, rest go here
+  secondaryData: text('secondary_data', { mode: 'json' }).$type<SecondaryChannel[]>(),
 
   // Store any additional metadata from the source
   rawMetadata: text('raw_metadata', { mode: 'json' }).$type<{

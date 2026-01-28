@@ -1,0 +1,22 @@
+/**
+ * Integrations service public API
+ * Exports all public functions and types for managing external integrations
+ */
+
+export { syncIntegration } from "./sync";
+export {
+  storeIntegrationCredentials,
+  getDecryptedIntegration,
+  updateIntegrationTokens,
+  updateIntegrationSyncState,
+  getUserIntegrations,
+  getUserIntegrationsBySource,
+  deleteIntegration,
+} from "./credentials";
+export {
+  type DirectoryProvider,
+  type FetchContactsResult,
+  registerProvider,
+  getProvider,
+  listProviders,
+} from "./provider";
