@@ -1,17 +1,18 @@
-import React, { useMemo } from 'react';
-import { View, Text, Pressable } from 'react-native';
-import { Avatar } from 'tamagui';
-import ColorHash from 'color-hash';
-import { spacing, colors, borderRadius } from '../theme';
+import React, { useMemo } from "react";
+import { View, Text, Pressable } from "react-native";
+import { Link, RelativePathString, ExternalPathString } from "expo-router";
+import { Avatar } from "tamagui";
+import ColorHash from "color-hash";
+import { spacing, colors, borderRadius } from "../theme";
 
 const colorHash = new ColorHash({ lightness: 0.4 });
 
 const getInitials = (name: string) => {
-  if (!name) return '?';
+  if (!name) return "?";
   return name
-    .split(' ')
+    .split(" ")
     .map((word) => word.charAt(0))
-    .join('')
+    .join("")
     .toUpperCase()
     .slice(0, 2);
 };
@@ -21,6 +22,7 @@ interface FaceAvatarProps {
   avatar?: string;
   isNew?: boolean;
   onPress?: () => void;
+  href?: RelativePathString | ExternalPathString;
   isAddButton?: boolean;
   showLabel?: boolean;
   size?: number;
@@ -35,6 +37,7 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
   avatar,
   isNew,
   onPress,
+  href,
   isAddButton,
   showLabel = true,
   size = 60,
@@ -47,51 +50,59 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
   const bgColor = useMemo(() => colorHash.hex(name), [name]);
   const initials = useMemo(() => getInitials(name), [name]);
 
-  if (isAddButton) {
-    return (
-      <Pressable
-        onPress={onPress}
+  const addButtonContent = (
+    <Pressable
+      onPress={onPress}
+      style={{
+        alignItems: "center",
+        marginHorizontal: noMargin ? 0 : spacing.sm,
+      }}
+    >
+      <View
         style={{
-          alignItems: 'center',
-          marginHorizontal: noMargin ? 0 : spacing.sm,
+          width: avatarSize,
+          height: avatarSize,
+          borderRadius: borderRadius.full,
+          backgroundColor: colors.textMain,
+          justifyContent: "center",
+          alignItems: "center",
         }}
       >
-        <View
+        <Text
           style={{
-            width: avatarSize,
-            height: avatarSize,
-            borderRadius: borderRadius.full,
-            backgroundColor: colors.textMain,
-            justifyContent: 'center',
-            alignItems: 'center',
+            color: colors.card,
+            fontSize: 28,
+            fontWeight: "600",
           }}
         >
-          <Text
-            style={{
-              color: colors.card,
-              fontSize: 28,
-              fontWeight: '600',
-            }}
-          >
-            +
-          </Text>
-        </View>
-      </Pressable>
+          +
+        </Text>
+      </View>
+    </Pressable>
+  );
+
+  if (isAddButton) {
+    return href ? (
+      <Link href={href} asChild>
+        {addButtonContent}
+      </Link>
+    ) : (
+      addButtonContent
     );
   }
 
   const showBadge = isNew || badgeColor;
   const effectiveBadgeColor = badgeColor || colors.success;
 
-  return (
+  const avatarContent = (
     <Pressable
       onPress={onPress}
       style={{
-        alignItems: 'center',
+        alignItems: "center",
         marginHorizontal: noMargin ? 0 : spacing.sm,
       }}
     >
-      <View style={{ position: 'relative' }}>
+      <View style={{ position: "relative" }}>
         <View
           style={
             borderWidth > 0
@@ -114,8 +125,8 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
             >
               <Text
                 style={{
-                  color: 'white',
-                  fontWeight: 'bold',
+                  color: "white",
+                  fontWeight: "bold",
                   fontSize: Math.floor(avatarSize / 3),
                 }}
               >
@@ -127,7 +138,7 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
         {showBadge && (
           <View
             style={{
-              position: 'absolute',
+              position: "absolute",
               bottom: borderWidth > 0 ? -4 : 0,
               right: borderWidth > 0 ? -4 : 0,
               width: 16,
@@ -147,7 +158,7 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
             fontSize: 12,
             color: colors.textSecondary,
             maxWidth: avatarSize + 20,
-            textAlign: 'center',
+            textAlign: "center",
           }}
           numberOfLines={1}
         >
@@ -155,5 +166,13 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
         </Text>
       )}
     </Pressable>
+  );
+
+  return href ? (
+    <Link href={href} asChild>
+      {avatarContent}
+    </Link>
+  ) : (
+    avatarContent
   );
 };

@@ -51,13 +51,12 @@ export default function DailyOrbitScreen() {
     contact: (typeof contacts)[0],
     index: number,
   ) => {
-    console.log(`Render ${contact}`);
     return (
       <FaceAvatar
         key={contact.id}
         name={contact.name}
         avatar={contact.avatarUrl}
-        onPress={() => alert(`Tapped ${contact.name}`)}
+        href={`/contacts/${contact.id}`}
       />
     );
   };
@@ -191,7 +190,7 @@ export default function DailyOrbitScreen() {
                 name="+"
                 avatar=""
                 isAddButton
-                onPress={() => router.push("/contact-add")}
+                href="/contact-add"
               />
               {contacts.map((contact) =>
                 renderFaceStreamItem(contact, contacts.indexOf(contact)),
@@ -255,7 +254,8 @@ export default function DailyOrbitScreen() {
               time={item.lastInteractionAt || item.createdAt}
               description={item.notes}
               type="interaction"
-              isLast={index === timelineItems.length - 1}
+              isLast={index === contacts.length - 1}
+              href={`/contacts/${item.id}`}
             />
           ))}
         </View>

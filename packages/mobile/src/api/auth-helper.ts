@@ -1,11 +1,11 @@
-import * as SecureStore from 'expo-secure-store';
+import * as storage from '../utils/storage';
 
 /**
  * Stores a JWT token in secure storage
  */
 export async function setAuthToken(token: string): Promise<void> {
   try {
-    await SecureStore.setItemAsync('auth_token', token);
+    await storage.setItem('auth_token', token);
   } catch (error) {
     console.error('Error storing auth token:', error);
     throw error;
@@ -17,7 +17,7 @@ export async function setAuthToken(token: string): Promise<void> {
  */
 export async function getAuthToken(): Promise<string | null> {
   try {
-    return await SecureStore.getItemAsync('auth_token');
+    return await storage.getItem('auth_token');
   } catch (error) {
     console.error('Error retrieving auth token:', error);
     return null;
@@ -29,7 +29,7 @@ export async function getAuthToken(): Promise<string | null> {
  */
 export async function clearAuthToken(): Promise<void> {
   try {
-    await SecureStore.deleteItemAsync('auth_token');
+    await storage.deleteItem('auth_token');
   } catch (error) {
     console.error('Error clearing auth token:', error);
     throw error;

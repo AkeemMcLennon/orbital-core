@@ -1,15 +1,16 @@
-import React from 'react';
-import { View, Text } from 'react-native';
-import { spacing, colors, borderRadius, shadows } from '../theme';
-import { FaceAvatar } from './FaceAvatar';
-
+import { Link, RelativePathString, ExternalPathString } from "expo-router";
+import React from "react";
+import { Pressable, Text, View } from "react-native";
+import { borderRadius, colors, shadows, spacing } from "../theme";
+import { FaceAvatar } from "./FaceAvatar";
 interface TimelineItemProps {
   contactName: string;
   avatar?: string;
   time: string;
   description: string;
-  type: 'interaction' | 'action' | 'event';
+  type: "interaction" | "action" | "event";
   isLast?: boolean;
+  href?: RelativePathString | ExternalPathString;
 }
 
 export const TimelineItem: React.FC<TimelineItemProps> = ({
@@ -19,6 +20,7 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
   description,
   type,
   isLast,
+  href,
 }) => {
   const avatarSize = 44;
   const lineWidth = 2;
@@ -26,21 +28,21 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
 
   const getTypeColor = (itemType: string) => {
     switch (itemType) {
-      case 'interaction':
+      case "interaction":
         return colors.primary;
-      case 'action':
+      case "action":
         return colors.warning;
-      case 'event':
+      case "event":
         return colors.success;
       default:
         return colors.slate;
     }
   };
 
-  return (
+  const timelineContent = (
     <View
       style={{
-        flexDirection: 'row',
+        flexDirection: "row",
         marginBottom: spacing.lg,
         paddingLeft: spacing.md,
       }}
@@ -49,7 +51,7 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
       {!isLast && (
         <View
           style={{
-            position: 'absolute',
+            position: "absolute",
             left: avatarSize / 2 - lineWidth / 2,
             top: avatarSize,
             width: lineWidth,
@@ -62,7 +64,7 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
       {/* Avatar with border */}
       <View
         style={{
-          position: 'relative',
+          position: "relative",
           marginRight: spacing.md,
           zIndex: 1,
         }}
@@ -94,7 +96,7 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
         <Text
           style={{
             fontSize: 14,
-            fontWeight: '600',
+            fontWeight: "600",
             color: colors.textMain,
             marginBottom: spacing.xs,
           }}
@@ -121,5 +123,13 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
         </Text>
       </View>
     </View>
+  );
+
+  return href ? (
+    <Link href={href} asChild>
+      <Pressable>{timelineContent}</Pressable>
+    </Link>
+  ) : (
+    timelineContent
   );
 };

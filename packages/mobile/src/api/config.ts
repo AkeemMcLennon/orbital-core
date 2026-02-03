@@ -1,6 +1,6 @@
 import Constants from "expo-constants";
-import * as SecureStore from "expo-secure-store";
 import { initializeApiClient } from "@orbital/client";
+import * as storage from "../utils/storage";
 
 /**
  * Resolves the backend API base URL
@@ -25,7 +25,7 @@ function resolveBaseUrl(): string {
  */
 async function getToken(): Promise<string | null> {
   try {
-    const token = await SecureStore.getItemAsync("auth_token");
+    const token = await storage.getItem("auth_token");
     return token || null;
   } catch (error) {
     console.error("Error retrieving auth token:", error);
