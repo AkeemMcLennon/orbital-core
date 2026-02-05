@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.wrangler/
+
+# Environment files
+.dev.vars
+.env
+.env.*
+
+# Docker environment file (contains secrets)
+docker.env
+
+# SQLite database directory
+data/
+
+# Test databases
+test.db
+local.db
+
+# Logs
+*.log
+
+# OS files
+.DS_Store

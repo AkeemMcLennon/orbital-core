@@ -1,0 +1,22 @@
+version: "3.8"
+
+services:
+  orbital-backend:
+    build:
+      context: ../.. # Build from workspace root
+      dockerfile: packages/backend/Dockerfile
+    container_name: orbital-backend
+    ports:
+      - "8787:8787"
+    volumes:
+      # SQLite database volume for persistence
+      - ./data:/app/packages/backend/data
+    env_file:
+      - .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8787/rpc"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
