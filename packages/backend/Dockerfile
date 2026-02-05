@@ -36,11 +36,21 @@ COPY --from=builder /app/node_modules ./node_modules
 # Set working directory to backend
 WORKDIR /app/packages/backend
 
+# Copy startup script
+COPY packages/backend/start.sh ./start.sh
+RUN chmod +x ./start.sh
+
 # Create data directory for SQLite database
 RUN mkdir -p /app/packages/backend/data
+
+# Set default environment variables
+# These can be overridden by docker-compose.yml env_file or -e flags
+ENV DB_PROVIDER=sqlite
+ENV SQLITE_DB_PATH=/app/packages/backend/data/local.db
+ENV NODE_ENV=production
 
 # Expose port
 EXPOSE 8787
 
-# Run migrations and start server
-CMD ["sh", "-c", "bun run db:migrate:local && bun run start"]
+# Run startup script
+CMD ["./start.sh"]

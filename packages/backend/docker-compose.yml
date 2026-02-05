@@ -7,7 +7,7 @@ services:
       dockerfile: packages/backend/Dockerfile
     container_name: orbital-backend
     ports:
-      - "8787:8787"
+      - "8790:8787"
     volumes:
       # SQLite database volume for persistence
       - ./data:/app/packages/backend/data
