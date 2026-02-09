@@ -4,9 +4,9 @@ import { z } from "zod";
 // Zod schema for validation
 const envSchema = {
   // Authentication (required)
-  JWKS_URL: z.string().url(),
+  JWKS_URL: z.url(),
   JWT_AUDIENCE: z.string().min(1).optional(),
-  JWT_ISSUER: z.string().url().optional(),
+  JWT_ISSUER: z.url().optional(),
 
   // Database (optional with defaults)
   DB_PROVIDER: z.enum(["sqlite", "d1"]).default("sqlite"),
@@ -18,7 +18,6 @@ const envSchema = {
   // Google OAuth (required for Google Contacts integration)
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
-  GOOGLE_REDIRECT_URI: z.string().url().optional(),
 
   // Server (optional with defaults)
   PORT: z.coerce.number().int().positive().default(8787),

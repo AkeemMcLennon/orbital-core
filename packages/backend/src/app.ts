@@ -7,19 +7,8 @@ import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { loadSettings } from "./config";
 import router from "./routes";
-
-// Cloudflare Workers environment types
-// Note: In Workers, these will be secrets and bindings
-// Settings module will handle JWKS_URL, JWT_AUDIENCE, JWT_ISSUER via loadSettings()
-interface Env {
-  DB?: D1Database;
-  JWKS_URL?: string;
-  JWT_AUDIENCE?: string;
-  JWT_ISSUER?: string;
-  DB_PROVIDER?: string;
-  SQLITE_DB_PATH?: string;
-  DISABLE_JWT_VERIFICATION?: string;
-}
+import googleOAuth from "./routes/oauth/google";
+import { Env } from "./types/env";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -30,6 +19,9 @@ app.use("*", logger());
 app.get("/health", (c) => {
   return c.json({ status: "ok", timestamp: new Date().toISOString() });
 });
+
+// Google OAuth callback handler
+app.route("/auth", googleOAuth);
 
 // Create OpenAPI handler with plugins
 const handler = new OpenAPIHandler(router, {
@@ -61,7 +53,7 @@ const handler = new OpenAPIHandler(router, {
   interceptors: [
     onError((error) => {
       // Skip logging errors during tests to reduce console noise
-      if (process.env.NODE_ENV !== 'test') {
+      if (process.env.NODE_ENV !== "test") {
         console.error("oRPC Error:", error);
       }
     }),

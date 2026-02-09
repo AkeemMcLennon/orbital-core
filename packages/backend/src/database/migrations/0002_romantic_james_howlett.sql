@@ -1,0 +1,1 @@
+ALTER TABLE `integrations` ADD `auto_promote` integer DEFAULT false NOT NULL;

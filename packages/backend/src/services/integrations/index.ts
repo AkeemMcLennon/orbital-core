@@ -20,3 +20,9 @@ export {
   getProvider,
   listProviders,
 } from "./provider";
+
+// Register built-in providers
+import { registerProvider } from "./provider";
+import { googleProvider } from "./google";
+
+registerProvider(googleProvider);

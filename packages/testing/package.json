@@ -8,7 +8,9 @@
     ".": "./src/index.ts",
     "./backend": "./src/backend/index.ts",
     "./backend/auth": "./src/backend/auth/index.ts",
-    "./backend/errors": "./src/backend/errors.ts"
+    "./backend/errors": "./src/backend/errors.ts",
+    "./backend/integrations": "./src/backend/integrations/index.ts",
+    "./backend/integrations/google": "./src/backend/integrations/google/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -20,6 +22,7 @@
   "devDependencies": {
     "@types/bun": "latest",
     "@types/node": "^25.0.7",
+    "msw": "^2.12.7",
     "typescript": "^5.3.3"
   },
   "peerDependencies": {

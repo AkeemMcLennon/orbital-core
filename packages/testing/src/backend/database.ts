@@ -1,10 +1,10 @@
-import { Database } from 'bun:sqlite';
-import { drizzle } from 'drizzle-orm/bun-sqlite';
-import { eq } from 'drizzle-orm';
-import { readFileSync, readdirSync, unlinkSync, existsSync } from 'fs';
-import { join } from 'path';
-import { randomUUID } from 'crypto';
-import type { DatabaseClient } from '@orbital/backend/src/database/client';
+import { Database } from "bun:sqlite";
+import { drizzle } from "drizzle-orm/bun-sqlite";
+import { eq } from "drizzle-orm";
+import { readFileSync, readdirSync, unlinkSync, existsSync } from "fs";
+import { join } from "path";
+import { randomUUID } from "crypto";
+import type { DatabaseClient } from "@orbital/backend/src/database/client";
 
 export interface TestDatabaseOptions {
   schema: Record<string, any>;
@@ -16,9 +16,9 @@ export interface TestDatabaseOptions {
  * Create test SQLite database with schema applied
  */
 export async function createTestDatabase(
-  options: TestDatabaseOptions
+  options: TestDatabaseOptions,
 ): Promise<DatabaseClient> {
-  const { schema, migrationsPath, dbPath = './test.db' } = options;
+  const { schema, migrationsPath, dbPath = "./test.db" } = options;
 
   // Remove existing test database if it exists
   if (existsSync(dbPath)) {
@@ -40,15 +40,15 @@ export async function createTestDatabase(
  */
 async function applyMigrations(
   sqlite: Database,
-  migrationsPath: string
+  migrationsPath: string,
 ): Promise<void> {
   // Read all migration files in order
   const migrationFiles = readdirSync(migrationsPath)
-    .filter((f) => f.endsWith('.sql'))
+    .filter((f) => f.endsWith(".sql"))
     .sort();
 
   for (const file of migrationFiles) {
-    const sql = readFileSync(join(migrationsPath, file), 'utf-8');
+    const sql = readFileSync(join(migrationsPath, file), "utf-8");
     sqlite.exec(sql);
   }
 }
@@ -62,7 +62,7 @@ export interface ClearDatabaseOptions {
  */
 export async function clearDatabase(
   db: DatabaseClient,
-  options: ClearDatabaseOptions
+  options: ClearDatabaseOptions,
 ): Promise<void> {
   const { schema } = options;
 
@@ -85,7 +85,7 @@ export async function seedTestUser(
   db: DatabaseClient,
   userId: string,
   options: SeedUserOptions,
-  data?: any
+  data?: any,
 ): Promise<void> {
   const { schema } = options;
 
@@ -93,7 +93,7 @@ export async function seedTestUser(
     id: randomUUID(),
     externalId: userId,
     email: data?.email ?? `${userId}@example.com`,
-    name: data?.name ?? 'Test User',
+    name: data?.name ?? "Test User",
     ...data,
   });
 }
@@ -113,7 +113,7 @@ export async function seedTestContacts(
   db: DatabaseClient,
   userExternalId: string,
   options: SeedContactsOptions,
-  count: number = 5
+  count: number = 5,
 ): Promise<void> {
   const { schema } = options;
 
@@ -126,7 +126,7 @@ export async function seedTestContacts(
 
   if (!user) {
     throw new Error(
-      `User with externalId ${userExternalId} not found. Make sure to seed the user first.`
+      `User with externalId ${userExternalId} not found. Make sure to seed the user first.`,
     );
   }
 
@@ -134,7 +134,7 @@ export async function seedTestContacts(
     userId: user.id,
     name: `Contact ${i + 1}`,
     email: `contact${i + 1}@example.com`,
-    group: (i % 3 === 0 ? 'work' : 'personal') as 'work' | 'personal',
+    group: (i % 3 === 0 ? "work" : "personal") as "work" | "personal",
   }));
 
   await db.insert(schema.contacts).values(contacts);
@@ -155,7 +155,7 @@ export async function seedTestDirectory(
   db: DatabaseClient,
   userExternalId: string,
   options: SeedDirectoryOptions,
-  count: number = 5
+  count: number = 5,
 ): Promise<void> {
   const { schema } = options;
 
@@ -168,16 +168,16 @@ export async function seedTestDirectory(
 
   if (!user) {
     throw new Error(
-      `User with externalId ${userExternalId} not found. Make sure to seed the user first.`
+      `User with externalId ${userExternalId} not found. Make sure to seed the user first.`,
     );
   }
 
   const entries = Array.from({ length: count }, (_, i) => ({
     userId: user.id,
-    source: 'manual',
+    source: "manual",
     name: `Available Contact ${i + 1}`,
     email: `available${i + 1}@example.com`,
-    company: i % 2 === 0 ? 'Company A' : 'Company B',
+    company: i % 2 === 0 ? "Company A" : "Company B",
     activeContactId: null,
   }));
 

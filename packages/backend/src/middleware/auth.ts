@@ -32,6 +32,7 @@ export interface BaseContext {
 export interface AuthContext {
   user: User; // Full database user record
   db: DatabaseClient;
+  headers: IncomingHttpHeaders; // Request headers for deriving URLs, etc.
 }
 
 /**
@@ -119,6 +120,7 @@ export const authProc = os
         context: {
           user, // Full database user object
           db,
+          headers: context.headers,
         },
       });
     } catch (error) {

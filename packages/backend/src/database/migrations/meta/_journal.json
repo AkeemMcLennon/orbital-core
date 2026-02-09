@@ -15,6 +15,20 @@
       "when": 1769312146503,
       "tag": "0001_flat_metal_master",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1769996959000,
+      "tag": "0002_romantic_james_howlett",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1770488894109,
+      "tag": "0003_complete_doctor_doom",
+      "breakpoints": true
     }
   ]
 }

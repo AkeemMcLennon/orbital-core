@@ -31,6 +31,9 @@ export const integrations = sqliteTable(
     lastSyncToken: text('last_sync_token'), // Provider-specific sync token
     lastSyncAt: integer('last_sync_at', { mode: 'timestamp' }),
 
+    // Configuration
+    autoPromote: integer('auto_promote', { mode: 'boolean' }).notNull().default(false),
+
     // Metadata
     createdAt: integer('created_at', { mode: 'timestamp' })
       .notNull()
