@@ -36,3 +36,29 @@ export function initializeDefaultClient(
       }),
   });
 }
+
+/**
+ * Type guard to check if an API response is successful (2xx status)
+ */
+export function isSuccess<T extends { status: number }>(
+  response: T | null | undefined,
+): response is Extract<T, { status: 200 | 201 | 204 }> {
+  return (
+    response !== null &&
+    response !== undefined &&
+    response.status >= 200 &&
+    response.status < 300
+  );
+}
+
+/**
+ * Helper to safely extract data from a successful API response
+ */
+export function getSuccessData<T extends { status: number; data?: any }>(
+  response: T | null | undefined,
+): Extract<T, { status: 200 | 201 | 204 }>["data"] | null {
+  if (isSuccess(response)) {
+    return (response as any).data;
+  }
+  return null;
+}

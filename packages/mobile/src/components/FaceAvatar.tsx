@@ -1,9 +1,11 @@
-import React, { useMemo } from "react";
-import { View, Text, Pressable } from "react-native";
-import { Link, RelativePathString, ExternalPathString } from "expo-router";
-import { Avatar } from "tamagui";
 import ColorHash from "color-hash";
-import { spacing, colors, borderRadius } from "../theme";
+import { ExternalPathString, Link, RelativePathString } from "expo-router";
+import React, { useMemo } from "react";
+import { Pressable, Text, View } from "react-native";
+import { Avatar } from "tamagui";
+import { borderRadius, colors, spacing } from "../theme";
+
+type BackgroundColor = React.ComponentProps<typeof Avatar>["backgroundColor"];
 
 const colorHash = new ColorHash({ lightness: 0.4 });
 
@@ -19,7 +21,7 @@ const getInitials = (name: string) => {
 
 interface FaceAvatarProps {
   name: string;
-  avatar?: string;
+  avatar?: string | null;
   isNew?: boolean;
   onPress?: () => void;
   href?: RelativePathString | ExternalPathString;
@@ -119,7 +121,7 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
             {avatar && <Avatar.Image src={avatar} />}
             <Avatar.Fallback
               delayMs={avatar ? 600 : 0}
-              backgroundColor={bgColor}
+              backgroundColor={bgColor as BackgroundColor}
               alignItems="center"
               justifyContent="center"
             >

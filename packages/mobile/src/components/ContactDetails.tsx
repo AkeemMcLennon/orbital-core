@@ -5,11 +5,11 @@ import {
   ScrollView,
   SafeAreaView,
   Pressable,
-  Image,
   Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
+import { FaceAvatar } from "./FaceAvatar";
 import { TimelineItem } from "./TimelineItem";
 import { colors, spacing, borderRadius, shadows } from "../theme";
 
@@ -113,17 +113,12 @@ export function ContactDetails({
             backgroundColor: colors.card,
           }}
         >
-          <Image
-            source={{
-              uri: avatar || `https://ui-avatars.com/api/?name=${name}&background=4F46E5&color=fff`,
-            }}
-            style={{
-              width: 100,
-              height: 100,
-              borderRadius: borderRadius.full,
-              marginBottom: spacing.lg,
-              backgroundColor: colors.border,
-            }}
+          <FaceAvatar
+            name={name}
+            avatar={avatar}
+            size={100}
+            showLabel={false}
+            noMargin
           />
 
           <Text

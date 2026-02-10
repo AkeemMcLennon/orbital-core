@@ -23,13 +23,13 @@ function resolveBaseUrl(): string {
 /**
  * Retrieves the authentication token from secure storage
  */
-async function getToken(): Promise<string | null> {
+async function getToken(): Promise<string> {
   try {
     const token = await storage.getItem("auth_token");
-    return token || null;
+    return token || "";
   } catch (error) {
     console.error("Error retrieving auth token:", error);
-    return null;
+    return "";
   }
 }
 

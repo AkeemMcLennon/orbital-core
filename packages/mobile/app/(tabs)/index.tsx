@@ -1,22 +1,22 @@
-import React, { useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TextInput,
-  Pressable,
-  Image,
-  SafeAreaView,
-  ActivityIndicator,
-} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { router, useFocusEffect } from "expo-router";
-import { getContacts } from "@orbital/client";
-import { FaceAvatar, TimelineItem, QuizCard } from "../../src/components";
-import { timelineItems, quizCards } from "../../src/dummy-data";
-import { colors, spacing, borderRadius, shadows } from "../../src/theme";
+import { useQueryClient } from "@tanstack/react-query";
+import { RelativePathString, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { FaceAvatar, QuizCard, TimelineItem } from "../../src/components";
+import { quizCards } from "../../src/dummy-data";
+import { contactKeys, useContactsList } from "../../src/queries/contacts";
+import { borderRadius, colors, shadows, spacing } from "../../src/theme";
 
 export default function DailyOrbitScreen() {
   const [searchText, setSearchText] = useState("");
@@ -28,35 +28,23 @@ export default function DailyOrbitScreen() {
       // 💡 This will ONLY trigger a fetch if the query was invalidated
       // or if the 5-minute staleTime has passed.
       queryClient.refetchQueries({
-        queryKey: ["contacts"],
+        queryKey: contactKeys.all,
         type: "inactive",
       });
     }, [queryClient]),
   );
 
-  // Fetch contacts from API
-  const {
-    data: contactsData,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["contacts"],
-    queryFn: () => getContacts({ limit: 50, offset: 0, sort: "date" }),
-    throwOnError: false,
-  });
+  const { data: contactsData, isLoading, error } = useContactsList({ limit: 50, offset: 0, sort: "date" });
+  const contacts = contactsData?.items || [];
 
-  const contacts = contactsData?.status === 200 ? contactsData.data.items : [];
-
-  const renderFaceStreamItem = (
-    contact: (typeof contacts)[0],
-    index: number,
-  ) => {
+  const renderFaceStreamItem = (contact: (typeof contacts)[0]) => {
+    const path = `/contacts/${contact.id}` as RelativePathString;
     return (
       <FaceAvatar
         key={contact.id}
         name={contact.name}
-        avatar={contact.avatarUrl}
-        href={`/contacts/${contact.id}`}
+        avatar={contact.avatarUrl ?? undefined}
+        href={path}
       />
     );
   };
@@ -190,7 +178,7 @@ export default function DailyOrbitScreen() {
                 name="+"
                 avatar=""
                 isAddButton
-                href="/contact-add"
+                href={"/contact-add" as any}
               />
               {contacts.map((contact) =>
                 renderFaceStreamItem(contact, contacts.indexOf(contact)),
@@ -250,12 +238,12 @@ export default function DailyOrbitScreen() {
             <TimelineItem
               key={item.id}
               contactName={item.name}
-              avatar={item.avatarUrl}
-              time={item.lastInteractionAt || item.createdAt}
-              description={item.notes}
+              avatar={item.avatarUrl ?? undefined}
+              time={(item.lastInteractionAt || item.createdAt) as string}
+              description={item.notes ?? ""}
               type="interaction"
               isLast={index === contacts.length - 1}
-              href={`/contacts/${item.id}`}
+              href={`/contacts/${item.id}` as any}
             />
           ))}
         </View>

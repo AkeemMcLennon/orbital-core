@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,10 +10,10 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
-import { useRouter } from "expo-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateContact } from "@orbital/client";
+import { useContact, contactKeys } from "../../../src/queries/contacts";
 import { colors, spacing, borderRadius, shadows } from "../../../src/theme";
 
 export default function EditContactScreen() {
@@ -21,31 +21,11 @@ export default function EditContactScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  // Smart cache-first approach - check cache first, then fetch if needed
-  const cachedContacts = queryClient.getQueryData(["contacts"]) as any;
-  const cachedContact = useMemo(() => {
-    if (cachedContacts?.data?.items) {
-      return cachedContacts.data.items.find((c: any) => c.id === id);
-    }
-    return null;
-  }, [cachedContacts, id]);
-
-  // Load contact data
-  const { data: contactsData, isLoading: isLoadingContacts } = useQuery({
-    queryKey: ["contacts"],
-    queryFn: async () => {
-      // This would ideally use getContactById, but since we're fetching all contacts anyway
-      // we can reuse that cache
-      const { getContacts } = await import("@orbital/client");
-      return getContacts({ limit: 100, offset: 0, sort: "date" });
-    },
-    enabled: !cachedContact,
-  });
-
-  const contact = cachedContact || contactsData?.data?.items?.find((c: any) => c.id === id);
+  const { data: contact, isLoading: isLoadingContacts } = useContact(id);
 
   // Form state
   const [name, setName] = useState(contact?.name || "");
+
   const [email, setEmail] = useState(contact?.email || "");
   const [phone, setPhone] = useState(contact?.phone || "");
   const [jobTitle, setJobTitle] = useState(contact?.jobTitle || "");
@@ -71,8 +51,7 @@ export default function EditContactScreen() {
     mutationFn: (data: Parameters<typeof updateContact>[1]) =>
       updateContact(id || "", data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      queryClient.invalidateQueries({ queryKey: ["contact", id] });
+      queryClient.invalidateQueries({ queryKey: contactKeys.all });
       router.back();
     },
     onError: (error) => {

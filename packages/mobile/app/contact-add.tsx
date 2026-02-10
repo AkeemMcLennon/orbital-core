@@ -11,25 +11,61 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createContact } from "@orbital/client";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useDebounceValue } from "usehooks-ts";
+import {
+  createContact,
+  searchAvailableContacts,
+  getAvailableContacts,
+} from "@orbital/client";
 import { colors, spacing, borderRadius, shadows } from "../src/theme";
-import { searchResults } from "../src/dummy-data";
 
 export default function AddContactScreen() {
   const [isAiMode, setIsAiMode] = useState(false);
   const [searchText, setSearchText] = useState("");
-  const [selectedContact, setSelectedContact] = useState<
-    (typeof searchResults)[0] | null
-  >(null);
+  const [debouncedSearchText] = useDebounceValue(searchText, 300);
+  
+  // We'll trust the API return type, but define a partial shape for local state
+  // to avoid complex generic imports.
+  const [selectedContact, setSelectedContact] = useState<{
+    id: string;
+    name: string;
+    email?: string | null;
+    avatarUrl?: string | null;
+  } | null>(null);
+  
   const [showResults, setShowResults] = useState(false);
   const [notes, setNotes] = useState("");
   const queryClient = useQueryClient();
 
+  // Query for searching/listing available contacts
+  const { data: searchData, isLoading: isSearching } = useQuery({
+    queryKey: ["available-contacts", debouncedSearchText],
+    queryFn: async () => {
+      if (!debouncedSearchText.trim()) {
+        // If no search text, fetch recent/default available contacts
+        return getAvailableContacts({ limit: 10, offset: 0 });
+      }
+      return searchAvailableContacts({
+        query: debouncedSearchText,
+        limit: 10,
+        offset: 0,
+      });
+    },
+    // Keep previous data while searching to avoid flicker
+    placeholderData: (previousData) => previousData,
+  });
+  const availableContacts =
+    searchData?.status === 200 ? searchData.data.items : [];
+
   // Mutation for creating contact
   const createContactMutation = useMutation({
-    mutationFn: (data: { name: string; email?: string; notes?: string }) =>
-      createContact(data),
+    mutationFn: (data: {
+      name: string;
+      email?: string;
+      notes?: string;
+      avatarUrl?: string;
+    }) => createContact(data),
     onSuccess: () => {
       // Invalidate and refetch contacts query
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
@@ -41,7 +77,7 @@ export default function AddContactScreen() {
     },
   });
 
-  const handleContactSelect = (contact: (typeof searchResults)[0]) => {
+  const handleContactSelect = (contact: (typeof availableContacts)[0]) => {
     setSelectedContact(contact);
     setSearchText(contact.name);
     setShowResults(false);
@@ -56,14 +92,11 @@ export default function AddContactScreen() {
 
     createContactMutation.mutate({
       name,
-      email: selectedContact?.email,
+      email: selectedContact?.email || undefined,
+      avatarUrl: selectedContact?.avatarUrl || undefined,
       notes: notes || undefined,
     });
   };
-
-  const filteredResults = searchResults.filter((contact) =>
-    contact.name.toLowerCase().includes(searchText.toLowerCase()),
-  );
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -133,7 +166,11 @@ export default function AddContactScreen() {
               value={searchText}
               onChangeText={(text) => {
                 setSearchText(text);
-                setShowResults(text.length > 0);
+                setShowResults(true);
+                // Clear selection if user types
+                if (selectedContact && text !== selectedContact.name) {
+                  setSelectedContact(null);
+                }
               }}
               style={{
                 flex: 1,
@@ -165,7 +202,7 @@ export default function AddContactScreen() {
           </View>
 
           {/* Search Results */}
-          {showResults && filteredResults.length > 0 && !selectedContact && (
+          {showResults && !selectedContact && (
             <View
               style={{
                 marginTop: spacing.md,
@@ -175,41 +212,75 @@ export default function AddContactScreen() {
                 borderColor: colors.border,
                 borderWidth: 1,
                 ...shadows.md,
+                maxHeight: 250, // Limit height
               }}
             >
-              {filteredResults.map((contact, index) => (
-                <Pressable
-                  key={contact.id}
-                  onPress={() => handleContactSelect(contact)}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    padding: spacing.md,
-                    borderBottomWidth:
-                      index < filteredResults.length - 1 ? 1 : 0,
-                    borderBottomColor: colors.border,
-                  }}
-                >
-                  <Image
-                    source={{ uri: contact.avatar }}
+              {isSearching ? (
+                <View style={{ padding: spacing.md, alignItems: "center" }}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                </View>
+              ) : availableContacts.length > 0 ? (
+                availableContacts.map((contact, index) => (
+                  <Pressable
+                    key={contact.id}
+                    onPress={() => handleContactSelect(contact)}
                     style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: borderRadius.full,
-                      marginRight: spacing.md,
-                    }}
-                  />
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      color: colors.textMain,
-                      fontWeight: "500",
+                      flexDirection: "row",
+                      alignItems: "center",
+                      padding: spacing.md,
+                      borderBottomWidth:
+                        index < availableContacts.length - 1 ? 1 : 0,
+                      borderBottomColor: colors.border,
                     }}
                   >
-                    {contact.name}
+                    <Image
+                      source={{
+                        uri:
+                          contact.avatarUrl ||
+                          `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                            contact.name,
+                          )}&background=random`,
+                      }}
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: borderRadius.full,
+                        marginRight: spacing.md,
+                      }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          color: colors.textMain,
+                          fontWeight: "500",
+                        }}
+                      >
+                        {contact.name}
+                      </Text>
+                      {contact.email && (
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: colors.textSecondary,
+                          }}
+                          numberOfLines={1}
+                        >
+                          {contact.email}
+                        </Text>
+                      )}
+                    </View>
+                  </Pressable>
+                ))
+              ) : (
+                <View style={{ padding: spacing.md }}>
+                  <Text
+                    style={{ color: colors.textTertiary, textAlign: "center" }}
+                  >
+                    No contacts found
                   </Text>
-                </Pressable>
-              ))}
+                </View>
+              )}
             </View>
           )}
         </View>
@@ -228,9 +299,17 @@ export default function AddContactScreen() {
               ...shadows.md,
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+            >
               <Image
-                source={{ uri: selectedContact.avatar }}
+                source={{
+                  uri:
+                    selectedContact.avatarUrl ||
+                    `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                      selectedContact.name,
+                    )}&background=random`,
+                }}
                 style={{
                   width: 48,
                   height: 48,
@@ -238,13 +317,32 @@ export default function AddContactScreen() {
                   marginRight: spacing.md,
                 }}
               />
-              <Text
-                style={{ fontSize: 16, color: colors.card, fontWeight: "600" }}
-              >
-                {selectedContact.name}
-              </Text>
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    color: colors.card,
+                    fontWeight: "600",
+                  }}
+                >
+                  {selectedContact.name}
+                </Text>
+                {selectedContact.email && (
+                  <Text
+                    style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}
+                    numberOfLines={1}
+                  >
+                    {selectedContact.email}
+                  </Text>
+                )}
+              </View>
             </View>
-            <Pressable onPress={() => setSelectedContact(null)}>
+            <Pressable
+              onPress={() => {
+                setSelectedContact(null);
+                setSearchText("");
+              }}
+            >
               <Ionicons name="close" size={20} color={colors.card} />
             </Pressable>
           </View>
