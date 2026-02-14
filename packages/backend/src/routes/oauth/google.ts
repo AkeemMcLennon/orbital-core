@@ -151,8 +151,16 @@ app.get("/callback/google", async (context) => {
     );
     syncIntegration(db, integration.id, session.userId);
 
+    // Get client redirect URL from session metadata
+    const clientRedirectUrl = (session.metadata as any)?.clientRedirectUrl;
+
     // Delete the OAuth session (cleanup)
     await db.delete(oauthSessions).where(eq(oauthSessions.id, state));
+
+    // Handle custom client redirect (e.g., mobile deep link)
+    if (clientRedirectUrl) {
+      return context.redirect(clientRedirectUrl);
+    }
 
     // Redirect back to settings with success and integration ID
     return context.redirect(

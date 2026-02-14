@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { z } from "zod";
 import { authProc } from "../middleware/auth";
 import { settings } from "../config";
 import { oauthSessions } from "../database/schema";
@@ -68,15 +69,21 @@ export const connectGoogle = authProc
     method: "GET",
     path: "/integrations/google/connect",
   })
-  .handler(async ({ context }) => {
+  .input(
+    z.object({
+      next: z.string().optional(),
+    }),
+  )
+  .handler(async ({ context, input }) => {
     const { db, user, headers } = context;
+    const { next } = input;
 
     // Validate Google OAuth is configured
     if (!settings.GOOGLE_CLIENT_ID) {
       throw new Error("Google OAuth is not configured. Set GOOGLE_CLIENT_ID.");
     }
 
-    const redirectUri = getOAuthCallbackUri(
+    const callbackUri = getOAuthCallbackUri(
       headers as Record<string, string | string[]>,
     );
 
@@ -90,7 +97,8 @@ export const connectGoogle = authProc
         expiresAt,
         metadata: {
           scopes: GOOGLE_OAUTH_SCOPES,
-          redirectUri,
+          redirectUri: callbackUri,
+          clientRedirectUrl: next,
         },
       })
       .returning();
@@ -100,7 +108,7 @@ export const connectGoogle = authProc
     }
 
     // Create OAuth2 client and generate authorization URL
-    const oauth2Client = createGoogleOAuth2Client(redirectUri);
+    const oauth2Client = createGoogleOAuth2Client(callbackUri);
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: "offline",
       scope: GOOGLE_OAUTH_SCOPES,

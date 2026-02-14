@@ -129,6 +129,40 @@ export default function AddContactScreen() {
           paddingVertical: spacing.lg,
         }}
       >
+        {/* Import from device button */}
+        <Pressable
+          onPress={() => router.push("/contacts/import")}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: colors.primaryLight,
+            borderRadius: borderRadius.md,
+            padding: spacing.md,
+            marginBottom: spacing.lg,
+          }}
+        >
+          <Ionicons
+            name="download-outline"
+            size={20}
+            color={colors.primary}
+            style={{ marginRight: spacing.sm }}
+          />
+          <Text
+            style={{
+              fontSize: 14,
+              fontWeight: "600",
+              color: colors.primary,
+              flex: 1,
+            }}
+          >
+            Import from Phone or Google
+          </Text>
+          <Ionicons
+            name="chevron-forward"
+            size={18}
+            color={colors.primary}
+          />
+        </Pressable>
         {/* Hybrid Search Input */}
         <View style={{ marginBottom: spacing.lg }}>
           <Text

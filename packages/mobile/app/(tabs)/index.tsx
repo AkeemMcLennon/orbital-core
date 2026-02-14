@@ -181,7 +181,7 @@ export default function DailyOrbitScreen() {
                 href={"/contact-add" as any}
               />
               {contacts.map((contact) =>
-                renderFaceStreamItem(contact, contacts.indexOf(contact)),
+                renderFaceStreamItem(contact),
               )}
             </ScrollView>
           )}

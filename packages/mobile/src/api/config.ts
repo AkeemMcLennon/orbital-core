@@ -4,10 +4,19 @@ import * as storage from "../utils/storage";
 
 /**
  * Resolves the backend API base URL
- * For physical devices: Uses the dev server IP from Constants.expoConfig.hostUri
- * For simulators: Falls back to localhost
+ * Priority:
+ * 1. Custom base URL from Dev Settings (if set)
+ * 2. Expo dev server IP (for physical devices)
+ * 3. localhost (fallback for simulators)
  */
-function resolveBaseUrl(): string {
+async function resolveBaseUrl(): Promise<string> {
+  // Check for custom base URL from Dev Settings
+  const customBaseUrl = await storage.getItem("dev_api_base_url");
+  if (customBaseUrl) {
+    console.log("Using custom API base URL from Dev Settings:", customBaseUrl);
+    return customBaseUrl;
+  }
+
   const hostUri = Constants.expoConfig?.hostUri;
 
   if (hostUri) {
@@ -37,8 +46,8 @@ async function getToken(): Promise<string> {
  * Initializes the API client for mobile use
  * Should be called once on app startup
  */
-export function configureMobileApi(): void {
-  const baseURL = resolveBaseUrl();
+export async function configureMobileApi(): Promise<void> {
+  const baseURL = await resolveBaseUrl();
 
   console.log("Configuring mobile API client:", { baseURL });
 
@@ -50,6 +59,13 @@ export function configureMobileApi(): void {
       // TODO: Trigger logout or re-authentication flow
     },
   });
+}
+
+/**
+ * Gets the current API base URL (for debugging)
+ */
+export async function getCurrentBaseUrl(): Promise<string> {
+  return await resolveBaseUrl();
 }
 
 export { getToken };
