@@ -1,5 +1,0 @@
-# Backend API
-BACKEND_URL=http://localhost:8787
-
-# Development flags
-ENVIRONMENT=development

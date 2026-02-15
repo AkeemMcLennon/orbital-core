@@ -1,9 +1,0 @@
-workers_dev = true
-name = "orbital-frontend"
-compatibility_date = "2025-09-25"
-compatibility_flags = ["nodejs_compat"]
-main = "./worker.ts"
-assets = { directory = "./build/client/" }
-
-[vars]
-BACKEND_URL = "http://localhost:8787"
