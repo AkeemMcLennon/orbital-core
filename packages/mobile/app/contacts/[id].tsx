@@ -1,6 +1,7 @@
 import { useLocalSearchParams } from "expo-router";
 import React from "react";
-import { ActivityIndicator, SafeAreaView, Text, View } from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { ContactDetails } from "../../src/components/ContactDetails";
 import { useContact } from "../../src/queries/contacts";
 import { colors, spacing } from "../../src/theme";

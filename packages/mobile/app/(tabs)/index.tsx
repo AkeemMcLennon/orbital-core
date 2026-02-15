@@ -7,12 +7,12 @@ import {
   ActivityIndicator,
   Image,
   Pressable,
-  SafeAreaView,
   ScrollView,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { FaceAvatar, QuizCard, TimelineItem } from "../../src/components";
 import { quizCards } from "../../src/dummy-data";
 import { contactKeys, useContactsList } from "../../src/queries/contacts";
