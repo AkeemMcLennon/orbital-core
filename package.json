@@ -19,7 +19,8 @@
     "test": "bun run gen:openapi && bun run gen:client && bun run --filter='@orbital/backend' test",
     "typecheck": "bun run --filter='./packages/*' typecheck",
     "lint": "eslint .",
-    "format": "prettier --write \"**/*.{ts,json,md}\""
+    "format": "prettier --write \"**/*.{ts,json,md}\"",
+    "postinstall": "bun run gen"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.0.0",
