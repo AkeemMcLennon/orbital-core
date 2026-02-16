@@ -47,16 +47,8 @@ function createMockIdToken(email: string): string {
  * POST https://oauth2.googleapis.com/token
  */
 export const oauthTokenHandler = http.post(
-  "*/token",
+  "https://oauth2.googleapis.com/token",
   async ({ request }) => {
-    const url = new URL(request.url);
-    console.log("[MSW] Request intercepted:", request.method, url.href);
-
-    // Only handle OAuth token requests
-    if (!url.href.includes("oauth") && !url.href.includes("token")) {
-      return;
-    }
-
     console.log("[MSW] OAuth token exchange intercepted");
 
     // Parse form data

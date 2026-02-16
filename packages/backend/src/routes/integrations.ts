@@ -39,14 +39,12 @@ function getOAuthCallbackUri(
  * Create a configured Google OAuth2 client
  */
 export function createGoogleOAuth2Client(redirectUri: string) {
-  const oauth2Client = new google.auth.OAuth2(
-    settings.GOOGLE_CLIENT_ID,
-    settings.GOOGLE_CLIENT_SECRET,
+  const oauth2Client = new google.auth.OAuth2({
+    clientId: settings.GOOGLE_CLIENT_ID,
+    clientSecret: settings.GOOGLE_CLIENT_SECRET,
     redirectUri,
-  );
-
-  // Use native fetch for MSW compatibility in tests
-  oauth2Client.fetchImplementation = fetch as any;
+    transporterOptions: { fetchImplementation: fetch },
+  });
 
   return oauth2Client;
 }

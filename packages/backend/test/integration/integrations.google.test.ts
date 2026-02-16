@@ -419,24 +419,32 @@ describe("Google OAuth Flow (API)", () => {
     const location = callbackResponse.headers.get("location");
     expect(location).toContain("success=google");
 
-    // Step 3: Verify integration was created
-    const integrations = await db
+    // Step 3: Look up internal user ID (server stores UUID, not external ID)
+    const [user] = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.externalId, userId))
+      .limit(1);
+    expect(user).toBeDefined();
+
+    // Step 4: Verify integration was created
+    const integrationsList = await db
       .select()
       .from(schema.integrations)
-      .where(eq(schema.integrations.userId, userId));
+      .where(eq(schema.integrations.userId, user!.id));
 
-    expect(integrations.length).toBe(1);
-    expect(integrations[0]!.provider).toBe("google");
-    expect(integrations[0]!.accountEmail).toBe("testuser@gmail.com");
+    expect(integrationsList.length).toBe(1);
+    expect(integrationsList[0]!.source).toBe("google");
+    expect(integrationsList[0]!.accountId).toBe("testuser@gmail.com");
 
-    // Step 4: Wait for background sync to complete
+    // Step 5: Wait for background sync to complete
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    // Step 5: Verify contacts were synced
+    // Step 6: Verify contacts were synced
     const contacts = await db
       .select()
       .from(schema.directory)
-      .where(eq(schema.directory.userId, userId));
+      .where(eq(schema.directory.userId, user!.id));
 
     expect(contacts.length).toBeGreaterThan(0);
   });
