@@ -9,6 +9,11 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 JWKS_URL = "http://example.com"
 
+[observability]
+[observability.logs]
+enabled = true
+invocation_logs = true
+
 # For production with Cloudflare D1
 # Create production database: wrangler d1 create orbital-db
 [[d1_databases]]
