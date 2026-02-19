@@ -101,7 +101,8 @@ export const authProc = os
       const payload = validationResult.data;
 
       // Initialize database client
-      const provider = settings.DB_PROVIDER;
+      // Auto-detect D1 when binding is available (Cloudflare Workers)
+      const provider = context.env.DB ? "d1" : settings.DB_PROVIDER;
       const db = await getDbClient({
         provider,
         d1: context.env.DB,
