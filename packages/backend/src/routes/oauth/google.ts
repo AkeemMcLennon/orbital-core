@@ -57,8 +57,9 @@ app.get("/callback/google", async (context) => {
     }
 
     // Initialize database
+    // Auto-detect D1 when binding is available (Cloudflare Workers)
     const db = await getDbClient({
-      provider: settings.DB_PROVIDER,
+      provider: context.env?.DB ? "d1" : settings.DB_PROVIDER,
       d1: context.env?.DB,
       sqlitePath: settings.SQLITE_DB_PATH,
     });
