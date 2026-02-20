@@ -173,11 +173,11 @@ describe("Google Integration (MSW Mocked)", () => {
       .from(schema.directory)
       .where(eq(schema.directory.userId, userId));
 
-    // All contacts should be from personal source (resourceName starts with "people/")
+    // All contacts should be from personal source (externalId starts with "people/" but not "people/directory/")
     const personalContacts = allContacts.filter(
       (c) =>
-        (c.rawMetadata as any)?.resourceName?.startsWith("people/") &&
-        !(c.rawMetadata as any)?.resourceName?.startsWith("people/directory/"),
+        c.externalId?.startsWith("people/") &&
+        !c.externalId?.startsWith("people/directory/"),
     );
     expect(personalContacts.length).toBe(allContacts.length);
   });
@@ -211,7 +211,7 @@ describe("Google Integration (MSW Mocked)", () => {
       .limit(10);
 
     const user003 = contactWithSecondary.find((c) =>
-      (c.rawMetadata as any)?.resourceName?.includes("003"),
+      c.externalId?.includes("003"),
     );
 
     expect(user003).toBeDefined();

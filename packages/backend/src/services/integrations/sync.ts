@@ -92,32 +92,35 @@ export async function syncIntegration(
       userId,
     }));
 
-    try {
-      await db
-        .insert(directory)
-        .values(rows)
-        .onConflictDoUpdate({
-          target: [directory.userId, directory.source, directory.externalId!],
-          set: {
-            email: sql`excluded.email`,
-            phone: sql`excluded.phone`,
-            name: sql`excluded.name`,
-            avatarUrl: sql`excluded.avatar_url`,
-            company: sql`excluded.company`,
-            birthday: sql`excluded.birthday`,
-            secondaryData: sql`excluded.secondary_data`,
-          },
+    for (let batchStart = 0; batchStart < rows.length; batchStart += 10) {
+      const batch = rows.slice(batchStart, batchStart + 10);
+      try {
+        await db
+          .insert(directory)
+          .values(batch)
+          .onConflictDoUpdate({
+            target: [directory.userId, directory.source, directory.externalId!],
+            set: {
+              email: sql`excluded.email`,
+              phone: sql`excluded.phone`,
+              name: sql`excluded.name`,
+              avatarUrl: sql`excluded.avatar_url`,
+              company: sql`excluded.company`,
+              birthday: sql`excluded.birthday`,
+              secondaryData: sql`excluded.secondary_data`,
+            },
+          });
+        result.imported += batch.length;
+        console.log(`[sync] Page ${pageIndex} batch ${batchStart / 10}: upserted ${batch.length} rows (total imported: ${result.imported})`);
+      } catch (error) {
+        const cause = error instanceof Error ? error.cause : undefined;
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error(`[sync] Page ${pageIndex} batch ${batchStart / 10}: DB error:`, msg, cause ?? error);
+        result.errors += batch.length;
+        result.errorDetails?.push({
+          error: msg,
         });
-      result.imported += rows.length;
-      console.log(`[sync] Page ${pageIndex}: upserted ${rows.length} rows (total imported: ${result.imported})`);
-    } catch (error) {
-      const cause = error instanceof Error ? error.cause : undefined;
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error(`[sync] Page ${pageIndex}: DB error:`, msg, cause ?? error);
-      result.errors += rows.length;
-      result.errorDetails?.push({
-        error: msg,
-      });
+      }
     }
 
     pageIndex++;
