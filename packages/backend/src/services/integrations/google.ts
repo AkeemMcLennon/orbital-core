@@ -146,7 +146,7 @@ class GoogleProvider implements DirectoryProvider {
       do {
         const response = await people.people.listDirectoryPeople({
           readMask: "names,emailAddresses,phoneNumbers,photos",
-          sources: ["DIRECTORY_SOURCE_TYPE_DOMAIN_CONTACT"],
+          sources: ["DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE"],
           pageSize: 100,
           pageToken: nextPageToken,
         });
