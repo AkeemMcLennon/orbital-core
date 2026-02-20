@@ -106,7 +106,6 @@ export async function syncIntegration(
             company: sql`excluded.company`,
             birthday: sql`excluded.birthday`,
             secondaryData: sql`excluded.secondary_data`,
-            rawMetadata: sql`excluded.raw_metadata`,
           },
         });
       result.imported += rows.length;

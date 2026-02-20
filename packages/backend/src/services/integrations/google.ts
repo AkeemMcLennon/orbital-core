@@ -219,7 +219,6 @@ class GoogleProvider implements DirectoryProvider {
       company,
       birthday,
       secondaryData: secondaryData.length > 0 ? secondaryData : undefined,
-      rawMetadata: person,
     };
   }
 
