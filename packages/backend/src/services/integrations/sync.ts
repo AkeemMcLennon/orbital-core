@@ -112,10 +112,12 @@ export async function syncIntegration(
       result.imported += rows.length;
       console.log(`[sync] Page ${pageIndex}: upserted ${rows.length} rows (total imported: ${result.imported})`);
     } catch (error) {
-      console.error(`[sync] Page ${pageIndex}: DB error: ${error instanceof Error ? error.message : String(error)}`);
+      const cause = error instanceof Error ? error.cause : undefined;
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`[sync] Page ${pageIndex}: DB error:`, msg, cause ?? error);
       result.errors += rows.length;
       result.errorDetails?.push({
-        error: error instanceof Error ? error.message : String(error),
+        error: msg,
       });
     }
 
