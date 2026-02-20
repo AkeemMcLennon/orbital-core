@@ -93,24 +93,22 @@ export async function syncIntegration(
     }));
 
     try {
-      await db.transaction(async (tx) => {
-        await tx
-          .insert(directory)
-          .values(rows)
-          .onConflictDoUpdate({
-            target: [directory.userId, directory.source, directory.externalId!],
-            set: {
-              email: sql`excluded.email`,
-              phone: sql`excluded.phone`,
-              name: sql`excluded.name`,
-              avatarUrl: sql`excluded.avatar_url`,
-              company: sql`excluded.company`,
-              birthday: sql`excluded.birthday`,
-              secondaryData: sql`excluded.secondary_data`,
-              rawMetadata: sql`excluded.raw_metadata`,
-            },
-          });
-      });
+      await db
+        .insert(directory)
+        .values(rows)
+        .onConflictDoUpdate({
+          target: [directory.userId, directory.source, directory.externalId!],
+          set: {
+            email: sql`excluded.email`,
+            phone: sql`excluded.phone`,
+            name: sql`excluded.name`,
+            avatarUrl: sql`excluded.avatar_url`,
+            company: sql`excluded.company`,
+            birthday: sql`excluded.birthday`,
+            secondaryData: sql`excluded.secondary_data`,
+            rawMetadata: sql`excluded.raw_metadata`,
+          },
+        });
       result.imported += rows.length;
       console.log(`[sync] Page ${pageIndex}: upserted ${rows.length} rows (total imported: ${result.imported})`);
     } catch (error) {
