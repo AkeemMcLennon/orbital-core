@@ -10,6 +10,7 @@ import {
 } from "../../services/integrations";
 
 import { type Env } from "../../types/env";
+import { waitUntil } from "../../utils/wait-until";
 // Cloudflare Workers environment types
 
 const app = new Hono<{ Bindings: Env }>();
@@ -150,7 +151,7 @@ app.get("/callback/google", async (context) => {
         expiresAt: tokenExpiresAt,
       },
     );
-    syncIntegration(db, integration.id, session.userId);
+    waitUntil(syncIntegration(db, integration.id, session.userId));
 
     // Get client redirect URL from session metadata
     const clientRedirectUrl = (session.metadata as any)?.clientRedirectUrl;
