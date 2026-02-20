@@ -151,7 +151,7 @@ app.get("/callback/google", async (context) => {
         expiresAt: tokenExpiresAt,
       },
     );
-    await syncIntegration(db, integration.id, session.userId);
+    waitUntil(syncIntegration(db, integration.id, session.userId));
 
     // Get client redirect URL from session metadata
     const clientRedirectUrl = (session.metadata as any)?.clientRedirectUrl;
