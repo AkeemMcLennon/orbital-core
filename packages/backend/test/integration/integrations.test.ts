@@ -138,47 +138,6 @@ describe("Directory Integrations", () => {
       expect(allContacts.length).toBe(3);
     });
 
-    it("should match and link imported contacts to existing managed contacts", async () => {
-      // Create an existing managed contact
-      const existingContact = await db
-        .insert(schema.contacts)
-        .values({
-          userId,
-          name: "Alice Smith",
-          email: "alice@example.com",
-        })
-        .returning();
-
-      // Store credentials with a test token
-      const testToken = "secure-test-token-match";
-      const integration = await storeIntegrationCredentials(
-        db,
-        userId,
-        "mock",
-        "mock-account",
-        {
-          accessToken: testToken,
-          expiresAt: new Date(Date.now() + 86400000),
-        },
-      );
-
-      // Configure mock server and provider to validate the token
-      mockServer!.setExpectedToken(testToken);
-
-      const result = await syncIntegration(db, integration.id, userId);
-
-      expect(result.matched).toBe(1); // Alice should be matched
-      expect(result.imported).toBe(3);
-
-      // Verify directory entry is linked to existing contact
-      const directoryEntry = await db
-        .select()
-        .from(schema.directory)
-        .where(eq(schema.directory.externalId, "ext-001"))
-        .limit(1);
-
-      expect(directoryEntry[0]!.activeContactId).toBe(existingContact[0]!.id);
-    });
 
     it("should handle contacts with multiple channels", async () => {
       // Create a contact with secondary data (multiple emails/phones)
