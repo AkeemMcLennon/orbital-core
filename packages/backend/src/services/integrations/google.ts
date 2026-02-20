@@ -1,5 +1,5 @@
 import { google, type people_v1 } from "googleapis";
-import type { DirectoryProvider, FetchContactsResult } from "./provider";
+import type { DirectoryProvider, FetchContactsPage } from "./provider";
 import type {
   NewDirectoryEntry,
   SecondaryChannel,
@@ -61,34 +61,30 @@ class GoogleProvider implements DirectoryProvider {
 
   /**
    * Fetch contacts from Google People API
-   * Combines personal connections and company directory
+   * Yields one page at a time: personal connections first, then company directory.
+   * nextSyncToken is only set on the last page of personal contacts.
    */
-  async fetchContacts(
+  async *fetchContacts(
     accessToken: string,
     syncToken?: string,
-  ): Promise<FetchContactsResult> {
-    const [personalResult, directoryContacts] = await Promise.all([
-      this.fetchPersonalContacts(accessToken, syncToken),
-      this.fetchDirectoryContacts(accessToken),
-    ]);
-
-    return {
-      contacts: [...personalResult.contacts, ...directoryContacts],
-      nextSyncToken: personalResult.nextSyncToken,
-    };
+  ): AsyncGenerator<FetchContactsPage> {
+    for await (const page of this.fetchPersonalContacts(accessToken, syncToken)) {
+      yield page;
+    }
+    for await (const contacts of this.fetchDirectoryContacts(accessToken)) {
+      yield { contacts };
+    }
   }
 
   /**
    * Fetch personal connections from Google using googleapis
+   * Yields one page at a time; nextSyncToken is set only on the final page.
    */
-  private async fetchPersonalContacts(
+  private async *fetchPersonalContacts(
     accessToken: string,
     syncToken?: string,
-  ): Promise<FetchContactsResult> {
-    const contacts: NewDirectoryEntry[] = [];
-    let nextSyncToken: string | undefined;
+  ): AsyncGenerator<FetchContactsPage> {
     let nextPageToken: string | undefined;
-
     const people = this.createPeopleClient(accessToken);
 
     try {
@@ -104,42 +100,37 @@ class GoogleProvider implements DirectoryProvider {
         });
 
         const data = response.data;
+        const contacts: NewDirectoryEntry[] = [];
 
-        // Process contacts
         if (data.connections && data.connections.length > 0) {
           for (const person of data.connections) {
             const contact = this.mapGooglePersonToDirectory(person);
-            if (contact) {
-              contacts.push(contact);
-            }
+            if (contact) contacts.push(contact);
           }
         }
 
-        // Handle pagination
         nextPageToken = data.nextPageToken ?? undefined;
-        nextSyncToken = data.nextSyncToken ?? undefined;
+
+        yield {
+          contacts,
+          nextSyncToken: data.nextSyncToken ?? undefined,
+        };
       } while (nextPageToken);
     } catch (error) {
       throw new Error(
         `Failed to fetch personal contacts from Google: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
-
-    return {
-      contacts,
-      nextSyncToken,
-    };
   }
 
   /**
    * Fetch company directory people from Google Workspace using googleapis
+   * Yields one page at a time; silently stops on 403/404 (directory not available).
    */
-  private async fetchDirectoryContacts(
+  private async *fetchDirectoryContacts(
     accessToken: string,
-  ): Promise<NewDirectoryEntry[]> {
-    const contacts: NewDirectoryEntry[] = [];
+  ): AsyncGenerator<NewDirectoryEntry[]> {
     let nextPageToken: string | undefined;
-
     const people = this.createPeopleClient(accessToken);
 
     try {
@@ -152,36 +143,31 @@ class GoogleProvider implements DirectoryProvider {
         });
 
         const data = response.data;
-        console.log(
-          `Fetched ${data.people?.length} directory contacts from Google`,
-        );
-        console.log(JSON.stringify(data, null, 2));
+        const contacts: NewDirectoryEntry[] = [];
 
         if (data.people && data.people.length > 0) {
           for (const person of data.people) {
             const contact = this.mapGooglePersonToDirectory(person);
-            if (contact) {
-              contacts.push(contact);
-            }
+            if (contact) contacts.push(contact);
           }
         }
 
         nextPageToken = data.nextPageToken ?? undefined;
+
+        if (contacts.length > 0) {
+          yield contacts;
+        }
       } while (nextPageToken);
     } catch (error: any) {
-      console.error("Failed to fetch directory contacts from Google:", error);
-      // 403 or 404 might mean directory access is not available for this account
+      // 403/404 means directory access is not available for this account — skip silently
       if (error?.code === 403 || error?.code === 404) {
         console.warn(
           "Google Directory API access denied or unavailable. Skipping directory sync.",
         );
-        return [];
+        return;
       }
-      // Don't fail the whole sync if directory fails, just return what we have
-      return [];
+      console.error("Failed to fetch directory contacts from Google:", error);
     }
-
-    return contacts;
   }
 
   /**

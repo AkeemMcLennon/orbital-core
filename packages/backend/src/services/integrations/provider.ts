@@ -2,13 +2,13 @@ import type { NewDirectoryEntry } from '../../database/schema';
 import type { ExternalContact, SyncResult } from '../../types/integrations';
 
 /**
- * Result from fetching contacts from a provider
+ * A single page of contacts fetched from a provider
  */
-export interface FetchContactsResult {
+export interface FetchContactsPage {
   // Contacts mapped to directory entry format
   contacts: NewDirectoryEntry[];
 
-  // Provider-specific sync token for delta-syncs (optional)
+  // Provider-specific sync token — only set on the final personal contacts page
   nextSyncToken?: string;
 }
 
@@ -44,7 +44,7 @@ export interface DirectoryProvider {
    * @param syncToken - Previous sync token for delta-sync (optional)
    * @returns Fetched contacts and next sync token
    */
-  fetchContacts(accessToken: string, syncToken?: string): Promise<FetchContactsResult>;
+  fetchContacts(accessToken: string, syncToken?: string): AsyncIterable<FetchContactsPage>;
 }
 
 /**

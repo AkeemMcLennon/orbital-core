@@ -71,57 +71,60 @@ export async function syncIntegration(
       // Otherwise continue with existing token
     }
 
-    // 4. Fetch contacts from provider
-    const fetchResult = await provider.fetchContacts(accessToken, integration.lastSyncToken);
+    // 4. Fetch and process contacts page-by-page as they arrive
+    let nextSyncToken: string | undefined;
 
-    // 5. Process and upsert contacts
-    for (const contactData of fetchResult.contacts) {
-      try {
-        // Find existing contact (exact matching)
-        const existingContact = await findExistingContact(db, userId, contactData.email, contactData.phone);
+    for await (const page of provider.fetchContacts(accessToken, integration.lastSyncToken)) {
+      if (page.nextSyncToken) nextSyncToken = page.nextSyncToken;
 
-        // Prepare upsert data
-        const upsertData = {
-          ...contactData,
-          userId, // Ensure user ID is set
-          activeContactId: existingContact?.id, // Link to existing contact if found
-        };
+      for (const contactData of page.contacts) {
+        try {
+          // Find existing contact (exact matching)
+          const existingContact = await findExistingContact(db, userId, contactData.email, contactData.phone);
 
-        // Upsert into directory
-        await db
-          .insert(directory)
-          .values(upsertData)
-          .onConflictDoUpdate({
-            target: [directory.userId, directory.source, directory.externalId!],
-            set: {
-              email: upsertData.email,
-              phone: upsertData.phone,
-              name: upsertData.name,
-              avatarUrl: upsertData.avatarUrl,
-              company: upsertData.company,
-              birthday: upsertData.birthday,
-              secondaryData: upsertData.secondaryData,
-              rawMetadata: upsertData.rawMetadata,
-              activeContactId: upsertData.activeContactId,
-              // Note: createdAt is preserved by Drizzle
-            },
+          // Prepare upsert data
+          const upsertData = {
+            ...contactData,
+            userId, // Ensure user ID is set
+            activeContactId: existingContact?.id, // Link to existing contact if found
+          };
+
+          // Upsert into directory
+          await db
+            .insert(directory)
+            .values(upsertData)
+            .onConflictDoUpdate({
+              target: [directory.userId, directory.source, directory.externalId!],
+              set: {
+                email: upsertData.email,
+                phone: upsertData.phone,
+                name: upsertData.name,
+                avatarUrl: upsertData.avatarUrl,
+                company: upsertData.company,
+                birthday: upsertData.birthday,
+                secondaryData: upsertData.secondaryData,
+                rawMetadata: upsertData.rawMetadata,
+                activeContactId: upsertData.activeContactId,
+                // Note: createdAt is preserved by Drizzle
+              },
+            });
+
+          result.imported++;
+          if (existingContact) {
+            result.matched++;
+          }
+        } catch (error) {
+          result.errors++;
+          result.errorDetails?.push({
+            externalId: contactData.externalId,
+            error: error instanceof Error ? error.message : String(error),
           });
-
-        result.imported++;
-        if (existingContact) {
-          result.matched++;
         }
-      } catch (error) {
-        result.errors++;
-        result.errorDetails?.push({
-          externalId: contactData.externalId,
-          error: error instanceof Error ? error.message : String(error),
-        });
       }
     }
 
-    // 6. Update integration sync state
-    await updateIntegrationSyncState(db, integrationId, userId, fetchResult.nextSyncToken);
+    // 5. Update integration sync state
+    await updateIntegrationSyncState(db, integrationId, userId, nextSyncToken);
   } catch (error) {
     result.errors++;
     result.errorDetails?.push({

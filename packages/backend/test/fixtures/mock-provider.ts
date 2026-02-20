@@ -1,6 +1,6 @@
 import type {
   DirectoryProvider,
-  FetchContactsResult,
+  FetchContactsPage,
 } from "../../src/services/integrations/provider";
 import type { NewDirectoryEntry } from "../../src/database/schema";
 
@@ -27,10 +27,10 @@ export class MockDirectoryProvider implements DirectoryProvider {
     return { accessToken, refreshToken, expiresAt: tokenExpiresAt };
   }
 
-  async fetchContacts(
+  async *fetchContacts(
     accessToken: string,
     syncToken?: string,
-  ): Promise<FetchContactsResult> {
+  ): AsyncGenerator<FetchContactsPage> {
     const url = new URL(`${this.baseUrl}/contacts`);
     if (syncToken) {
       url.searchParams.set("syncToken", syncToken);
@@ -51,7 +51,7 @@ export class MockDirectoryProvider implements DirectoryProvider {
       nextSyncToken?: string;
     };
 
-    return {
+    yield {
       contacts: data.contacts,
       nextSyncToken: data.nextSyncToken,
     };

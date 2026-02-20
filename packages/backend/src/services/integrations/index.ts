@@ -15,7 +15,7 @@ export {
 } from "./credentials";
 export {
   type DirectoryProvider,
-  type FetchContactsResult,
+  type FetchContactsPage,
   registerProvider,
   getProvider,
   listProviders,
