@@ -1,5 +1,5 @@
-import { eq, and, or } from "drizzle-orm";
-import { directory, contacts, contactChannels } from "../../database/schema";
+import { sql } from "drizzle-orm";
+import { directory } from "../../database/schema";
 import {
   getDecryptedIntegration,
   updateIntegrationTokens,
@@ -9,7 +9,6 @@ import { getProvider } from "./provider";
 import type { DatabaseClient } from "../../database/client";
 import type { SyncResult } from "../../types/integrations";
 import type { DirectoryProvider } from "./provider";
-import type { Contact } from "../../database/schema";
 
 /**
  * Sync contacts from an external integration
@@ -78,70 +77,44 @@ export async function syncIntegration(
 
     // 4. Fetch and process contacts page-by-page as they arrive
     let nextSyncToken: string | undefined;
-    let i = 0;
-    console.log("Starting fetchContacts");
 
     for await (const page of provider.fetchContacts(
       accessToken,
       integration.lastSyncToken,
     )) {
-      console.log(`Processing page ${i}`);
-      i++;
       if (page.nextSyncToken) nextSyncToken = page.nextSyncToken;
-      console.log(JSON.stringify(page));
+      if (page.contacts.length === 0) continue;
 
-      for (const contactData of page.contacts) {
-        try {
-          // Find existing contact (exact matching)
-          const existingContact = await findExistingContact(
-            db,
-            userId,
-            contactData.email,
-            contactData.phone,
-          );
+      const rows = page.contacts.map((contactData) => ({
+        ...contactData,
+        userId,
+      }));
 
-          // Prepare upsert data
-          const upsertData = {
-            ...contactData,
-            userId, // Ensure user ID is set
-            activeContactId: existingContact?.id, // Link to existing contact if found
-          };
-
-          // Upsert into directory
-          await db
+      try {
+        await db.transaction(async (tx) => {
+          await tx
             .insert(directory)
-            .values(upsertData)
+            .values(rows)
             .onConflictDoUpdate({
-              target: [
-                directory.userId,
-                directory.source,
-                directory.externalId!,
-              ],
+              target: [directory.userId, directory.source, directory.externalId!],
               set: {
-                email: upsertData.email,
-                phone: upsertData.phone,
-                name: upsertData.name,
-                avatarUrl: upsertData.avatarUrl,
-                company: upsertData.company,
-                birthday: upsertData.birthday,
-                secondaryData: upsertData.secondaryData,
-                rawMetadata: upsertData.rawMetadata,
-                activeContactId: upsertData.activeContactId,
-                // Note: createdAt is preserved by Drizzle
+                email: sql`excluded.email`,
+                phone: sql`excluded.phone`,
+                name: sql`excluded.name`,
+                avatarUrl: sql`excluded.avatar_url`,
+                company: sql`excluded.company`,
+                birthday: sql`excluded.birthday`,
+                secondaryData: sql`excluded.secondary_data`,
+                rawMetadata: sql`excluded.raw_metadata`,
               },
             });
-
-          result.imported++;
-          if (existingContact) {
-            result.matched++;
-          }
-        } catch (error) {
-          result.errors++;
-          result.errorDetails?.push({
-            externalId: contactData.externalId,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
+        });
+        result.imported += rows.length;
+      } catch (error) {
+        result.errors += rows.length;
+        result.errorDetails?.push({
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -157,131 +130,3 @@ export async function syncIntegration(
   return result;
 }
 
-/**
- * Find an existing contact by email or phone (exact matching)
- * Searches both primary fields and overflow channels
- */
-async function findExistingContact(
-  db: DatabaseClient,
-  userId: string,
-  email?: string,
-  phone?: string,
-): Promise<Contact | null> {
-  if (!email && !phone) {
-    return null; // Can't match without email or phone
-  }
-
-  const conditions = [];
-
-  // Search by email: primary or in contact_channels
-  if (email) {
-    const normalizedEmail = normalizeEmail(email);
-    conditions.push(
-      or(
-        // Primary email field
-        and(eq(contacts.userId, userId), eq(contacts.email, normalizedEmail)),
-      ),
-    );
-  }
-
-  // Search by phone: primary or in contact_channels
-  if (phone && !conditions.length) {
-    const normalizedPhone = normalizePhone(phone);
-    conditions.push(
-      or(
-        // Primary phone field
-        and(eq(contacts.userId, userId), eq(contacts.phone, normalizedPhone)),
-      ),
-    );
-  }
-
-  if (!conditions.length) {
-    return null;
-  }
-
-  // Try email first
-  if (email) {
-    const normalizedEmail = normalizeEmail(email);
-    const [found] = await db
-      .select()
-      .from(contacts)
-      .where(
-        and(eq(contacts.userId, userId), eq(contacts.email, normalizedEmail)),
-      )
-      .limit(1);
-
-    if (found) {
-      return found;
-    }
-
-    // Try contact_channels for email
-    const [channelMatch] = await db
-      .select({ contact: contacts })
-      .from(contactChannels)
-      .innerJoin(contacts, eq(contactChannels.contactId, contacts.id))
-      .where(
-        and(
-          eq(contacts.userId, userId),
-          eq(contactChannels.type, "email"),
-          eq(contactChannels.value, normalizedEmail),
-        ),
-      )
-      .limit(1);
-
-    if (channelMatch?.contact) {
-      return channelMatch.contact;
-    }
-  }
-
-  // Try phone
-  if (phone) {
-    const normalizedPhone = normalizePhone(phone);
-    const [found] = await db
-      .select()
-      .from(contacts)
-      .where(
-        and(eq(contacts.userId, userId), eq(contacts.phone, normalizedPhone)),
-      )
-      .limit(1);
-
-    if (found) {
-      return found;
-    }
-
-    // Try contact_channels for phone
-    const [channelMatch] = await db
-      .select({ contact: contacts })
-      .from(contactChannels)
-      .innerJoin(contacts, eq(contactChannels.contactId, contacts.id))
-      .where(
-        and(
-          eq(contacts.userId, userId),
-          eq(contactChannels.type, "phone"),
-          eq(contactChannels.value, normalizedPhone),
-        ),
-      )
-      .limit(1);
-
-    if (channelMatch?.contact) {
-      return channelMatch.contact;
-    }
-  }
-
-  return null;
-}
-
-/**
- * Normalize email for comparison (lowercase, trim)
- */
-function normalizeEmail(email: string): string {
-  return email.toLowerCase().trim();
-}
-
-/**
- * Normalize phone for comparison
- * Removes non-digit characters for consistent matching
- */
-function normalizePhone(phone: string): string {
-  // Remove all non-digit characters
-  return phone.replace(/\D/g, "");
-}
