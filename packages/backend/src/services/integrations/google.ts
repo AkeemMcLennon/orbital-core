@@ -140,8 +140,6 @@ class GoogleProvider implements DirectoryProvider {
     const contacts: NewDirectoryEntry[] = [];
     let nextPageToken: string | undefined;
 
-    console.log(`Fetching access token ${accessToken}`);
-
     const people = this.createPeopleClient(accessToken);
 
     try {
@@ -154,6 +152,10 @@ class GoogleProvider implements DirectoryProvider {
         });
 
         const data = response.data;
+        console.log(
+          `Fetched ${data.people?.length} directory contacts from Google`,
+        );
+        console.log(JSON.stringify(data, null, 2));
 
         if (data.people && data.people.length > 0) {
           for (const person of data.people) {
