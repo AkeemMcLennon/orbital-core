@@ -92,33 +92,39 @@ export async function syncIntegration(
       userId,
     }));
 
-    try {
-      await db
-        .insert(directory)
-        .values(rows)
-        .onConflictDoUpdate({
-          target: [directory.userId, directory.source, directory.externalId!],
-          set: {
-            email: sql`excluded.email`,
-            phone: sql`excluded.phone`,
-            name: sql`excluded.name`,
-            avatarUrl: sql`excluded.avatar_url`,
-            company: sql`excluded.company`,
-            birthday: sql`excluded.birthday`,
-            secondaryData: sql`excluded.secondary_data`,
-            rawMetadata: sql`excluded.raw_metadata`,
-          },
+    // Chunk size calculated to stay within SQLite's 999 variable limit
+    // Each row has ~11-12 fields, so 50 is a safe chunk size
+    const chunkSize = 50;
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      const chunk = rows.slice(i, i + chunkSize);
+      try {
+        await db
+          .insert(directory)
+          .values(chunk)
+          .onConflictDoUpdate({
+            target: [directory.userId, directory.source, directory.externalId!],
+            set: {
+              email: sql`excluded.email`,
+              phone: sql`excluded.phone`,
+              name: sql`excluded.name`,
+              avatarUrl: sql`excluded.avatar_url`,
+              company: sql`excluded.company`,
+              birthday: sql`excluded.birthday`,
+              secondaryData: sql`excluded.secondary_data`,
+              rawMetadata: sql`excluded.raw_metadata`,
+            },
+          });
+        result.imported += chunk.length;
+        console.log(`[sync] Page ${pageIndex}: upserted ${chunk.length} rows (total imported: ${result.imported})`);
+      } catch (error) {
+        const cause = error instanceof Error ? error.cause : undefined;
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error(`[sync] Page ${pageIndex}: DB error:`, msg, cause ?? error);
+        result.errors += chunk.length;
+        result.errorDetails?.push({
+          error: msg,
         });
-      result.imported += rows.length;
-      console.log(`[sync] Page ${pageIndex}: upserted ${rows.length} rows (total imported: ${result.imported})`);
-    } catch (error) {
-      const cause = error instanceof Error ? error.cause : undefined;
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error(`[sync] Page ${pageIndex}: DB error:`, msg, cause ?? error);
-      result.errors += rows.length;
-      result.errorDetails?.push({
-        error: msg,
-      });
+      }
     }
 
     pageIndex++;
