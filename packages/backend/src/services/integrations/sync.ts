@@ -28,6 +28,7 @@ export async function syncIntegration(
   };
 
   try {
+    console.log("Starting sync");
     // 1. Fetch and decrypt integration record
     const integration = await getDecryptedIntegration(
       db,
@@ -78,6 +79,7 @@ export async function syncIntegration(
     // 4. Fetch and process contacts page-by-page as they arrive
     let nextSyncToken: string | undefined;
     let i = 0;
+    console.log("Starting fetchContacts");
 
     for await (const page of provider.fetchContacts(
       accessToken,
