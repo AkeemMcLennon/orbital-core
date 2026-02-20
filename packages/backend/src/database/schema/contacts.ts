@@ -22,6 +22,7 @@ export const contacts = sqliteTable('contacts', {
   // Professional Info
   jobTitle: text('job_title'),
   company: text('company'),
+  birthday: text('birthday'), // "YYYY-MM-DD" (with year) or "MM-DD" (without year)
 
   // Context & Categorization
   notes: text('notes'), // Renamed from 'context' - stores relationship context, origin story, etc.

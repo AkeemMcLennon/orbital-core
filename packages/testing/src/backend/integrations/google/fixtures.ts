@@ -25,6 +25,7 @@ export interface GooglePerson {
   photos?: GooglePhoto[];
   organizations?: GoogleOrganization[];
   urls?: GoogleUrl[];
+  birthdays?: GoogleBirthday[];
 }
 
 export interface GoogleName {
@@ -63,6 +64,15 @@ export interface GoogleUrl {
   type?: string;
   value?: string;
   displayName?: string;
+}
+
+export interface GoogleBirthday {
+  date?: {
+    year?: number;
+    month?: number;
+    day?: number;
+  };
+  metadata?: { primary?: boolean };
 }
 
 /**
@@ -126,6 +136,7 @@ export function createGooglePerson(
     ],
     organizations: overrides.organizations,
     urls: overrides.urls,
+    birthdays: overrides.birthdays,
   };
 }
 
@@ -136,7 +147,7 @@ export function createPersonalContactsFixture(count: number = 10): GooglePerson[
   const contacts: GooglePerson[] = [];
 
   if (count >= 1) {
-    // Contact 1: Full data with organization and social
+    // Contact 1: Full data with organization, social, and birthday with year
     contacts.push(
       createGooglePerson({
         id: "001",
@@ -144,17 +155,23 @@ export function createPersonalContactsFixture(count: number = 10): GooglePerson[
           { name: "Acme Corp", title: "Software Engineer", metadata: { primary: true } },
         ],
         urls: [{ type: "linkedin", value: "https://linkedin.com/in/user001" }],
+        birthdays: [
+          { date: { year: 1990, month: 3, day: 15 }, metadata: { primary: true } },
+        ],
       })
     );
   }
 
   if (count >= 2) {
-    // Contact 2: Minimal data (no phone, no photo)
+    // Contact 2: Minimal data (no phone, no photo) with birthday without year
     contacts.push(
       createGooglePerson({
         id: "002",
         phoneNumbers: undefined,
         photos: undefined,
+        birthdays: [
+          { date: { year: 0, month: 7, day: 4 }, metadata: { primary: true } },
+        ],
       })
     );
   }

@@ -261,6 +261,44 @@ describe("Google Integration (MSW Mocked)", () => {
     expect(contactsWithEmail.length + contactsWithPhone.length).toBeGreaterThan(
       0,
     );
+
+    // Verify birthday is mapped for contact 001
+    const contact001 = contacts.find((c) => c.externalId === "people/001");
+    expect(contact001).toBeDefined();
+    expect(contact001!.birthday).toBe("1990-03-15");
+  });
+
+  it("should handle birthdays with and without year", async () => {
+    // Contact 001 has birthday with year, contact 002 without year, contact 003 has none
+    google.resetPaginationState({ personalCount: 3, directoryCount: 0 });
+    google.setDirectoryAccessEnabled(false);
+
+    const integration = await storeIntegrationCredentials(
+      db,
+      userId,
+      "google",
+      "test@example.com",
+      {
+        accessToken: "mock-google-token",
+        expiresAt: new Date(Date.now() + 86400000),
+      },
+    );
+
+    const result = await syncIntegration(db, integration.id, userId);
+    expect(result.imported).toBe(3);
+
+    const allContacts = await db
+      .select()
+      .from(schema.directory)
+      .where(eq(schema.directory.userId, userId));
+
+    const contact001 = allContacts.find((c) => c.externalId === "people/001");
+    const contact002 = allContacts.find((c) => c.externalId === "people/002");
+    const contact003 = allContacts.find((c) => c.externalId === "people/003");
+
+    expect(contact001!.birthday).toBe("1990-03-15");
+    expect(contact002!.birthday).toBe("07-04");
+    expect(contact003!.birthday).toBeNull();
   });
 
   it("should handle contacts with organizations", async () => {

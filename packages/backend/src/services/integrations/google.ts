@@ -97,7 +97,7 @@ class GoogleProvider implements DirectoryProvider {
           resourceName: "people/me",
           pageSize: 100,
           personFields:
-            "names,emailAddresses,phoneNumbers,photos,organizations,urls",
+            "names,emailAddresses,phoneNumbers,photos,organizations,urls,birthdays",
           requestSyncToken: true,
           syncToken: syncToken,
           pageToken: nextPageToken,
@@ -213,6 +213,9 @@ class GoogleProvider implements DirectoryProvider {
     // Get company
     const company = this.getPrimaryOrganization(person.organizations);
 
+    // Get birthday
+    const birthday = this.getPrimaryBirthday(person.birthdays);
+
     // Collect secondary channels (overflow emails, phones, social)
     const secondaryData = this.buildSecondaryData(
       person.emailAddresses,
@@ -228,6 +231,7 @@ class GoogleProvider implements DirectoryProvider {
       phone: primaryPhone,
       avatarUrl,
       company,
+      birthday,
       secondaryData: secondaryData.length > 0 ? secondaryData : undefined,
       rawMetadata: person,
     };
@@ -388,6 +392,44 @@ class GoogleProvider implements DirectoryProvider {
     }
 
     return organizations[0]?.name ?? undefined;
+  }
+
+  /**
+   * Get primary birthday from birthdays array
+   * Returns "YYYY-MM-DD" if year is present, "MM-DD" if year is 0 or absent
+   */
+  private getPrimaryBirthday(
+    birthdays?: people_v1.Schema$Birthday[],
+  ): string | undefined {
+    if (!birthdays || birthdays.length === 0) {
+      return undefined;
+    }
+
+    // Find primary or first birthday
+    let birthday: people_v1.Schema$Birthday | undefined;
+    for (const b of birthdays) {
+      if (b.metadata?.primary) {
+        birthday = b;
+        break;
+      }
+    }
+    if (!birthday) {
+      birthday = birthdays[0];
+    }
+
+    const date = birthday?.date;
+    if (!date || !date.month || !date.day) {
+      return undefined;
+    }
+
+    const month = String(date.month).padStart(2, "0");
+    const day = String(date.day).padStart(2, "0");
+
+    if (date.year && date.year > 0) {
+      return `${date.year}-${month}-${day}`;
+    }
+
+    return `${month}-${day}`;
   }
 
   /**

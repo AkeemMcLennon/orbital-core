@@ -81,6 +81,7 @@ describe("Contacts API", () => {
         company: "Acme Inc",
         jobTitle: "CEO",
         group: "work",
+        birthday: "1990-05-15",
       };
 
       const response = await createContact(newContact);
@@ -102,6 +103,7 @@ describe("Contacts API", () => {
         company: "Acme Inc",
         jobTitle: "CEO",
         group: "work",
+        birthday: "1990-05-15",
       });
       expect(contact.id).toBeDefined();
       expect(contact.createdAt).toBeDefined();
@@ -317,6 +319,7 @@ describe("Contacts API", () => {
     it("should update contact fields", async () => {
       let response = await updateContact(contactId, {
         name: "Updated Name",
+        birthday: "1985-12-25",
       });
 
       expect(response.status).toBe(200);
@@ -329,6 +332,7 @@ describe("Contacts API", () => {
       const updated = response.data;
       expect(updated.name).toBe("Updated Name");
       expect(updated.email).toBe("original@example.com"); // Unchanged
+      expect(updated.birthday).toBe("1985-12-25");
     });
 
     it("should return 404 when updating non-existent contact", async () => {

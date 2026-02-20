@@ -99,6 +99,7 @@ export async function syncIntegration(
               name: upsertData.name,
               avatarUrl: upsertData.avatarUrl,
               company: upsertData.company,
+              birthday: upsertData.birthday,
               secondaryData: upsertData.secondaryData,
               rawMetadata: upsertData.rawMetadata,
               activeContactId: upsertData.activeContactId,

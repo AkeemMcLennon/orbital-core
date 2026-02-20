@@ -40,6 +40,7 @@ export const directory = sqliteTable(
     phone: text("phone"),
     avatarUrl: text("avatar_url"),
     company: text("company"),
+    birthday: text("birthday"), // "YYYY-MM-DD" (with year) or "MM-DD" (without year)
 
     // Overflow channels (JSON array of secondary contact methods)
     // First email/phone go to top-level fields, rest go here

@@ -32,6 +32,7 @@ const ContactOutputSchema = z.object({
   avatarUrl: z.string().nullable(),
   jobTitle: z.string().nullable(),
   company: z.string().nullable(),
+  birthday: z.string().nullable(),
   notes: z.string().nullable(),
   group: z.enum(["work", "personal"]).nullable(),
   lastInteractionAt: dateField().nullable(),
@@ -47,6 +48,7 @@ const DirectoryEntryOutputSchema = z.object({
   phone: z.string().nullable(),
   avatarUrl: z.string().nullable(),
   company: z.string().nullable(),
+  birthday: z.string().nullable(),
   source: z.string(),
   externalId: z.string().nullable(),
   activeContactId: z.string().nullable(),
@@ -159,6 +161,7 @@ export const createContact = authProc
       avatarUrl: z.string().url().optional(),
       jobTitle: z.string().optional(),
       company: z.string().optional(),
+      birthday: z.string().regex(/^(\d{4}-\d{2}-\d{2}|\d{2}-\d{2})$/).optional(),
       notes: z.string().optional(),
       group: z.string().optional(),
     }),
@@ -177,6 +180,7 @@ export const createContact = authProc
         avatarUrl: input.avatarUrl ?? null,
         jobTitle: input.jobTitle ?? null,
         company: input.company ?? null,
+        birthday: input.birthday ?? null,
         notes: input.notes ?? null,
         group: (input.group as "work" | "personal" | undefined) ?? null,
       })
@@ -204,6 +208,7 @@ export const updateContact = authProc
       avatarUrl: z.string().url().optional(),
       jobTitle: z.string().optional(),
       company: z.string().optional(),
+      birthday: z.string().regex(/^(\d{4}-\d{2}-\d{2}|\d{2}-\d{2})$/).optional(),
       notes: z.string().optional(),
       group: z.string().optional(),
     }),
@@ -223,6 +228,7 @@ export const updateContact = authProc
     if (input.avatarUrl !== undefined) updateData.avatarUrl = input.avatarUrl;
     if (input.jobTitle !== undefined) updateData.jobTitle = input.jobTitle;
     if (input.company !== undefined) updateData.company = input.company;
+    if (input.birthday !== undefined) updateData.birthday = input.birthday;
     if (input.notes !== undefined) updateData.notes = input.notes;
     if (input.group !== undefined) updateData.group = input.group;
 
@@ -445,6 +451,7 @@ export const importContacts = authProc
           phone: z.string().optional(),
           avatarUrl: z.string().url().optional(),
           company: z.string().optional(),
+          birthday: z.string().regex(/^(\d{4}-\d{2}-\d{2}|\d{2}-\d{2})$/).optional(),
         }),
       ).min(1).max(500),
     }),
@@ -475,6 +482,7 @@ export const importContacts = authProc
           phone: contact.phone ?? null,
           avatarUrl: contact.avatarUrl ?? null,
           company: contact.company ?? null,
+          birthday: contact.birthday ?? null,
         })
         .onConflictDoUpdate({
           target: [directory.userId, directory.source, directory.externalId],
@@ -484,6 +492,7 @@ export const importContacts = authProc
             phone: sql`excluded.phone`,
             avatarUrl: sql`excluded.avatar_url`,
             company: sql`excluded.company`,
+            birthday: sql`excluded.birthday`,
           },
         })
         .returning();
