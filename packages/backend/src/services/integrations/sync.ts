@@ -1,15 +1,15 @@
-import { eq, and, or } from 'drizzle-orm';
-import { directory, contacts, contactChannels } from '../../database/schema';
+import { eq, and, or } from "drizzle-orm";
+import { directory, contacts, contactChannels } from "../../database/schema";
 import {
   getDecryptedIntegration,
   updateIntegrationTokens,
   updateIntegrationSyncState,
-} from './credentials';
-import { getProvider } from './provider';
-import type { DatabaseClient } from '../../database/client';
-import type { SyncResult } from '../../types/integrations';
-import type { DirectoryProvider } from './provider';
-import type { Contact } from '../../database/schema';
+} from "./credentials";
+import { getProvider } from "./provider";
+import type { DatabaseClient } from "../../database/client";
+import type { SyncResult } from "../../types/integrations";
+import type { DirectoryProvider } from "./provider";
+import type { Contact } from "../../database/schema";
 
 /**
  * Sync contacts from an external integration
@@ -29,7 +29,11 @@ export async function syncIntegration(
 
   try {
     // 1. Fetch and decrypt integration record
-    const integration = await getDecryptedIntegration(db, integrationId, userId);
+    const integration = await getDecryptedIntegration(
+      db,
+      integrationId,
+      userId,
+    );
     if (!integration) {
       throw new Error(`Integration not found: ${integrationId}`);
     }
@@ -73,14 +77,26 @@ export async function syncIntegration(
 
     // 4. Fetch and process contacts page-by-page as they arrive
     let nextSyncToken: string | undefined;
+    let i = 0;
 
-    for await (const page of provider.fetchContacts(accessToken, integration.lastSyncToken)) {
+    for await (const page of provider.fetchContacts(
+      accessToken,
+      integration.lastSyncToken,
+    )) {
+      console.log(`Processing page ${i}`);
+      i++;
       if (page.nextSyncToken) nextSyncToken = page.nextSyncToken;
+      console.log(JSON.stringify(page));
 
       for (const contactData of page.contacts) {
         try {
           // Find existing contact (exact matching)
-          const existingContact = await findExistingContact(db, userId, contactData.email, contactData.phone);
+          const existingContact = await findExistingContact(
+            db,
+            userId,
+            contactData.email,
+            contactData.phone,
+          );
 
           // Prepare upsert data
           const upsertData = {
@@ -94,7 +110,11 @@ export async function syncIntegration(
             .insert(directory)
             .values(upsertData)
             .onConflictDoUpdate({
-              target: [directory.userId, directory.source, directory.externalId!],
+              target: [
+                directory.userId,
+                directory.source,
+                directory.externalId!,
+              ],
               set: {
                 email: upsertData.email,
                 phone: upsertData.phone,
@@ -157,10 +177,7 @@ async function findExistingContact(
     conditions.push(
       or(
         // Primary email field
-        and(
-          eq(contacts.userId, userId),
-          eq(contacts.email, normalizedEmail),
-        ),
+        and(eq(contacts.userId, userId), eq(contacts.email, normalizedEmail)),
       ),
     );
   }
@@ -171,10 +188,7 @@ async function findExistingContact(
     conditions.push(
       or(
         // Primary phone field
-        and(
-          eq(contacts.userId, userId),
-          eq(contacts.phone, normalizedPhone),
-        ),
+        and(eq(contacts.userId, userId), eq(contacts.phone, normalizedPhone)),
       ),
     );
   }
@@ -189,7 +203,9 @@ async function findExistingContact(
     const [found] = await db
       .select()
       .from(contacts)
-      .where(and(eq(contacts.userId, userId), eq(contacts.email, normalizedEmail)))
+      .where(
+        and(eq(contacts.userId, userId), eq(contacts.email, normalizedEmail)),
+      )
       .limit(1);
 
     if (found) {
@@ -204,7 +220,7 @@ async function findExistingContact(
       .where(
         and(
           eq(contacts.userId, userId),
-          eq(contactChannels.type, 'email'),
+          eq(contactChannels.type, "email"),
           eq(contactChannels.value, normalizedEmail),
         ),
       )
@@ -221,7 +237,9 @@ async function findExistingContact(
     const [found] = await db
       .select()
       .from(contacts)
-      .where(and(eq(contacts.userId, userId), eq(contacts.phone, normalizedPhone)))
+      .where(
+        and(eq(contacts.userId, userId), eq(contacts.phone, normalizedPhone)),
+      )
       .limit(1);
 
     if (found) {
@@ -236,7 +254,7 @@ async function findExistingContact(
       .where(
         and(
           eq(contacts.userId, userId),
-          eq(contactChannels.type, 'phone'),
+          eq(contactChannels.type, "phone"),
           eq(contactChannels.value, normalizedPhone),
         ),
       )
@@ -263,5 +281,5 @@ function normalizeEmail(email: string): string {
  */
 function normalizePhone(phone: string): string {
   // Remove all non-digit characters
-  return phone.replace(/\D/g, '');
+  return phone.replace(/\D/g, "");
 }
