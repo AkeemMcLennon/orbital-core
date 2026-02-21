@@ -8,6 +8,7 @@ import {
   searchContacts,
   getAvailableContacts,
   searchAvailableContacts,
+  getAvatarUploadUrl,
 } from "@orbital/client";
 import { backend } from "@orbital/testing";
 import { createTestToken } from "@orbital/testing/backend/auth";
@@ -18,12 +19,15 @@ import {
   describe,
   expect,
   it,
+  mock,
+  spyOn,
 } from "bun:test";
 import { eq } from "drizzle-orm";
 import { loadSettings } from "../../src/config";
 import type { DatabaseClient } from "../../src/database/client";
 import * as schema from "../../src/database/schema";
 import { startServer } from "../../src/server";
+import * as storageModule from "../../src/services/storage";
 
 type TestServer = backend.TestServer;
 
@@ -688,6 +692,137 @@ describe("Contacts API", () => {
       const results = response.data.items;
       // User-2 should only see their own available contacts (max 3)
       expect(results.length).toBeLessThanOrEqual(3);
+    });
+  });
+
+  describe("POST /rpc/contacts/{id}/avatar-upload-url", () => {
+    const MOCK_UPLOAD_URL =
+      "https://REPLACE_WITH_CF_ACCOUNT_ID.r2.cloudflarestorage.com/orbital-assets/avatars/user-1/test-123.jpg?X-Amz-Signature=abc123";
+    const MOCK_PUBLIC_URL =
+      "https://pub-1e6c9e0c2cb242bfb7c91c0511c67d04.r2.dev/avatars/user-1/test-123.jpg";
+
+    let storageSpy: ReturnType<typeof spyOn>;
+
+    beforeEach(() => {
+      storageSpy = spyOn(
+        storageModule.StorageService.prototype,
+        "getPresignedUploadUrl",
+      ).mockResolvedValue({
+        uploadUrl: MOCK_UPLOAD_URL,
+        publicUrl: MOCK_PUBLIC_URL,
+      });
+    });
+
+    it("should return a presigned upload URL for an owned contact", async () => {
+      const contact = await createContact({ name: "Avatar Test" });
+      if (contact.status !== 200) throw new Error("Contact creation failed");
+
+      const response = await getAvatarUploadUrl(contact.data.id, {
+        contentType: "image/jpeg",
+        contentLength: 512_000,
+      });
+
+      expect(response.status).toBe(200);
+      if (response.status !== 200) throw new Error("Expected 200");
+
+      expect(response.data.uploadUrl).toBe(MOCK_UPLOAD_URL);
+      expect(response.data.uploadUrl).toContain("X-Amz-Signature");
+      expect(response.data.publicUrl).toBe(MOCK_PUBLIC_URL);
+      expect(storageSpy).toHaveBeenCalledTimes(1);
+      const [key, contentType, contentLength] = storageSpy.mock.calls[0] as [string, string, number];
+      expect(key).toMatch(/^avatars\/.+\/.+-\d+\.jpg$/);
+      expect(contentType).toBe("image/jpeg");
+      expect(contentLength).toBe(512_000);
+    });
+
+    it("should return 404 for a non-existent contact", async () => {
+      // Use a valid base58 ID that doesn't exist in the DB
+      const fakeId = "1111111111111111111111";
+
+      const response = await getAvatarUploadUrl(fakeId, {
+        contentType: "image/png",
+        contentLength: 512_000,
+      });
+
+      expect(response.status).toBe(404);
+    });
+
+    it("should return 404 when accessing another user's contact", async () => {
+      // Create contact as user-1
+      const contact = await createContact({ name: "User1 Contact" });
+      if (contact.status !== 200) throw new Error("Contact creation failed");
+
+      // Try to get upload URL as user-2
+      const response = await getAvatarUploadUrl(
+        contact.data.id,
+        { contentType: "image/jpeg", contentLength: 512_000 },
+        { headers: { Authorization: `Bearer ${user2Token}` } },
+      );
+
+      expect(response.status).toBe(404);
+    });
+
+    it("should return 401 with no auth token", async () => {
+      const contact = await createContact({ name: "No Auth Test" });
+      if (contact.status !== 200) throw new Error("Contact creation failed");
+
+      const response = await getAvatarUploadUrl(
+        contact.data.id,
+        { contentType: "image/jpeg", contentLength: 512_000 },
+        { headers: { Authorization: "" } },
+      );
+
+      expect(response.status).toBe(401);
+    });
+
+    it("should reject non-image content type", async () => {
+      const contact = await createContact({ name: "Content Type Test" });
+      if (contact.status !== 200) throw new Error("Contact creation failed");
+
+      const response = await getAvatarUploadUrl(contact.data.id, {
+        // @ts-expect-error intentionally invalid contentType
+        contentType: "application/pdf",
+        contentLength: 512_000,
+      });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should reject oversized contentLength", async () => {
+      const contact = await createContact({ name: "Size Test" });
+      if (contact.status !== 200) throw new Error("Contact creation failed");
+
+      const response = await getAvatarUploadUrl(contact.data.id, {
+        contentType: "image/jpeg",
+        contentLength: 10 * 1024 * 1024 + 1, // 1 byte over 10 MB
+      });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should accept all allowed image types and use correct extension in key", async () => {
+      const types = [
+        { contentType: "image/jpeg" as const, ext: "jpg" },
+        { contentType: "image/png" as const, ext: "png" },
+        { contentType: "image/webp" as const, ext: "webp" },
+        { contentType: "image/gif" as const, ext: "gif" },
+      ];
+
+      for (const { contentType, ext } of types) {
+        storageSpy.mockClear();
+
+        const contact = await createContact({ name: `Type Test ${contentType}` });
+        if (contact.status !== 200) throw new Error("Contact creation failed");
+
+        const response = await getAvatarUploadUrl(contact.data.id, {
+          contentType,
+          contentLength: 512_000,
+        });
+
+        expect(response.status).toBe(200);
+        const [key] = storageSpy.mock.calls[0] as [string];
+        expect(key).toMatch(new RegExp(`\\.${ext}$`));
+      }
     });
   });
 });

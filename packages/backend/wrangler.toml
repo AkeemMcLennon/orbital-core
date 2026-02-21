@@ -3,6 +3,9 @@ main = "src/app.ts"
 compatibility_date = "2026-01-01"
 compatibility_flags = ["nodejs_compat"]
 
+# This line prevents dashboard variables from being overwritten
+keep_vars = true 
+
 [alias]
 "bun:sqlite" = "./bun-stub.js"
 

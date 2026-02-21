@@ -9,4 +9,10 @@ export interface Env {
   DB_PROVIDER?: string;
   SQLITE_DB_PATH?: string;
   DISABLE_JWT_VERIFICATION?: string;
+  S3_ENDPOINT?: string;
+  S3_ACCESS_KEY_ID?: string;
+  S3_SECRET_ACCESS_KEY?: string;
+  S3_BUCKET_NAME?: string;
+  S3_PUBLIC_URL_PREFIX?: string;
+  S3_REGION?: string;
 }

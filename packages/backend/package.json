@@ -32,6 +32,7 @@
     "@orpc/zod": "^1.13.2",
     "@t3-oss/env-core": "^0.13.10",
     "@types/uuid": "^11.0.0",
+    "aws4fetch": "^1.0.20",
     "bs58": "^6.0.0",
     "drizzle-orm": "^0.45.1",
     "fernet": "^0.3.3",

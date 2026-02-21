@@ -10,11 +10,24 @@ import {
   type SQL,
 } from "drizzle-orm";
 import * as z from "zod";
-import { contacts, directory } from "../database/schema";
+import { contacts, directory, type NewContact } from "../database/schema";
 import { authProc } from "../middleware/auth";
 import { ORPCError } from "@orpc/server";
 import { base58IdSchema } from "@orbital/utils";
 import { PaginationInputSchema, paginatedSchema } from "../utils/pagination";
+import { StorageService } from "../services/storage";
+
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
+type AllowedImageType = (typeof ALLOWED_IMAGE_TYPES)[number];
+
+const MAX_AVATAR_BYTES = 10 * 1024 * 1024; // 10 MB
+
+const IMAGE_EXT: Record<AllowedImageType, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
 
 // Helper for date fields that can be Date objects or ISO strings
 const dateField = () =>
@@ -216,25 +229,12 @@ export const updateContact = authProc
   .output(ContactOutputSchema)
   .handler(async ({ input, context }) => {
     const { db, user } = context;
-
-    // Build update object only with provided fields
-    const updateData: Record<string, unknown> = {
-      updatedAt: new Date(),
-    };
-
-    if (input.name !== undefined) updateData.name = input.name;
-    if (input.email !== undefined) updateData.email = input.email;
-    if (input.phone !== undefined) updateData.phone = input.phone;
-    if (input.avatarUrl !== undefined) updateData.avatarUrl = input.avatarUrl;
-    if (input.jobTitle !== undefined) updateData.jobTitle = input.jobTitle;
-    if (input.company !== undefined) updateData.company = input.company;
-    if (input.birthday !== undefined) updateData.birthday = input.birthday;
-    if (input.notes !== undefined) updateData.notes = input.notes;
-    if (input.group !== undefined) updateData.group = input.group;
+    const { id, ...patch } = input;
+    const updateData: typeof patch & { updatedAt: Date } = { updatedAt: new Date(), ...patch };
 
     const [contact] = await db
       .update(contacts)
-      .set(updateData)
+      .set(updateData as Partial<NewContact>)
       .where(
         and(
           eq(contacts.id, input.id) as SQL,
@@ -517,6 +517,45 @@ export const importContacts = authProc
   });
 
 /**
+ * Get a pre-signed URL for uploading a contact avatar directly to R2
+ */
+export const getAvatarUploadUrl = authProc
+  .route({
+    method: "POST",
+    path: "/contacts/{contactId}/avatar-upload-url",
+    summary: "Get pre-signed upload URL for a contact avatar",
+    operationId: "getAvatarUploadUrl",
+  })
+  .input(
+    z.object({
+      contactId: base58IdSchema,
+      contentType: z.enum(ALLOWED_IMAGE_TYPES),
+      contentLength: z.number().int().positive().max(MAX_AVATAR_BYTES),
+    }),
+  )
+  .output(z.object({ uploadUrl: z.string(), publicUrl: z.string() }))
+  .handler(async ({ input, context }) => {
+    const { db, user } = context;
+
+    const [contact] = await db
+      .select()
+      .from(contacts)
+      .where(
+        and(eq(contacts.userId, user.id), eq(contacts.id, input.contactId)),
+      )
+      .limit(1);
+
+    if (!contact) {
+      throw new ORPCError("NOT_FOUND", { message: "Contact not found" });
+    }
+
+    const storage = new StorageService();
+    const ext = IMAGE_EXT[input.contentType];
+    const key = `avatars/${user.id}/${input.contactId}-${Date.now()}.${ext}`;
+    return storage.getPresignedUploadUrl(key, input.contentType, input.contentLength);
+  });
+
+/**
  * Export router with all contact procedures
  */
 export const router = {
@@ -529,6 +568,7 @@ export const router = {
   listAvailable,
   searchAvailable,
   import: importContacts,
+  getAvatarUploadUrl,
 };
 
 export default router;
