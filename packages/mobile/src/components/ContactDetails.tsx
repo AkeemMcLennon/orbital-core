@@ -12,6 +12,7 @@ import { Link, useRouter } from "expo-router";
 import { FaceAvatar } from "./FaceAvatar";
 import { TimelineItem } from "./TimelineItem";
 import { colors, spacing, borderRadius, shadows } from "../theme";
+import { useAvatarUpload } from "../hooks/useAvatarUpload";
 
 interface ContactDetailsProps {
   id: string;
@@ -39,6 +40,7 @@ export function ContactDetails({
   phone,
 }: ContactDetailsProps) {
   const router = useRouter();
+  const { onEdit, isUploading } = useAvatarUpload(id);
 
   const handleCall = () => {
     if (phone) {
@@ -117,6 +119,9 @@ export function ContactDetails({
             name={name}
             avatar={avatar}
             size={100}
+            editable
+            onEdit={onEdit}
+            isLoading={isUploading}
             showLabel={false}
             noMargin
           />

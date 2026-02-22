@@ -1,7 +1,14 @@
 import ColorHash from "color-hash";
 import { ExternalPathString, Link, RelativePathString } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo } from "react";
-import { Pressable, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { Avatar } from "tamagui";
 import { borderRadius, colors, spacing } from "../theme";
 
@@ -32,6 +39,9 @@ interface FaceAvatarProps {
   borderColor?: string;
   borderWidth?: number;
   noMargin?: boolean;
+  editable?: boolean;
+  onEdit?: () => void;
+  isLoading?: boolean;
 }
 
 export const FaceAvatar: React.FC<FaceAvatarProps> = ({
@@ -47,6 +57,9 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
   borderColor,
   borderWidth = 0,
   noMargin = false,
+  editable = false,
+  onEdit,
+  isLoading = false,
 }) => {
   const avatarSize = size;
   const bgColor = useMemo(() => colorHash.hex(name), [name]);
@@ -98,7 +111,7 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
 
   const avatarContent = (
     <Pressable
-      onPress={onPress}
+      onPress={editable ? onEdit : onPress}
       style={{
         alignItems: "center",
         marginHorizontal: noMargin ? 0 : spacing.sm,
@@ -151,6 +164,38 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
               borderColor: colors.card,
             }}
           />
+        )}
+        {editable && (
+          <View
+            style={{
+              position: "absolute",
+              bottom: 0,
+              right: 0,
+              width: 26,
+              height: 26,
+              borderRadius: borderRadius.full,
+              backgroundColor: colors.primary,
+              justifyContent: "center",
+              alignItems: "center",
+              borderWidth: 2,
+              borderColor: colors.card,
+            }}
+          >
+            <Ionicons name="camera" size={13} color={colors.card} />
+          </View>
+        )}
+        {isLoading && (
+          <View
+            style={{
+              ...StyleSheet.absoluteFillObject,
+              backgroundColor: "rgba(0,0,0,0.4)",
+              borderRadius: borderRadius.full,
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <ActivityIndicator color={colors.card} />
+          </View>
         )}
       </View>
       {showLabel && (

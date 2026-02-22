@@ -1,4 +1,3 @@
-import axios from "axios";
 export interface APIClientOptions {
   baseURL?: string;
   getToken?: () => string | Promise<string> | null;

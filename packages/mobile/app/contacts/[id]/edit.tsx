@@ -5,7 +5,6 @@ import {
   TextInput,
   ScrollView,
   Pressable,
-  Image,
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,6 +14,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateContact } from "@orbital/client";
 import { useContact, contactKeys } from "../../../src/queries/contacts";
 import { colors, spacing, borderRadius, shadows } from "../../../src/theme";
+import { FaceAvatar } from "../../../src/components";
+import { useAvatarUpload } from "../../../src/hooks/useAvatarUpload";
 
 export default function EditContactScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -45,6 +46,8 @@ export default function EditContactScreen() {
       setGroup(contact.group || "");
     }
   }, [contact]);
+
+  const { onEdit, isUploading } = useAvatarUpload(id);
 
   // Update mutation
   const updateMutation = useMutation({
@@ -143,19 +146,15 @@ export default function EditContactScreen() {
             borderBottomColor: colors.border,
           }}
         >
-          <Image
-            source={{
-              uri:
-                contact?.avatarUrl ||
-                `https://ui-avatars.com/api/?name=${name}&background=4F46E5&color=fff`,
-            }}
-            style={{
-              width: 80,
-              height: 80,
-              borderRadius: borderRadius.full,
-              marginBottom: spacing.lg,
-              backgroundColor: colors.border,
-            }}
+          <FaceAvatar
+            name={name || "Unnamed"}
+            avatar={contact?.avatarUrl}
+            size={80}
+            editable
+            onEdit={onEdit}
+            isLoading={isUploading}
+            showLabel={false}
+            noMargin
           />
           <Text
             style={{

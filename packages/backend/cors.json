@@ -1,0 +1,11 @@
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": ["*"],
+        "methods": ["PUT"],
+        "headers": ["Content-Type"]
+      }
+    }
+  ]
+}
