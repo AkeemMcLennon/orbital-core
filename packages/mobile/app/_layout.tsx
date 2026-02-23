@@ -67,6 +67,7 @@ export default function RootLayout() {
                     drawerStyle: {
                       backgroundColor: colors.bg,
                       width: 280,
+                      position: media.gtMd ? "fixed" : undefined,
                     },
                     drawerLabelStyle: {
                       marginLeft: -16,

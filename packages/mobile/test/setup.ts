@@ -1,0 +1,215 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+
+// ── Root layout → minimal Slot + QueryClientProvider ──
+jest.mock('../app/_layout', () => {
+  const React = require('react');
+  const { Slot } = require('expo-router');
+  const { QueryClient, QueryClientProvider } = require('@tanstack/react-query');
+
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 0, gcTime: 0 } },
+  });
+
+  return {
+    __esModule: true,
+    default: () =>
+      React.createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        React.createElement(Slot),
+      ),
+  };
+});
+
+// ── Tabs layout → minimal Slot ──
+jest.mock('../app/(tabs)/_layout', () => {
+  const React = require('react');
+  const { Slot } = require('expo-router');
+  return {
+    __esModule: true,
+    default: () => React.createElement(Slot),
+  };
+});
+
+// ── Mobile API config (runs at import-time in _layout) ──
+jest.mock('../src/api/config', () => ({
+  configureMobileApi: jest.fn(() => Promise.resolve()),
+}));
+
+// ── react-native-safe-area-context ──
+jest.mock('react-native-safe-area-context', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    SafeAreaView: (props: any) => React.createElement(View, props),
+    SafeAreaProvider: ({ children }: any) =>
+      React.createElement(View, null, children),
+    useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+  };
+});
+
+// ── react-native-gesture-handler ──
+jest.mock('react-native-gesture-handler', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    GestureHandlerRootView: (props: any) => React.createElement(View, props),
+    Swipeable: View,
+    DrawerLayout: View,
+    State: {},
+    PanGestureHandler: View,
+    TapGestureHandler: View,
+    FlingGestureHandler: View,
+    ForceTouchGestureHandler: View,
+    LongPressGestureHandler: View,
+    NativeViewGestureHandler: View,
+    PinchGestureHandler: View,
+    RotationGestureHandler: View,
+    ScrollView: View,
+    Slider: View,
+    Switch: View,
+    TextInput: View,
+    ToolbarAndroid: View,
+    ViewPagerAndroid: View,
+    DrawerLayoutAndroid: View,
+    WebView: View,
+    NativeGesture: {},
+    gestureHandlerRootHOC: jest.fn((component: any) => component),
+    Directions: {},
+  };
+});
+
+// ── react-native-reanimated ──
+jest.mock('react-native-reanimated', () =>
+  require('react-native-reanimated/mock'),
+);
+
+// ── tamagui ──
+jest.mock('tamagui', () => {
+  const React = require('react');
+  const { View, Text, Image } = require('react-native');
+
+  const AvatarImage = (props: any) => React.createElement(Image, props);
+  const AvatarFallback = ({ children, ...props }: any) =>
+    React.createElement(View, props, children);
+  const Avatar = Object.assign(
+    ({ children, ...props }: any) =>
+      React.createElement(View, props, children),
+    { Image: AvatarImage, Fallback: AvatarFallback },
+  );
+
+  return {
+    Avatar,
+    TamaguiProvider: ({ children }: any) => children,
+    useMedia: () => ({ gtMd: false }),
+    styled: (component: any) => component,
+    Text,
+    View,
+  };
+});
+
+// ── @expo/vector-icons ──
+jest.mock('@expo/vector-icons', () => {
+  const React = require('react');
+  const { Text } = require('react-native');
+  return {
+    Ionicons: (props: any) =>
+      React.createElement(Text, props, props.name || ''),
+  };
+});
+
+// ── @expo/vector-icons/MaterialIcons ──
+jest.mock('@expo/vector-icons/MaterialIcons', () => {
+  const React = require('react');
+  const { Text } = require('react-native');
+  return {
+    __esModule: true,
+    default: (props: any) =>
+      React.createElement(Text, props, props.name || ''),
+  };
+});
+
+// ── expo-constants ──
+jest.mock('expo-constants', () => ({
+  __esModule: true,
+  default: {
+    expoConfig: {
+      hostUri: null,
+    },
+  },
+}));
+
+// ── expo-status-bar ──
+jest.mock('expo-status-bar', () => ({
+  StatusBar: () => null,
+}));
+
+// ── color-hash ──
+jest.mock('color-hash', () => {
+  return class ColorHash {
+    hex() {
+      return '#4F46E5';
+    }
+    hsl() {
+      return [240, 50, 50];
+    }
+    rgb() {
+      return [79, 70, 229];
+    }
+  };
+});
+
+// ── expo-image ──
+jest.mock('expo-image', () => {
+  const React = require('react');
+  const { Image } = require('react-native');
+  return {
+    Image: (props: any) => React.createElement(Image, props),
+  };
+});
+
+// ── @/hooks/use-color-scheme ──
+jest.mock('@/hooks/use-color-scheme', () => ({
+  useColorScheme: () => 'light',
+}));
+
+// ── tamagui config ──
+jest.mock('../tamagui.config', () => ({
+  tamalogui: {},
+}));
+
+// ── expo-image-picker ──
+jest.mock('expo-image-picker', () => ({
+  launchCameraAsync: jest.fn(),
+  launchImageLibraryAsync: jest.fn(),
+  requestCameraPermissionsAsync: jest.fn(() => ({ granted: true })),
+  requestMediaLibraryPermissionsAsync: jest.fn(() => ({ granted: true })),
+}));
+
+// ── expo-haptics ──
+jest.mock('expo-haptics', () => ({
+  impactAsync: jest.fn(),
+  ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' },
+}));
+
+// ── expo-symbols ──
+jest.mock('expo-symbols', () => ({}));
+
+// ── expo-contacts ──
+jest.mock('expo-contacts', () => ({
+  requestPermissionsAsync: jest.fn(() => ({ status: 'granted' })),
+  getContactsAsync: jest.fn(() => ({ data: [] })),
+  Fields: {},
+}));
+
+// ── expo-web-browser ──
+jest.mock('expo-web-browser', () => ({
+  openBrowserAsync: jest.fn(),
+  openAuthSessionAsync: jest.fn(),
+}));
+
+// ── expo-linking ──
+jest.mock('expo-linking', () => ({
+  createURL: jest.fn((path: string) => `exp://localhost:8081/${path}`),
+  openURL: jest.fn(),
+}));
