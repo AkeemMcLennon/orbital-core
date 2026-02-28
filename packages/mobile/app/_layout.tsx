@@ -6,11 +6,11 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Drawer } from "expo-router/drawer";
 import { StatusBar } from "expo-status-bar";
-import { View } from "react-native";
+import { useWindowDimensions, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { TamaguiProvider, useMedia } from "tamagui";
+import { TamaguiProvider } from "tamagui";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { configureMobileApi } from "../src/api/config";
@@ -39,7 +39,8 @@ const queryClient = new QueryClient({
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const media = useMedia();
+  const { width } = useWindowDimensions();
+  const isWideScreen = width >= 768;
 
   return (
     <GestureHandlerRootView
@@ -57,8 +58,8 @@ export default function RootLayout() {
               <View
                 style={{
                   flex: 1,
-                  maxWidth: media.gtMd ? 1024 : undefined,
-                  alignSelf: media.gtMd ? "center" : undefined,
+                  maxWidth: isWideScreen ? 1024 : undefined,
+                  alignSelf: isWideScreen ? "center" : undefined,
                   width: "100%",
                 }}
               >
@@ -67,7 +68,6 @@ export default function RootLayout() {
                     drawerStyle: {
                       backgroundColor: colors.bg,
                       width: 280,
-                      position: media.gtMd ? "fixed" : undefined,
                     },
                     drawerLabelStyle: {
                       marginLeft: -16,
