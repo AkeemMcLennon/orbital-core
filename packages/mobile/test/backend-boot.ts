@@ -7,6 +7,7 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { eq } from 'drizzle-orm';
 import { backend } from '@orbital/testing';
 import { createTestToken } from '@orbital/testing/backend/auth';
 import { loadSettings } from '@orbital/backend/src/config';
@@ -31,6 +32,54 @@ async function boot() {
   // 3. Seed test data
   await backend.seedTestUser(db, 'test-user-1', { schema });
   await backend.seedTestContacts(db, 'test-user-1', { schema }, 5);
+
+  // 3b. Seed a test relationship between Contact 1 and Contact 2
+  const [user] = await db
+    .select()
+    .from(schema.users)
+    .where(eq(schema.users.externalId, 'test-user-1'))
+    .limit(1);
+
+  const userContacts = await db
+    .select()
+    .from(schema.contacts)
+    .where(eq(schema.contacts.userId, user.id))
+    .limit(2);
+
+  if (userContacts.length >= 2) {
+    // Insert forward row
+    const [fwd] = await db
+      .insert(schema.contactRelationships)
+      .values({
+        userId: user.id,
+        contactId: userContacts[0].id,
+        relatedContactId: userContacts[1].id,
+        type: 'friend',
+        sentiment: 2,
+        description: 'Met at a conference',
+      })
+      .returning();
+
+    // Insert reverse row
+    const [rev] = await db
+      .insert(schema.contactRelationships)
+      .values({
+        userId: user.id,
+        contactId: userContacts[1].id,
+        relatedContactId: userContacts[0].id,
+        type: 'friend',
+        sentiment: 2,
+        description: 'Met at a conference',
+        mirrorId: fwd.id,
+      })
+      .returning();
+
+    // Link forward to reverse
+    await db
+      .update(schema.contactRelationships)
+      .set({ mirrorId: rev.id })
+      .where(eq(schema.contactRelationships.id, fwd.id));
+  }
 
   // 4. Create a JWT token for the test user
   const token = await createTestToken({

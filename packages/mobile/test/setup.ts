@@ -34,6 +34,7 @@ jest.mock('../app/(tabs)/_layout', () => {
 // ── Mobile API config (runs at import-time in _layout) ──
 jest.mock('../src/api/config', () => ({
   configureMobileApi: jest.fn(() => Promise.resolve()),
+  getCurrentBaseUrl: jest.fn(() => Promise.resolve('http://localhost:8787/rpc')),
 }));
 
 // ── react-native-safe-area-context ──

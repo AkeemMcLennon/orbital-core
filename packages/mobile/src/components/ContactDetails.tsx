@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
 import { FaceAvatar } from "./FaceAvatar";
 import { TimelineItem } from "./TimelineItem";
+import { RelationshipsSection } from "./RelationshipsSection";
 import { colors, spacing, borderRadius, shadows } from "../theme";
 import { useAvatarUpload } from "../hooks/useAvatarUpload";
 
@@ -237,6 +238,9 @@ export function ContactDetails({
             </Text>
           </View>
         </View>
+
+        {/* Relationships Section */}
+        <RelationshipsSection contactId={id} contactName={name} />
 
         {/* History Section */}
         {interactions.length > 0 && (

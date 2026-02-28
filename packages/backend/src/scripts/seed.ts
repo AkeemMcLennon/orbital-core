@@ -273,11 +273,69 @@ async function seedDatabase(): Promise<void> {
 
   console.log(`✅ Created ${tagAssociationCount} contact-tag associations\n`);
 
+  // Phase 7: Create relationships between contacts
+  console.log('🤝 Phase 7: Creating contact relationships...');
+
+  const relationshipDefs = [
+    { a: 0, b: 1, type: 'friend', sentiment: 2, description: 'Met at a tech conference in 2023' },
+    { a: 0, b: 2, type: 'colleague', sentiment: 1, description: 'Worked together at Innovation Labs' },
+    { a: 1, b: 3, type: 'mentor', sentiment: 2, description: 'David mentored Bob early in his career' },
+    { a: 2, b: 4, type: 'collaborator', sentiment: 1, description: 'Co-authored a research paper' },
+    { a: 3, b: 5, type: 'rival', sentiment: -1, description: 'Competing for the same accounts' },
+    { a: 4, b: 6, type: 'friend', sentiment: 2, description: 'College roommates' },
+    { a: 5, b: 7, type: 'business partner', sentiment: 1, description: 'Co-founded a side project' },
+    { a: 0, b: 8, type: 'acquaintance', sentiment: 0, description: 'Met briefly at a networking event' },
+    { a: 6, b: 9, type: 'colleague', sentiment: 1, description: 'Same team at Digital Solutions' },
+    { a: 7, b: 9, type: 'friend', sentiment: -2, description: 'Had a falling out over a deal' },
+  ];
+
+  let relationshipCount = 0;
+
+  for (const user of testUsers) {
+    const contactIds = userContacts[user.id];
+
+    for (const rel of relationshipDefs) {
+      if (rel.a >= contactIds.length || rel.b >= contactIds.length) continue;
+
+      const forwardId = generateBase58Id();
+      const reverseId = generateBase58Id();
+
+      // Forward row (A → B)
+      await db.insert(schema.contactRelationships).values({
+        id: forwardId,
+        userId: user.id,
+        contactId: contactIds[rel.a],
+        relatedContactId: contactIds[rel.b],
+        type: rel.type,
+        sentiment: rel.sentiment,
+        description: rel.description,
+        mirrorId: reverseId,
+      });
+
+      // Reverse row (B → A)
+      await db.insert(schema.contactRelationships).values({
+        id: reverseId,
+        userId: user.id,
+        contactId: contactIds[rel.b],
+        relatedContactId: contactIds[rel.a],
+        type: rel.type,
+        sentiment: rel.sentiment,
+        description: rel.description,
+        mirrorId: forwardId,
+      });
+
+      relationshipCount++;
+    }
+  }
+
+  console.log(`✅ Created ${relationshipCount} relationships (${relationshipCount * 2} rows)\n`);
+
   // Summary
   const allUsers = await db.select().from(schema.users);
   const allContacts = await db.select().from(schema.contacts);
   const allTags = await db.select().from(schema.tags);
   const allDirectory = await db.select().from(schema.directory);
+  const allRelationships = await db.select().from(schema.contactRelationships);
 
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('✅ Seed completed successfully!\n');
@@ -288,6 +346,7 @@ async function seedDatabase(): Promise<void> {
   console.log(`   Tags: ${allTags.length}`);
   console.log(`   Directory Entries: ${allDirectory.length}`);
   console.log(`   Contact-Tag Associations: ${tagAssociationCount}`);
+  console.log(`   Relationships: ${allRelationships.length / 2} (${allRelationships.length} rows)`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
   // Generate and display test JWT token
