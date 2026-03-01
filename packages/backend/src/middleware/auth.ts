@@ -82,7 +82,6 @@ export const authProc = os
         const JWKS = createRemoteJWKSet(new URL(settings.JWKS_URL));
         const result = await jwtVerify(token, JWKS, {
           issuer: settings.JWT_ISSUER,
-          audience: settings.JWT_AUDIENCE,
         });
         rawPayload = result.payload;
       }
