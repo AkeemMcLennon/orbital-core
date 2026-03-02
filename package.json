@@ -12,6 +12,8 @@
     "dev:backend": "bun run --filter='@orbital/backend' dev",
     "build:backend": "bun run --filter='@orbital/backend' build",
     "deploy:backend": "bun run --filter='@orbital/backend' deploy",
+    "dev:auth": "bun run --filter='@orbital/auth' dev",
+    "deploy:auth": "bun run --filter='@orbital/auth' deploy",
     "db:generate": "bun run --filter='@orbital/backend' db:generate",
     "db:migrate:local": "bun run --filter='@orbital/backend' db:migrate:local",
     "db:migrate:d1": "bun run --filter='@orbital/backend' db:migrate:d1",
@@ -20,14 +22,24 @@
     "typecheck": "bun run --filter='./packages/*' typecheck",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,json,md}\"",
-    "postinstall": "bun run gen"
+    "postinstall": "bun run gen",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "ajv": "^8.17.1",
     "eslint": "^8.56.0",
+    "playwright": "^1.58.2",
     "prettier": "^3.2.5",
     "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "expo": "~54.0.33",
+    "expo-auth-session": "~7.0.10",
+    "expo-crypto": "~15.0.8",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
   }
 }

@@ -1,0 +1,11 @@
+# BetterAuth secret key (generate with: openssl rand -hex 32)
+BETTER_AUTH_SECRET=your-secret-here
+
+# Google OAuth (optional)
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+# Apple Sign-In (optional)
+APPLE_CLIENT_ID=your-apple-client-id
+APPLE_CLIENT_SECRET=your-apple-client-secret
+APPLE_APP_BUNDLE_IDENTIFIER=diy.orbital.mobile

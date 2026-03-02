@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuthContext } from '../contexts/AuthContext';
 import { colors, spacing, borderRadius } from '../theme';
 
 const DRAWER_ITEMS = [
@@ -35,6 +36,7 @@ const DRAWER_ITEMS = [
 
 export function DrawerContent() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
+  const { logout, user } = useAuthContext();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
@@ -55,7 +57,7 @@ export function DrawerContent() {
           }}
         >
           <Image
-            source={{ uri: 'https://ui-avatars.com/api/?name=You&background=4F46E5&color=fff' }}
+            source={{ uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=4F46E5&color=fff` }}
             style={{
               width: 48,
               height: 48,
@@ -71,7 +73,7 @@ export function DrawerContent() {
                 color: colors.textMain,
               }}
             >
-              Your Name
+              {user?.name || 'User'}
             </Text>
             <Text
               style={{
@@ -79,7 +81,7 @@ export function DrawerContent() {
                 color: colors.textTertiary,
               }}
             >
-              user@orbital.app
+              {user?.email || ''}
             </Text>
           </View>
         </View>
@@ -149,6 +151,7 @@ export function DrawerContent() {
           </Pressable>
 
           <Pressable
+            onPress={() => logout()}
             style={{
               flexDirection: 'row',
               alignItems: 'center',

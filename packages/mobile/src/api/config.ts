@@ -17,16 +17,7 @@ async function resolveBaseUrl(): Promise<string> {
     return customBaseUrl;
   }
 
-  const hostUri = Constants.expoConfig?.hostUri;
-
-  if (hostUri) {
-    // Extract IP address from hostUri (format: "192.168.x.x:port" or "localhost:port")
-    const ip = hostUri.split(":")[0];
-    return `http://${ip}:8787/rpc`;
-  }
-
-  // Fallback to localhost for simulators
-  return "http://localhost:8787/rpc";
+  return "https://api.example.com/rpc";
 }
 
 /**

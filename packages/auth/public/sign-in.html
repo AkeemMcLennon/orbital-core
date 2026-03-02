@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orbital — Sign In</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@awesome.me/webawesome@3.2.1/dist-cdn/styles/webawesome.css" />
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@awesome.me/webawesome@3.2.1/dist-cdn/webawesome.loader.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--wa-color-surface-lowered);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--wa-color-text-normal);
+    }
+    .card {
+      width: 100%;
+      max-width: 400px;
+      padding: 2rem;
+      background: var(--wa-color-surface-raised);
+      border-radius: 0.75rem;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+    }
+    .card h1 {
+      text-align: center;
+      margin: 0 0 1.5rem;
+      font-size: 1.5rem;
+      color: var(--wa-color-text-normal);
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    form wa-button { margin-top: 0.5rem; }
+    .error-callout { margin-bottom: 1rem; }
+    .error-callout[hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Orbital</h1>
+
+    <wa-callout id="error-callout" variant="danger" class="error-callout" hidden>
+      <span id="error-message"></span>
+    </wa-callout>
+
+    <wa-tab-group>
+      <wa-tab slot="nav" panel="sign-in" active>Sign In</wa-tab>
+      <wa-tab slot="nav" panel="register">Register</wa-tab>
+
+      <wa-tab-panel name="sign-in">
+        <form id="sign-in-form" action="/sign-in/email" method="POST">
+          <wa-input name="email" type="email" label="Email" required></wa-input>
+          <wa-input name="password" type="password" label="Password" password-toggle required></wa-input>
+          <wa-button type="submit" variant="brand" style="width:100%">Sign In</wa-button>
+        </form>
+      </wa-tab-panel>
+
+      <wa-tab-panel name="register">
+        <form id="register-form" action="/sign-up/email" method="POST">
+          <wa-input name="name" type="text" label="Name" required></wa-input>
+          <wa-input name="email" type="email" label="Email" required></wa-input>
+          <wa-input name="password" type="password" label="Password" password-toggle required></wa-input>
+          <wa-button type="submit" variant="brand" style="width:100%">Create Account</wa-button>
+        </form>
+      </wa-tab-panel>
+    </wa-tab-group>
+  </div>
+
+  <script>
+    // BetterAuth redirects here with the OAuth params as query params (e.g. ?client_id=...&redirect_uri=...)
+    // We capture them all and pass them back to the authorize endpoint after authentication.
+    const queryString = window.location.search.slice(1);
+    const callbackURL = queryString ? '/oauth2/authorize?' + queryString : '/';
+
+    document.querySelectorAll('form').forEach(form => {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        document.getElementById('error-callout').hidden = true;
+
+        const data = {};
+        form.querySelectorAll('wa-input').forEach(el => { data[el.name] = el.value; });
+        data.callbackURL = callbackURL;
+
+        try {
+          const res = await fetch(form.action, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+            redirect: 'follow',
+          });
+
+          if (res.redirected) {
+            window.location.href = res.url;
+            return;
+          }
+
+          const json = await res.json();
+
+          if (res.ok) {
+            // BetterAuth returns { url } for redirects, or { token, user } for direct auth
+            if (json.url) {
+              window.location.href = json.url;
+            } else if (json.token || json.user) {
+              // Auth succeeded — redirect to the callbackURL
+              window.location.href = callbackURL;
+            }
+            return;
+          }
+
+          const msg = json?.message || json?.error?.message || 'Authentication failed.';
+          document.getElementById('error-message').textContent = msg;
+          document.getElementById('error-callout').hidden = false;
+        } catch {
+          document.getElementById('error-message').textContent = 'Network error. Please try again.';
+          document.getElementById('error-callout').hidden = false;
+        }
+      });
+    });
+  </script>
+</body>
+</html>

@@ -10,7 +10,9 @@ keep_vars = true
 "bun:sqlite" = "./bun-stub.js"
 
 [vars]
-JWKS_URL = "http://example.com"
+JWKS_URL = "https://orbital-auth.akeem-b8b.workers.dev/jwks"
+JWT_ISSUER = "https://orbital-auth.akeem-b8b.workers.dev"
+JWT_AUDIENCE = "https://orbital-auth.akeem-b8b.workers.dev"
 
 [observability]
 [observability.logs]

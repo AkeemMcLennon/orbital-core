@@ -1,0 +1,28 @@
+{
+  "name": "@orbital/auth",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "wrangler deploy --dry-run",
+    "deploy": "wrangler deploy",
+    "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
+    "db:migrate:local": "wrangler d1 migrations apply orbital-auth-db --local",
+    "db:migrate:d1": "wrangler d1 migrations apply orbital-auth-db",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@better-auth/oauth-provider": "^1.2.8",
+    "better-auth": "^1.2.8",
+    "drizzle-orm": "^0.45.1",
+    "hono": "^4.0.2"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240208.0",
+    "@types/node": "^25.0.7",
+    "drizzle-kit": "^0.31.8",
+    "typescript": "^5.3.3",
+    "wrangler": "^4.62.0"
+  }
+}
