@@ -1,0 +1,49 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - heading "Orbital" [level=1] [ref=e3]
+  - button "Sign in with Google" [ref=e4] [cursor=pointer]:
+    - img [ref=e5]
+    - text: Sign in with Google
+  - generic [ref=e10]: or
+  - generic [ref=e12]:
+    - tablist [ref=e15]:
+      - generic:
+        - tab "Sign In" [ref=e16]:
+          - generic [ref=e17] [cursor=pointer]:
+            - generic: Sign In
+        - tab "Register" [selected] [ref=e18]:
+          - generic [ref=e19] [cursor=pointer]:
+            - generic: Register
+    - generic [ref=e20]:
+      - text: "* *"
+      - tabpanel "Register" [ref=e21]:
+        - generic [ref=e23]:
+          - generic [active] [ref=e24]:
+            - generic [ref=e25]:
+              - generic [ref=e26]: Name
+              - text: "*"
+            - textbox "Name *" [ref=e28]:
+              - /placeholder: ""
+              - text: Test User
+          - generic [ref=e29]:
+            - generic [ref=e30]:
+              - generic [ref=e31]: Email
+              - text: "*"
+            - textbox "Email *" [ref=e33]:
+              - /placeholder: ""
+              - text: test-1772671538819@orbital-test.com
+          - generic [ref=e34]:
+            - generic [ref=e35]:
+              - generic [ref=e36]: Password
+              - text: "*"
+            - generic [ref=e37]:
+              - textbox "Password *" [ref=e38]:
+                - /placeholder: ""
+                - text: TestPass123!
+              - button "Show password" [ref=e39] [cursor=pointer]:
+                - img [ref=e42]
+          - button "Create Account" [ref=e45] [cursor=pointer]:
+            - generic [ref=e46]: Create Account
+```

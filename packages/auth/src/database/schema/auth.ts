@@ -126,6 +126,7 @@ export const oauthRefreshToken = sqliteTable("oauthRefreshToken", {
   createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
   revoked: integer("revoked", { mode: "timestamp" }),
   scopes: text("scopes").notNull(),
+  authTime: integer("authTime", { mode: "timestamp" }),
 });
 
 export const oauthConsent = sqliteTable("oauthConsent", {
