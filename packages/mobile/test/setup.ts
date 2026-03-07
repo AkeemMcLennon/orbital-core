@@ -37,6 +37,16 @@ jest.mock('../src/api/config', () => ({
   getCurrentBaseUrl: jest.fn(() => Promise.resolve('http://localhost:8787/rpc')),
 }));
 
+// ── NativeSourceCode (getDevServer needs scriptURL) ──
+jest.mock('react-native/Libraries/NativeModules/specs/NativeSourceCode', () => ({
+  __esModule: true,
+  default: {
+    getConstants: () => ({
+      scriptURL: 'http://localhost:8081/index.bundle?platform=ios',
+    }),
+  },
+}));
+
 // ── react-native-safe-area-context ──
 jest.mock('react-native-safe-area-context', () => {
   const React = require('react');
@@ -135,7 +145,7 @@ jest.mock('expo-constants', () => ({
   __esModule: true,
   default: {
     expoConfig: {
-      hostUri: null,
+      hostUri: 'localhost:8081',
     },
   },
 }));
@@ -203,10 +213,31 @@ jest.mock('expo-contacts', () => ({
   Fields: {},
 }));
 
+// ── expo-crypto ──
+jest.mock('expo-crypto', () => ({
+  digestStringAsync: jest.fn(),
+  CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
+  getRandomBytes: jest.fn(() => new Uint8Array(32)),
+  getRandomValues: jest.fn((arr: any) => arr),
+}));
+
+// ── expo-auth-session ──
+jest.mock('expo-auth-session', () => ({
+  useAutoDiscovery: jest.fn(() => null),
+  useAuthRequest: jest.fn(() => [null, null, jest.fn()]),
+  makeRedirectUri: jest.fn(() => 'exp://localhost:8081/--/auth'),
+  AuthRequest: jest.fn(),
+  fetchDiscoveryAsync: jest.fn(),
+  Prompt: { Login: 'login', Consent: 'consent' },
+  ResponseType: { Code: 'code' },
+  CodeChallengeMethod: { S256: 'S256' },
+}));
+
 // ── expo-web-browser ──
 jest.mock('expo-web-browser', () => ({
   openBrowserAsync: jest.fn(),
   openAuthSessionAsync: jest.fn(),
+  maybeCompleteAuthSession: jest.fn(),
 }));
 
 // ── expo-linking ──
