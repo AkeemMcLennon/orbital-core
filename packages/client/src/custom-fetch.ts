@@ -22,6 +22,9 @@ export type APIError = {
   data: ErrorMessage;
 };
 
+// Deduplication guard for concurrent token refreshes
+let refreshPromise: Promise<string | null> | null = null;
+
 export async function customFetch<T>(
   url: string,
   options?: RequestInit,
@@ -42,12 +45,72 @@ export async function customFetch<T>(
     }
   }
 
-  const response = await fetch(finalUrl, {
-    ...options,
-    headers,
-  });
+  try {
+    const response = await fetch(finalUrl, {
+      ...options,
+      headers,
+    });
 
-  const data = await response.json();
+    const data = await response.json();
 
-  return { status: response.status, data } as T;
+    if (!response.ok) {
+      console.error(
+        `[API Error] ${options?.method || "GET"} ${finalUrl} — ${response.status}`,
+        data,
+      );
+
+      if (response.status === 401) {
+        // If no refreshToken callback, fall through to onUnauthorized immediately
+        if (!clientOptions?.refreshToken) {
+          clientOptions?.onUnauthorized?.();
+          return { status: response.status, data } as T;
+        }
+
+        // Deduplicate: reuse in-flight refresh or start a new one
+        if (!refreshPromise) {
+          refreshPromise = clientOptions.refreshToken().finally(() => {
+            refreshPromise = null;
+          });
+        }
+
+        const newToken = await refreshPromise;
+
+        if (!newToken) {
+          clientOptions?.onUnauthorized?.();
+          return { status: response.status, data } as T;
+        }
+
+        // Retry the original request with the new token
+        const retryHeaders = new Headers(options?.headers);
+        retryHeaders.set("Authorization", `Bearer ${newToken}`);
+
+        const retryResponse = await fetch(finalUrl, {
+          ...options,
+          headers: retryHeaders,
+        });
+
+        const retryData = await retryResponse.json();
+
+        if (!retryResponse.ok) {
+          console.error(
+            `[API Error] ${options?.method || "GET"} ${finalUrl} — ${retryResponse.status} (after refresh)`,
+            retryData,
+          );
+          if (retryResponse.status === 401) {
+            clientOptions?.onUnauthorized?.();
+          }
+        }
+
+        return { status: retryResponse.status, data: retryData } as T;
+      }
+    }
+
+    return { status: response.status, data } as T;
+  } catch (error) {
+    console.error(
+      `[API Error] ${options?.method || "GET"} ${finalUrl} — Network error:`,
+      error,
+    );
+    throw error;
+  }
 }

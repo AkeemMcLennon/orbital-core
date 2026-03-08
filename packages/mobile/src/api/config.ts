@@ -1,13 +1,20 @@
-import Constants from "expo-constants";
 import { initializeApiClient } from "@orbital/client";
+import {
+  fetchDiscoveryAsync,
+  type DiscoveryDocument,
+} from "expo-auth-session";
+import { refreshAccessToken, getAuthConfig } from "../hooks/useAuth";
+import { triggerLogout } from "../utils/auth-ref";
 import * as storage from "../utils/storage";
+
+// Cached discovery document (fetched once at startup)
+let cachedDiscovery: DiscoveryDocument | null = null;
 
 /**
  * Resolves the backend API base URL
  * Priority:
  * 1. Custom base URL from Dev Settings (if set)
- * 2. Expo dev server IP (for physical devices)
- * 3. localhost (fallback for simulators)
+ * 2. Production URL (fallback)
  */
 async function resolveBaseUrl(): Promise<string> {
   // Check for custom base URL from Dev Settings
@@ -38,16 +45,29 @@ async function getToken(): Promise<string> {
  * Should be called once on app startup
  */
 export async function configureMobileApi(): Promise<void> {
-  const baseURL = await resolveBaseUrl();
+  const [baseURL, authConfig] = await Promise.all([
+    resolveBaseUrl(),
+    getAuthConfig(),
+  ]);
+
+  // Fetch and cache OIDC discovery document
+  try {
+    cachedDiscovery = await fetchDiscoveryAsync(authConfig.issuerUrl);
+  } catch (error) {
+    console.warn("Failed to fetch OIDC discovery document:", error);
+  }
 
   console.log("Configuring mobile API client:", { baseURL });
 
   initializeApiClient({
     baseURL,
     getToken,
+    refreshToken: async () => {
+      const newToken = await refreshAccessToken(cachedDiscovery);
+      return newToken;
+    },
     onUnauthorized: () => {
-      console.warn("Unauthorized - authentication token expired or invalid");
-      // TODO: Trigger logout or re-authentication flow
+      triggerLogout();
     },
   });
 }

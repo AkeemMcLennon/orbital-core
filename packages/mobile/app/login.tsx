@@ -5,7 +5,7 @@ import { useAuthContext } from "../src/contexts/AuthContext";
 import { colors, spacing, borderRadius, shadows, typography } from "../src/theme";
 
 export default function LoginScreen() {
-  const { login, isLoading } = useAuthContext();
+  const { login, isLoading, rememberMe, setRememberMe } = useAuthContext();
 
   return (
     <View
@@ -90,6 +90,36 @@ export default function LoginScreen() {
           }}
         >
           {isLoading ? "Signing In..." : "Sign In"}
+        </Text>
+      </Pressable>
+
+      {/* Remember Me */}
+      <Pressable
+        onPress={() => setRememberMe(!rememberMe)}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          marginTop: spacing.lg,
+          alignSelf: "center",
+        }}
+      >
+        <View
+          style={{
+            width: 22,
+            height: 22,
+            borderRadius: borderRadius.sm / 2,
+            borderWidth: 2,
+            borderColor: rememberMe ? colors.primary : colors.textTertiary,
+            backgroundColor: rememberMe ? colors.primary : "transparent",
+            justifyContent: "center",
+            alignItems: "center",
+            marginRight: spacing.sm,
+          }}
+        >
+          {rememberMe && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+        </View>
+        <Text style={{ fontSize: typography.sm, color: colors.textSecondary }}>
+          Remember me
         </Text>
       </Pressable>
     </View>

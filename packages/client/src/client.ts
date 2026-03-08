@@ -1,6 +1,7 @@
 export interface APIClientOptions {
   baseURL?: string;
   getToken?: () => string | Promise<string> | null;
+  refreshToken?: () => Promise<string | null>;
   onUnauthorized?: () => void | Promise<void>;
 }
 
@@ -11,7 +12,14 @@ let clientOptions: APIClientOptions | null = null;
  * Stores configuration for use by client wrapper functions
  */
 export function initializeApiClient(options: APIClientOptions) {
-  clientOptions = options;
+  clientOptions = {
+    ...options,
+    onUnauthorized:
+      options.onUnauthorized ||
+      (() => {
+        console.warn("[API] Unauthorized — token expired or invalid");
+      }),
+  };
 }
 
 export function getClientOptions(): APIClientOptions | null {

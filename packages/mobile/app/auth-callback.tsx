@@ -1,6 +1,5 @@
+import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import { useEffect } from "react";
-import { View } from "react-native";
 
 /**
  * This route exists to handle the OAuth callback deep link (mobile://auth-callback).
@@ -10,9 +9,8 @@ import { View } from "react-native";
  * that Expo Router must match to a route — without this file, it's "unmatched".
  */
 export default function AuthCallback() {
-  useEffect(() => {
-    WebBrowser.maybeCompleteAuthSession();
-  }, []);
-
-  return <View />;
+  const router = useRouter();
+  WebBrowser.maybeCompleteAuthSession();
+  router.replace("/");
+  return null;
 }

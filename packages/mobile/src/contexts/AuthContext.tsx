@@ -11,9 +11,7 @@ import {
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [issuerUrl, setIssuerUrl] = useState(
-    "https://auth.orbital.diy",
-  );
+  const [issuerUrl, setIssuerUrl] = useState("https://auth.orbital.diy");
   const auth = useAuth();
 
   // Load configured issuer URL

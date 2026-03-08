@@ -1,16 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  useAutoDiscovery,
-  useAuthRequest,
-  makeRedirectUri,
   exchangeCodeAsync,
+  makeRedirectUri,
+  Prompt,
   refreshAsync,
-  type TokenResponse,
+  useAuthRequest,
+  useAutoDiscovery,
   type DiscoveryDocument,
 } from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
-import * as storage from "../utils/storage";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { configureMobileApi } from "../api/config";
+import * as storage from "../utils/storage";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -107,6 +107,8 @@ export interface AuthState {
   isLoading: boolean;
   login: () => Promise<void>;
   logout: () => Promise<void>;
+  rememberMe: boolean;
+  setRememberMe: (value: boolean) => void;
 }
 
 export function useAuth(): AuthState {
@@ -114,6 +116,7 @@ export function useAuth(): AuthState {
   const [isReady, setIsReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [config, setConfig] = useState(DEFAULT_AUTH_CONFIG);
+  const [rememberMe, setRememberMe] = useState(true);
 
   // Load stored config + token on mount
   useEffect(() => {
@@ -139,6 +142,7 @@ export function useAuth(): AuthState {
       scopes: DEFAULT_AUTH_CONFIG.scopes,
       usePKCE: true,
       redirectUri,
+      ...(rememberMe ? {} : { prompt: Prompt.Login }),
     },
     discovery,
   );
@@ -155,50 +159,25 @@ export function useAuth(): AuthState {
       try {
         setIsLoading(true);
 
-        // Manual token exchange to debug response
-        const tokenEndpoint = (discovery as DiscoveryDocument).tokenEndpoint;
-        console.log("[useAuth] tokenEndpoint:", tokenEndpoint);
-
-        const body = new URLSearchParams({
-          grant_type: "authorization_code",
-          client_id: config.clientId,
-          code,
-          redirect_uri: redirectUri,
-          code_verifier: request?.codeVerifier || "",
-        }).toString();
-
-        console.log("[useAuth] token request body:", body);
-
-        const resp = await fetch(tokenEndpoint!, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body,
-        });
-
-        console.log("[useAuth] token response status:", resp.status);
-        const text = await resp.text();
-        console.log("[useAuth] token response body:", text);
-
-        if (!text) {
-          throw new Error("Empty response from token endpoint");
+        const tokenResult = await exchangeCodeAsync(
+          {
+            clientId: config.clientId,
+            code,
+            redirectUri,
+            extraParams: {
+              code_verifier: request?.codeVerifier || "",
+            },
+          },
+          discovery,
+        );
+        if (tokenResult.idToken) {
+          await storage.setItem(STORAGE_KEYS.accessToken, tokenResult.idToken);
+          setToken(tokenResult.idToken);
         }
-
-        const tokenData = JSON.parse(text);
-
-        if (tokenData.error) {
-          throw new Error(
-            `Token error: ${tokenData.error} - ${tokenData.error_description}`,
-          );
-        }
-
-        if (tokenData.id_token) {
-          await storage.setItem(STORAGE_KEYS.accessToken, tokenData.id_token);
-          setToken(tokenData.access_token);
-        }
-        if (tokenData.refresh_token) {
+        if (tokenResult.refreshToken) {
           await storage.setItem(
             STORAGE_KEYS.refreshToken,
-            tokenData.refresh_token,
+            tokenResult.refreshToken,
           );
         }
         await configureMobileApi();
@@ -237,6 +216,8 @@ export function useAuth(): AuthState {
     isLoading,
     login,
     logout,
+    rememberMe,
+    setRememberMe,
   };
 }
 
@@ -264,8 +245,8 @@ export async function refreshAccessToken(
       discovery,
     );
 
-    if (tokenResult.id_token) {
-      await storage.setItem(STORAGE_KEYS.accessToken, tokenResult.id_token);
+    if (tokenResult.idToken) {
+      await storage.setItem(STORAGE_KEYS.accessToken, tokenResult.idToken);
     }
     if (tokenResult.refreshToken) {
       await storage.setItem(
