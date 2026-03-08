@@ -4,15 +4,15 @@ compatibility_date = "2026-01-01"
 compatibility_flags = ["nodejs_compat"]
 
 # This line prevents dashboard variables from being overwritten
-keep_vars = true 
+keep_vars = true
 
 [alias]
 "bun:sqlite" = "./bun-stub.js"
 
 [vars]
-JWKS_URL = "https://orbital-auth.akeem-b8b.workers.dev/jwks"
-JWT_ISSUER = "https://orbital-auth.akeem-b8b.workers.dev"
-JWT_AUDIENCE = "https://orbital-auth.akeem-b8b.workers.dev"
+JWKS_URL = "https://auth.example.com/jwks"
+JWT_ISSUER = "https://auth.example.com"
+JWT_AUDIENCE = "https://auth.example.com"
 
 [observability]
 [observability.logs]
