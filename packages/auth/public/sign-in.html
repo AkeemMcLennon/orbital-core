@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Orbital — Sign In</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@awesome.me/webawesome@3.2.1/dist-cdn/styles/webawesome.css" />
   <script type="module" src="https://cdn.jsdelivr.net/npm/@awesome.me/webawesome@3.2.1/dist-cdn/webawesome.loader.js"></script>
@@ -52,7 +52,7 @@
       border-radius: 0.5rem;
       background: var(--wa-color-surface-raised);
       color: var(--wa-color-text-normal);
-      font-size: 0.95rem;
+      font-size: 1rem;
       font-family: inherit;
       cursor: pointer;
       transition: background 0.15s, border-color 0.15s;
@@ -81,6 +81,16 @@
       flex: 1;
       height: 1px;
       background: var(--wa-color-border-normal);
+    }
+
+    /* Prevent iOS auto-zoom on input focus (requires font-size >= 16px) */
+    wa-input, wa-button, input, select, textarea {
+      font-size: 16px;
+    }
+
+    /* Disable double-tap zoom on interactive elements */
+    button, wa-button, wa-tab, a {
+      touch-action: manipulation;
     }
   </style>
 </head>
