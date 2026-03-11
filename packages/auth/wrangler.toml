@@ -7,7 +7,7 @@ compatibility_flags = ["nodejs_compat"]
 directory = "./public"
 
 [vars]
-BETTER_AUTH_URL = "https://orbital-auth.akeem-b8b.workers.dev"
+BETTER_AUTH_URL = "https://auth.example.com"
 # BetterAuth derives basePath from BETTER_AUTH_URL pathname.
 # Root URL = basePath "/" = routes at /sign-in/email, /oauth2/authorize, etc.
 
