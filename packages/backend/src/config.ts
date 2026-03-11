@@ -35,6 +35,11 @@ const envSchema = {
   S3_BUCKET_NAME: z.string().optional(),
   S3_PUBLIC_URL_PREFIX: z.string().optional(),
   S3_REGION: z.string().default("auto"),
+
+  // LLM / CF AI Gateway (optional — required only for memory reps generation)
+  LLM_BASE_URL: z.string().optional(),
+  LLM_API_KEY: z.string().optional(),
+  LLM_FAST_MODEL: z.string().optional(),
 };
 const envObject = z.object(envSchema);
 // Type for settings

@@ -15,4 +15,7 @@ export interface Env {
   S3_BUCKET_NAME?: string;
   S3_PUBLIC_URL_PREFIX?: string;
   S3_REGION?: string;
+  LLM_BASE_URL?: string;
+  LLM_API_KEY?: string;
+  LLM_FAST_MODEL?: string;
 }

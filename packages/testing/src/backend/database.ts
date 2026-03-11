@@ -67,6 +67,9 @@ export async function clearDatabase(
   const { schema } = options;
 
   // Delete in order to respect foreign key constraints
+  if (schema.memoryReps) {
+    await db.delete(schema.memoryReps);
+  }
   if (schema.contactRelationships) {
     await db.delete(schema.contactRelationships);
   }

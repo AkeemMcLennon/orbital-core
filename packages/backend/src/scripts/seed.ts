@@ -6,6 +6,7 @@ import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { migrate } from 'drizzle-orm/bun-sqlite/migrator';
 import * as schema from '../database/schema';
 import { generateBase58Id, generateAvatarUrl } from '../database/seed-helpers';
+import { shuffle } from 'es-toolkit';
 import { createTestToken } from '@orbital/testing/backend/auth';
 
 const SEED_DB_PATH = './seed.db';
@@ -255,7 +256,7 @@ async function seedDatabase(): Promise<void> {
     for (const contactId of contacts) {
       // Randomly assign 1-3 tags per contact
       const tagCount = Math.floor(Math.random() * 3) + 1;
-      const shuffledTags = [...tags].sort(() => Math.random() - 0.5);
+      const shuffledTags = shuffle(tags);
 
       for (let i = 0; i < tagCount && i < shuffledTags.length; i++) {
         try {
