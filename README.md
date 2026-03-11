@@ -142,4 +142,5 @@ bun run deploy:backend
 
 ## License
 
-MIT
+Elastic License 2.0 (ELv2) - See [LICENSE](LICENSE) for details.
+

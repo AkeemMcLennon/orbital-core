@@ -2,6 +2,7 @@
   "name": "@orbital/testing",
   "version": "1.0.0",
   "private": true,
+  "license": "Elastic-2.0",
   "type": "module",
   "description": "Testing utilities for Orbital workspace packages",
   "exports": {
