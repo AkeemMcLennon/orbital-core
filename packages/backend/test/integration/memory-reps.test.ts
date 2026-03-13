@@ -14,6 +14,7 @@ import {
   describe,
   expect,
   it,
+  spyOn,
 } from "bun:test";
 import { eq } from "drizzle-orm";
 import { loadSettings } from "../../src/config";
@@ -452,8 +453,14 @@ describe("Memory Reps API (unit)", () => {
         notes: "Works at Acme Corp.",
       });
 
-      const response = await generateMemoryReps({});
-      expect(response.status).toBe(400);
+      // Force all contacts into detailPool (splitAt = contactCount) so LLM is invoked
+      const spy = spyOn(Math, "random").mockReturnValue(0.9999);
+      try {
+        const response = await generateMemoryReps({});
+        expect(response.status).toBe(400);
+      } finally {
+        spy.mockRestore();
+      }
     });
 
     it("should generate identify questions without LLM when contacts have avatars", async () => {
@@ -465,16 +472,24 @@ describe("Memory Reps API (unit)", () => {
         });
       }
 
-      const response = await generateMemoryReps({});
-      const data = getSuccessData(response);
-      if (!data) throw new Error("No data");
+      // Force all contacts into identifyPool (splitAt = 0) so no LLM is needed
+      const spy = spyOn(Math, "random").mockReturnValue(0);
+      try {
+        const response = await generateMemoryReps({});
+        const data = getSuccessData(response);
+        if (!data) throw new Error("No data");
 
-      expect(data.generated).toBe(4);
-      expect(data.items.every((i) => i.questionType === "identify")).toBe(true);
-      expect(
-        data.items.every((i) => i.question === "Who is this person?"),
-      ).toBe(true);
-      expect(data.items.every((i) => i.options.length === 4)).toBe(true);
+        expect(data.generated).toBe(4);
+        expect(data.items.every((i) => i.questionType === "identify")).toBe(
+          true,
+        );
+        expect(
+          data.items.every((i) => i.question === "Who is this person?"),
+        ).toBe(true);
+        expect(data.items.every((i) => i.options.length === 4)).toBe(true);
+      } finally {
+        spy.mockRestore();
+      }
     });
 
     it("should not generate identify questions with fewer than 4 contacts", async () => {
@@ -507,14 +522,22 @@ describe("Memory Reps API (unit)", () => {
       await seedRichContact(db, "user-1", { name: "Charlie" });
       await seedRichContact(db, "user-1", { name: "Diana" });
 
-      const response = await generateMemoryReps({});
-      const data = getSuccessData(response);
-      if (!data) throw new Error("No data");
+      // Force all contacts into identifyPool (splitAt = 0) so identify path is taken
+      const spy = spyOn(Math, "random").mockReturnValue(0);
+      try {
+        const response = await generateMemoryReps({});
+        const data = getSuccessData(response);
+        if (!data) throw new Error("No data");
 
-      // Should generate identify for the 2 with avatars
-      expect(data.items).toHaveLength(2);
-      expect(data.items.every((i) => i.questionType === "identify")).toBe(true);
-      expect(data.items.every((i) => i.contactAvatarUrl !== null)).toBe(true);
+        // Should generate identify only for the 2 with avatars
+        expect(data.items).toHaveLength(2);
+        expect(data.items.every((i) => i.questionType === "identify")).toBe(
+          true,
+        );
+        expect(data.items.every((i) => i.contactAvatarUrl !== null)).toBe(true);
+      } finally {
+        spy.mockRestore();
+      }
     });
 
     it("should include correct name in identify question options", async () => {
@@ -526,19 +549,26 @@ describe("Memory Reps API (unit)", () => {
         });
       }
 
-      const response = await generateMemoryReps({});
-      const data = getSuccessData(response);
-      if (!data) throw new Error("No data");
+      // Force all contacts into identifyPool (splitAt = 0) to guarantee questions
+      const spy = spyOn(Math, "random").mockReturnValue(0);
+      try {
+        const response = await generateMemoryReps({});
+        const data = getSuccessData(response);
+        if (!data) throw new Error("No data");
 
-      for (const item of data.items) {
-        // The correct answer option must match the contact name
-        expect(item.options[item.correctAnswer]).toBe(item.contactName);
-        // All 4 options should be from the seeded names
-        for (const opt of item.options) {
-          expect(names).toContain(opt);
+        expect(data.items.length).toBeGreaterThan(0);
+        for (const item of data.items) {
+          // The correct answer option must match the contact name
+          expect(item.options[item.correctAnswer]).toBe(item.contactName);
+          // All 4 options should be from the seeded names
+          for (const opt of item.options) {
+            expect(names).toContain(opt);
+          }
+          // No duplicate options
+          expect(new Set(item.options).size).toBe(4);
         }
-        // No duplicate options
-        expect(new Set(item.options).size).toBe(4);
+      } finally {
+        spy.mockRestore();
       }
     });
 
@@ -551,8 +581,11 @@ describe("Memory Reps API (unit)", () => {
         });
       }
 
+      // Force all contacts into identifyPool (splitAt = 0) to guarantee questions
+      const spy = spyOn(Math, "random").mockReturnValue(0);
       // Generate
       const genRes = await generateMemoryReps({});
+      spy.mockRestore();
       const genData = getSuccessData(genRes);
       if (!genData) throw new Error("No data");
       expect(genData.items.length).toBeGreaterThanOrEqual(2);
