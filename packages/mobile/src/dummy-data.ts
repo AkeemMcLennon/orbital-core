@@ -14,14 +14,6 @@ export interface TimelineItem {
   type: 'interaction' | 'action' | 'event';
 }
 
-export interface QuizCard {
-  id: string;
-  question: string;
-  options: string[];
-  correctAnswer: number;
-  contactName: string;
-}
-
 // Sample directory contacts for the "Face Stream" horizontal list
 export const directoryContacts: Contact[] = [
   {
@@ -99,31 +91,6 @@ export const timelineItems: TimelineItem[] = [
     time: '2 weeks ago',
     description: 'Follow up on partnership discussion',
     type: 'action',
-  },
-];
-
-// Sample memory reps (quiz cards)
-export const quizCards: QuizCard[] = [
-  {
-    id: '1',
-    question: "What's Sarah's favorite color?",
-    options: ['Blue', 'Green', 'Red', 'Yellow'],
-    correctAnswer: 0,
-    contactName: 'Sarah Chen',
-  },
-  {
-    id: '2',
-    question: 'What does James work on?',
-    options: ['Marketing', 'Engineering', 'Sales', 'Design'],
-    correctAnswer: 1,
-    contactName: 'James Wilson',
-  },
-  {
-    id: '3',
-    question: "Which team is Maria part of?",
-    options: ['Product', 'Design', 'Operations', 'HR'],
-    correctAnswer: 2,
-    contactName: 'Maria Garcia',
   },
 ];
 

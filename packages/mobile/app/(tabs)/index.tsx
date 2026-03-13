@@ -14,21 +14,28 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FaceAvatar, QuizCard, TimelineItem } from "../../src/components";
-import { quizCards } from "../../src/dummy-data";
 import { contactKeys, useContactsList } from "../../src/queries/contacts";
+import {
+  memoryRepKeys,
+  useMemoryRepsList,
+  useAnswerMemoryRep,
+} from "../../src/queries/memory-reps";
 import { borderRadius, colors, shadows, spacing } from "../../src/theme";
 
 export default function DailyOrbitScreen() {
   const [searchText, setSearchText] = useState("");
+  const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set());
   const navigation = useNavigation();
   const queryClient = useQueryClient();
 
   useFocusEffect(
     useCallback(() => {
-      // 💡 This will ONLY trigger a fetch if the query was invalidated
-      // or if the 5-minute staleTime has passed.
       queryClient.refetchQueries({
         queryKey: contactKeys.all,
+        type: "inactive",
+      });
+      queryClient.refetchQueries({
+        queryKey: memoryRepKeys.all,
         type: "inactive",
       });
     }, [queryClient]),
@@ -36,6 +43,16 @@ export default function DailyOrbitScreen() {
 
   const { data: contactsData, isLoading, error } = useContactsList({ limit: 50, offset: 0, sort: "date" });
   const contacts = contactsData?.items || [];
+
+  const {
+    data: repsData,
+    isLoading: repsLoading,
+    error: repsError,
+  } = useMemoryRepsList();
+  const answerMutation = useAnswerMemoryRep();
+  const memoryReps = (repsData?.items || []).filter(
+    (rep) => !answeredIds.has(rep.id),
+  );
 
   const renderFaceStreamItem = (contact: (typeof contacts)[0]) => {
     const path = `/contacts/${contact.id}` as RelativePathString;
@@ -204,18 +221,70 @@ export default function DailyOrbitScreen() {
           >
             Memory Reps
           </Text>
-          {quizCards.map((quiz) => (
-            <QuizCard
-              key={quiz.id}
-              question={quiz.question}
-              options={quiz.options}
-              correctAnswer={quiz.correctAnswer}
-              contactName={quiz.contactName}
-              onAnswer={(isCorrect) => {
-                console.log(`Answer: ${isCorrect ? "Correct" : "Incorrect"}`);
+          {repsLoading ? (
+            <View
+              style={{
+                paddingVertical: spacing.lg,
+                justifyContent: "center",
+                alignItems: "center",
               }}
-            />
-          ))}
+            >
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          ) : repsError ? (
+            <Text
+              style={{
+                color: colors.error,
+                textAlign: "center",
+                paddingVertical: spacing.md,
+              }}
+            >
+              Failed to load memory reps.
+            </Text>
+          ) : memoryReps.length === 0 ? (
+            <View
+              style={{
+                alignItems: "center",
+                paddingVertical: spacing.xl,
+                paddingHorizontal: spacing.lg,
+              }}
+            >
+              <Ionicons
+                name="school-outline"
+                size={36}
+                color={colors.textTertiary}
+              />
+              <Text
+                style={{
+                  color: colors.textSecondary,
+                  textAlign: "center",
+                  marginTop: spacing.md,
+                  fontSize: 14,
+                  lineHeight: 20,
+                }}
+              >
+                Quizzes and reminders will appear here as you add new contacts.
+              </Text>
+            </View>
+          ) : (
+            memoryReps.map((rep) => (
+              <QuizCard
+                key={rep.id}
+                question={rep.question}
+                options={rep.options}
+                correctAnswer={rep.correctAnswer}
+                contactName={rep.contactName}
+                questionType={rep.questionType as "detail" | "identify"}
+                contactAvatarUrl={rep.contactAvatarUrl}
+                onAnswer={(selectedAnswer, _isCorrect) => {
+                  answerMutation.mutate({ id: rep.id, selectedAnswer });
+                  setTimeout(() => {
+                    setAnsweredIds((prev) => new Set(prev).add(rep.id));
+                  }, 2500);
+                }}
+              />
+            ))
+          )}
         </View>
 
         {/* Timeline Section */}

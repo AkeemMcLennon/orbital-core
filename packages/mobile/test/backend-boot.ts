@@ -81,6 +81,77 @@ async function boot() {
       .where(eq(schema.contactRelationships.id, fwd.id));
   }
 
+  // 3c. Give some contacts notes and avatarUrl for memory reps
+  const allContacts = await db
+    .select()
+    .from(schema.contacts)
+    .where(eq(schema.contacts.userId, user.id));
+
+  if (allContacts.length >= 4) {
+    await db
+      .update(schema.contacts)
+      .set({ notes: 'Works at Acme Corp as a product manager', avatarUrl: 'https://ui-avatars.com/api/?name=Contact+1&background=4F46E5&color=fff' })
+      .where(eq(schema.contacts.id, allContacts[0].id));
+
+    await db
+      .update(schema.contacts)
+      .set({ notes: 'Stanford CS grad, plays guitar', avatarUrl: 'https://ui-avatars.com/api/?name=Contact+2&background=10B981&color=fff' })
+      .where(eq(schema.contacts.id, allContacts[1].id));
+
+    await db
+      .update(schema.contacts)
+      .set({ avatarUrl: 'https://ui-avatars.com/api/?name=Contact+3&background=F59E0B&color=fff' })
+      .where(eq(schema.contacts.id, allContacts[2].id));
+
+    await db
+      .update(schema.contacts)
+      .set({ avatarUrl: 'https://ui-avatars.com/api/?name=Contact+4&background=EF4444&color=fff' })
+      .where(eq(schema.contacts.id, allContacts[3].id));
+
+    // 3d. Seed memory reps directly (no LLM needed)
+    // Detail type reps
+    await db.insert(schema.memoryReps).values({
+      userId: user.id,
+      contactId: allContacts[0].id,
+      question: 'Where does Contact 1 work?',
+      options: ['Acme Corp', 'Google', 'Meta', 'Apple'],
+      correctAnswer: 0,
+      sourceField: 'notes',
+      questionType: 'detail',
+    });
+
+    await db.insert(schema.memoryReps).values({
+      userId: user.id,
+      contactId: allContacts[1].id,
+      question: 'Where did Contact 2 study?',
+      options: ['MIT', 'Stanford', 'Harvard', 'Yale'],
+      correctAnswer: 1,
+      sourceField: 'notes',
+      questionType: 'detail',
+    });
+
+    // Identify type reps
+    await db.insert(schema.memoryReps).values({
+      userId: user.id,
+      contactId: allContacts[0].id,
+      question: 'Who is this person?',
+      options: ['Contact 1', 'Contact 2', 'Contact 3', 'Contact 4'],
+      correctAnswer: 0,
+      sourceField: 'avatar',
+      questionType: 'identify',
+    });
+
+    await db.insert(schema.memoryReps).values({
+      userId: user.id,
+      contactId: allContacts[1].id,
+      question: 'Who is this person?',
+      options: ['Contact 3', 'Contact 2', 'Contact 4', 'Contact 1'],
+      correctAnswer: 1,
+      sourceField: 'avatar',
+      questionType: 'identify',
+    });
+  }
+
   // 4. Create a JWT token for the test user
   const token = await createTestToken({
     sub: 'test-user-1',

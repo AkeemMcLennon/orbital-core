@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { spacing, colors, borderRadius, shadows } from '../theme';
+import { FaceAvatar } from './FaceAvatar';
 
 interface QuizCardProps {
   question: string;
   options: string[];
   correctAnswer: number;
   contactName: string;
-  onAnswer?: (isCorrect: boolean) => void;
+  questionType?: 'detail' | 'identify';
+  contactAvatarUrl?: string | null;
+  onAnswer?: (selectedAnswer: number, isCorrect: boolean) => void;
 }
 
 export const QuizCard: React.FC<QuizCardProps> = ({
@@ -15,16 +18,20 @@ export const QuizCard: React.FC<QuizCardProps> = ({
   options,
   correctAnswer,
   contactName,
+  questionType = 'detail',
+  contactAvatarUrl,
   onAnswer,
 }) => {
   const [answered, setAnswered] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
 
+  const isIdentify = questionType === 'identify';
+
   const handleAnswer = (index: number) => {
     if (!answered) {
       setSelectedAnswer(index);
       setAnswered(true);
-      onAnswer?.(index === correctAnswer);
+      onAnswer?.(index, index === correctAnswer);
     }
   };
 
@@ -76,30 +83,54 @@ export const QuizCard: React.FC<QuizCardProps> = ({
         marginBottom: spacing.lg,
       }}
     >
-      {/* Contact name */}
-      <Text
-        style={{
-          fontSize: 12,
-          color: colors.textTertiary,
-          marginBottom: spacing.sm,
-          fontWeight: '500',
-        }}
-      >
-        {contactName.toUpperCase()}
-      </Text>
-
-      {/* Question */}
-      <Text
-        style={{
-          fontSize: 16,
-          fontWeight: '600',
-          color: colors.textMain,
-          marginBottom: spacing.lg,
-          lineHeight: 22,
-        }}
-      >
-        {question}
-      </Text>
+      {isIdentify ? (
+        /* Identify question: show avatar + "Who is this person?" */
+        <View style={{ alignItems: 'center', marginBottom: spacing.lg }}>
+          <FaceAvatar
+            name={contactName}
+            avatar={contactAvatarUrl}
+            size={120}
+            showLabel={false}
+            noMargin
+          />
+          <Text
+            style={{
+              fontSize: 16,
+              fontWeight: '600',
+              color: colors.textMain,
+              marginTop: spacing.md,
+              lineHeight: 22,
+            }}
+          >
+            {question}
+          </Text>
+        </View>
+      ) : (
+        /* Detail question: show contact name label + question text */
+        <>
+          <Text
+            style={{
+              fontSize: 12,
+              color: colors.textTertiary,
+              marginBottom: spacing.sm,
+              fontWeight: '500',
+            }}
+          >
+            {contactName.toUpperCase()}
+          </Text>
+          <Text
+            style={{
+              fontSize: 16,
+              fontWeight: '600',
+              color: colors.textMain,
+              marginBottom: spacing.lg,
+              lineHeight: 22,
+            }}
+          >
+            {question}
+          </Text>
+        </>
+      )}
 
       {/* Options grid (2x2) */}
       <View
@@ -161,7 +192,11 @@ export const QuizCard: React.FC<QuizCardProps> = ({
             fontWeight: '500',
           }}
         >
-          {selectedAnswer === correctAnswer ? '✓ Correct!' : '✗ Incorrect'}
+          {selectedAnswer === correctAnswer
+            ? '✓ Correct!'
+            : isIdentify
+              ? `✗ This is ${contactName}`
+              : '✗ Incorrect'}
         </Text>
       )}
     </View>
