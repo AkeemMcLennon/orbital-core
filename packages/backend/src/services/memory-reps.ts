@@ -34,7 +34,7 @@ interface QuizResult {
 
 const quizSignature = f()
   .input("contacts", ContactSchema.array("Contacts to generate questions for"))
-  .output("questions", QuestionSchema.array("1-3 questions per contact"))
+  .output("questions", QuestionSchema.array("exactly 1 question per contact"))
   .description(
     "Generate multiple-choice trivia questions for each contact to help the user remember details about their contacts. Wrong options should be plausible but clearly different.",
   )
@@ -95,7 +95,8 @@ async function selectEligibleContacts(
  * Requires >= 4 eligible contacts so we can build 4-option multiple choice.
  */
 function generateIdentifyQuestions(
-  eligibleContacts: Contact[],
+  questionContacts: Contact[],
+  namePool: Contact[],
   userId: string,
 ): Array<{
   userId: string;
@@ -106,12 +107,12 @@ function generateIdentifyQuestions(
   sourceField: string;
   questionType: string;
 }> {
-  const withAvatar = eligibleContacts.filter((c) => c.avatarUrl);
-  if (withAvatar.length === 0 || eligibleContacts.length < 4) return [];
+  const withAvatar = questionContacts.filter((c) => c.avatarUrl);
+  if (withAvatar.length === 0 || namePool.length < 4) return [];
 
   return withAvatar.map((contact) => {
-    // Pick 3 random wrong names from other contacts
-    const otherNames = eligibleContacts
+    // Pick 3 random wrong names from other contacts in the name pool
+    const otherNames = namePool
       .filter((c) => c.id !== contact.id)
       .map((c) => c.name);
     const wrongNames = shuffle([...otherNames]).slice(0, 3);
@@ -152,8 +153,14 @@ export async function generateMemoryReps(
 
   const validContactIds = new Set(eligibleContacts.map((c) => c.id));
 
+  // Shuffle and randomly split contacts between detail and identify sources
+  const shuffled = shuffle([...eligibleContacts]);
+  const splitAt = Math.floor(Math.random() * (shuffled.length + 1));
+  const detailPool = shuffled.slice(0, splitAt);
+  const identifyPool = shuffled.slice(splitAt);
+
   // Generate LLM-based detail questions
-  const contactsWithNotes = eligibleContacts.filter((c) => c.notes);
+  const contactsWithNotes = detailPool.filter((c) => c.notes);
   let detailInserts: Array<{
     userId: string;
     contactId: string;
@@ -193,7 +200,7 @@ export async function generateMemoryReps(
   }
 
   // Generate deterministic identify questions
-  const identifyInserts = generateIdentifyQuestions(eligibleContacts, userId);
+  const identifyInserts = generateIdentifyQuestions(identifyPool, eligibleContacts, userId);
 
   const toInsert = [...detailInserts, ...identifyInserts];
 
