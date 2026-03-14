@@ -1,23 +1,17 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { AppState, type AppStateStatus } from "react-native";
 import { useAutoDiscovery, type DiscoveryDocument } from "expo-auth-session";
-import {
-  useAuth,
-  refreshAccessToken,
-  getAuthConfig,
-  type AuthState,
-} from "../hooks/useAuth";
+import { useAuth, type AuthState } from "../hooks/useAuth";
+
+import { refreshAccessToken } from "../api/config";
 
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [issuerUrl, setIssuerUrl] = useState("https://auth.orbital.diy");
+  const [issuerUrl] = useState("https://auth.orbital.diy");
   const auth = useAuth();
 
   // Load configured issuer URL
-  useEffect(() => {
-    getAuthConfig().then((config) => setIssuerUrl(config.issuerUrl));
-  }, []);
 
   const discovery = useAutoDiscovery(issuerUrl);
 

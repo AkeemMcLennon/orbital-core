@@ -3,27 +3,36 @@ import {
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQueryClient,
+} from "@tanstack/react-query";
+import * as SplashScreen from "expo-splash-screen";
 import { Drawer } from "expo-router/drawer";
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, useWindowDimensions, View } from "react-native";
+import { useEffect } from "react";
+import { useWindowDimensions, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { TamaguiProvider } from "tamagui";
+import { getContacts, getMemoryReps } from "@orbital/client";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { configureMobileApi } from "../src/api/config";
 import { DrawerContent } from "../src/components/DrawerContent";
 import { AuthProvider, useAuthContext } from "../src/contexts/AuthContext";
+import { contactKeys } from "../src/queries/contacts";
+import { memoryRepKeys } from "../src/queries/memory-reps";
 import { colors } from "../src/theme";
 import { tamalogui } from "../tamagui.config";
 import LoginScreen from "./login";
 
+// Keep the native splash screen visible until we're ready
+SplashScreen.preventAutoHideAsync();
+
 // Module level - executes on import, before RootLayout mounts
-const apiReady = configureMobileApi().catch((error) => {
-  console.error("Failed to configure mobile API:", error);
-});
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -43,21 +52,32 @@ function AuthGate() {
   const { isReady, isAuthenticated } = useAuthContext();
   const { width } = useWindowDimensions();
   const isWideScreen = width >= 768;
+  const queryClient = useQueryClient();
 
-  if (!isReady) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: colors.bg,
-        }}
-      >
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
+  useEffect(() => {
+    async function prepare() {
+      if (!isReady) return;
+
+      if (isAuthenticated) {
+        await Promise.all([
+          queryClient.prefetchQuery({
+            queryKey: contactKeys.all,
+            queryFn: () => getContacts({ limit: 50, offset: 0, sort: "date" }),
+          }),
+          queryClient.prefetchQuery({
+            queryKey: memoryRepKeys.all,
+            queryFn: () => getMemoryReps(),
+          }),
+        ]);
+      }
+
+      await SplashScreen.hideAsync();
+    }
+
+    prepare();
+  }, [isReady, isAuthenticated]);
+
+  if (!isReady) return null;
 
   if (!isAuthenticated) {
     return <LoginScreen />;

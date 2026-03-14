@@ -2,31 +2,21 @@ import {
   exchangeCodeAsync,
   makeRedirectUri,
   Prompt,
-  refreshAsync,
   useAuthRequest,
   useAutoDiscovery,
-  type DiscoveryDocument,
 } from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { configureMobileApi } from "../api/config";
+import {
+  configureMobileApi,
+  AuthConfig,
+  STORAGE_KEYS,
+  DEFAULT_AUTH_CONFIG,
+} from "../api/config";
+import { getAuthMe, getSuccessData } from "@orbital/client";
 import * as storage from "../utils/storage";
 
 WebBrowser.maybeCompleteAuthSession();
-
-// ── Defaults ─────────────────────────────────────────────────────────
-const DEFAULT_AUTH_CONFIG = {
-  issuerUrl: "https://auth.orbital.diy",
-  clientId: "orbital-mobile",
-  scopes: ["openid", "profile", "email", "offline_access"],
-};
-
-const STORAGE_KEYS = {
-  accessToken: "auth_token",
-  refreshToken: "auth_refresh_token",
-  authIssuerUrl: "auth_issuer_url",
-  authClientId: "auth_client_id",
-};
 
 const redirectUri = makeRedirectUri({
   scheme: "mobile",
@@ -35,22 +25,6 @@ const redirectUri = makeRedirectUri({
 console.log("[useAuth] redirectUri:", redirectUri);
 
 // ── Settings helpers ─────────────────────────────────────────────────
-
-export interface AuthConfig {
-  issuerUrl: string;
-  clientId: string;
-}
-
-export async function getAuthConfig(): Promise<AuthConfig> {
-  const [issuerUrl, clientId] = await Promise.all([
-    storage.getItem(STORAGE_KEYS.authIssuerUrl),
-    storage.getItem(STORAGE_KEYS.authClientId),
-  ]);
-  return {
-    issuerUrl: issuerUrl || DEFAULT_AUTH_CONFIG.issuerUrl,
-    clientId: clientId || DEFAULT_AUTH_CONFIG.clientId,
-  };
-}
 
 export async function setAuthConfig(
   config: Partial<AuthConfig>,
@@ -77,30 +51,13 @@ export async function setAuthConfig(
 // ── JWT decode ──────────────────────────────────────────────────────
 
 export interface UserInfo {
-  sub: string;
   email: string;
-  name: string;
-}
-
-function decodeJwtPayload(token: string): UserInfo | null {
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(atob(parts[1]));
-    return {
-      sub: payload.sub ?? "",
-      email: payload.email ?? "",
-      name: payload.name ?? payload.email ?? "",
-    };
-  } catch {
-    return null;
-  }
+  name: string | null;
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────
 
 export interface AuthState {
-  token: string | null;
   user: UserInfo | null;
   isReady: boolean;
   isAuthenticated: boolean;
@@ -112,21 +69,20 @@ export interface AuthState {
 }
 
 export function useAuth(): AuthState {
-  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<UserInfo | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [config, setConfig] = useState(DEFAULT_AUTH_CONFIG);
+  const [config] = useState(DEFAULT_AUTH_CONFIG);
   const [rememberMe, setRememberMe] = useState(true);
 
   // Load stored config + token on mount
   useEffect(() => {
     (async () => {
-      const [storedConfig, storedToken] = await Promise.all([
-        getAuthConfig(),
-        storage.getItem(STORAGE_KEYS.accessToken),
-      ]);
-      setConfig({ ...DEFAULT_AUTH_CONFIG, ...storedConfig });
-      if (storedToken) setToken(storedToken);
+      await apiReady;
+      const me = getSuccessData(await getAuthMe());
+      if (me) {
+        setUser(me);
+      }
       setIsReady(true);
     })();
   }, []);
@@ -172,7 +128,6 @@ export function useAuth(): AuthState {
         );
         if (tokenResult.idToken) {
           await storage.setItem(STORAGE_KEYS.accessToken, tokenResult.idToken);
-          setToken(tokenResult.idToken);
         }
         if (tokenResult.refreshToken) {
           await storage.setItem(
@@ -202,14 +157,12 @@ export function useAuth(): AuthState {
   const logout = useCallback(async () => {
     await storage.deleteItem(STORAGE_KEYS.accessToken);
     await storage.deleteItem(STORAGE_KEYS.refreshToken);
-    setToken(null);
+    setUser(null);
   }, []);
 
-  const isAuthenticated = useMemo(() => token !== null, [token]);
-  const user = useMemo(() => (token ? decodeJwtPayload(token) : null), [token]);
+  const isAuthenticated = useMemo(() => user !== null, [user]);
 
   return {
-    token,
     user,
     isReady,
     isAuthenticated,
@@ -225,42 +178,7 @@ export function useAuth(): AuthState {
  * Refresh the access token using the stored refresh token.
  * Called from AuthContext on app foreground.
  */
-export async function refreshAccessToken(
-  discovery: DiscoveryDocument | null,
-): Promise<string | null> {
-  if (!discovery) return null;
 
-  const [refreshToken, config] = await Promise.all([
-    storage.getItem(STORAGE_KEYS.refreshToken),
-    getAuthConfig(),
-  ]);
-  if (!refreshToken) return null;
-
-  try {
-    const tokenResult = await refreshAsync(
-      {
-        clientId: config.clientId,
-        refreshToken,
-      },
-      discovery,
-    );
-
-    if (tokenResult.idToken) {
-      await storage.setItem(STORAGE_KEYS.accessToken, tokenResult.idToken);
-    }
-    if (tokenResult.refreshToken) {
-      await storage.setItem(
-        STORAGE_KEYS.refreshToken,
-        tokenResult.refreshToken,
-      );
-    }
-
-    return tokenResult.accessToken;
-  } catch (error) {
-    console.error("Token refresh failed:", error);
-    // Clear expired tokens
-    await storage.deleteItem(STORAGE_KEYS.accessToken);
-    await storage.deleteItem(STORAGE_KEYS.refreshToken);
-    return null;
-  }
-}
+export const apiReady = configureMobileApi().catch((error) => {
+  console.error("Failed to configure mobile API:", error);
+});

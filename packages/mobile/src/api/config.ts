@@ -2,14 +2,31 @@ import { initializeApiClient } from "@orbital/client";
 import {
   fetchDiscoveryAsync,
   type DiscoveryDocument,
+  refreshAsync,
 } from "expo-auth-session";
-import { refreshAccessToken, getAuthConfig } from "../hooks/useAuth";
 import { triggerLogout } from "../utils/auth-ref";
 import * as storage from "../utils/storage";
 
 // Cached discovery document (fetched once at startup)
 let cachedDiscovery: DiscoveryDocument | null = null;
 
+export interface AuthConfig {
+  issuerUrl: string;
+  clientId: string;
+}
+
+export const DEFAULT_AUTH_CONFIG = {
+  issuerUrl: "https://auth.example.com",
+  clientId: "orbital-mobile",
+  scopes: ["openid", "profile", "email", "offline_access"],
+};
+
+export const STORAGE_KEYS = {
+  accessToken: "auth_token",
+  refreshToken: "auth_refresh_token",
+  authIssuerUrl: "auth_issuer_url",
+  authClientId: "auth_client_id",
+};
 /**
  * Resolves the backend API base URL
  * Priority:
@@ -25,6 +42,57 @@ async function resolveBaseUrl(): Promise<string> {
   }
 
   return "https://api.example.com/rpc";
+}
+
+export async function getAuthConfig(): Promise<AuthConfig> {
+  const [issuerUrl, clientId] = await Promise.all([
+    storage.getItem(STORAGE_KEYS.authIssuerUrl),
+    storage.getItem(STORAGE_KEYS.authClientId),
+  ]);
+  return {
+    issuerUrl: issuerUrl || DEFAULT_AUTH_CONFIG.issuerUrl,
+    clientId: clientId || DEFAULT_AUTH_CONFIG.clientId,
+  };
+}
+
+export async function refreshAccessToken(
+  discovery: DiscoveryDocument | null,
+): Promise<string | null> {
+  if (!discovery) return null;
+
+  const [refreshToken, config] = await Promise.all([
+    storage.getItem(STORAGE_KEYS.refreshToken),
+    getAuthConfig(),
+  ]);
+  if (!refreshToken) return null;
+
+  try {
+    const tokenResult = await refreshAsync(
+      {
+        clientId: config.clientId,
+        refreshToken,
+      },
+      discovery,
+    );
+
+    if (tokenResult.idToken) {
+      await storage.setItem(STORAGE_KEYS.accessToken, tokenResult.idToken);
+    }
+    if (tokenResult.refreshToken) {
+      await storage.setItem(
+        STORAGE_KEYS.refreshToken,
+        tokenResult.refreshToken,
+      );
+    }
+
+    return tokenResult.accessToken;
+  } catch (error) {
+    console.error("Token refresh failed:", error);
+    // Clear expired tokens
+    await storage.deleteItem(STORAGE_KEYS.accessToken);
+    await storage.deleteItem(STORAGE_KEYS.refreshToken);
+    return null;
+  }
 }
 
 /**
