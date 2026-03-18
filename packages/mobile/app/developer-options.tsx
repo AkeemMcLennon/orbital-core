@@ -9,19 +9,21 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import {
   clearAuthToken,
   getAuthToken,
   setAuthToken,
-} from "../../src/api/auth-helper";
-import { configureMobileApi, getCurrentBaseUrl } from "../../src/api/config";
-import { borderRadius, colors, shadows, spacing } from "../../src/theme";
-import * as storage from "../../src/utils/storage";
+} from "../src/api/auth-helper";
+import { configureMobileApi, getCurrentBaseUrl } from "../src/api/config";
+import { borderRadius, colors, shadows, spacing } from "../src/theme";
+import * as storage from "../src/utils/storage";
 
 const TEST_TOKEN =
   "eyJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5LTEifQ.eyJzdWIiOiJ0ZXN0LXVzZXItMDAxIiwiZW1haWwiOiJ0ZXN0QGV4YW1wbGUuY29tIiwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo5OTk5LyIsImF1ZCI6InRlc3QtYXVkaWVuY2UiLCJpYXQiOjE3NjkyNzg5NDksImV4cCI6MTc2OTI4MjU0OX0.p34D2JWc-1L__FnVTjiDRQiuxH45yKAjidB3_qDUEHl21tX1EqGCwrxSSIcrS61_fgw3qx0xUZqnI9iR3ZyHl2um_aBe2Sm9CJeylcYb9NTP6IUidCK7md_fF72y2bLoPBwGokTZR5qp9JgKo-RaU6vEg6BZQWMCWFZqKiFDnvHJsbAmEceHLPzersLCC8gFYs0Xs5USgDtaJXwGLCo93iu2bDTMI7mbuGxOXDozmTskJrxLuOZy51L7lCGL0mGaf5nghm2qPBDPm-BL1YiPcphlIHXBCmpst2EXK86kVw90edZeNnzUwDS2CtWI-UHQaoWE-cTx6L_JzqjMEfvsGA";
 
-export default function SettingsScreen() {
+export default function DeveloperOptionsScreen() {
   const [apiUrl, setApiUrl] = useState("");
   const [currentActiveUrl, setCurrentActiveUrl] = useState("");
   const [token, setToken] = useState("");
@@ -29,21 +31,17 @@ export default function SettingsScreen() {
   const lastTapRef = React.useRef<number>(0);
 
   useEffect(() => {
-    // Load current settings on mount
     loadCurrentSettings();
   }, []);
 
   const loadCurrentSettings = async () => {
     try {
-      // Load custom API URL from storage
       const savedUrl = await storage.getItem("dev_api_base_url");
       setApiUrl(savedUrl || "");
 
-      // Load the actual active URL (including fallbacks)
       const activeUrl = await getCurrentBaseUrl();
       setCurrentActiveUrl(activeUrl);
 
-      // Load current token
       const currentToken = await getAuthToken();
       setToken(currentToken || "");
 
@@ -56,9 +54,7 @@ export default function SettingsScreen() {
 
   const handleSaveSettings = async () => {
     try {
-      // Save API URL if provided
       if (apiUrl.trim()) {
-        // Validate URL format
         try {
           new URL(apiUrl.trim());
           await storage.setItem("dev_api_base_url", apiUrl.trim());
@@ -67,19 +63,15 @@ export default function SettingsScreen() {
           return;
         }
       } else {
-        // Clear custom URL to use default
         await storage.deleteItem("dev_api_base_url");
       }
 
-      // Save token if provided
       if (token.trim()) {
         await setAuthToken(token);
       }
 
-      // Reconfigure API client with new settings
       await configureMobileApi();
 
-      // Reload active URL
       const activeUrl = await getCurrentBaseUrl();
       setCurrentActiveUrl(activeUrl);
 
@@ -92,18 +84,14 @@ export default function SettingsScreen() {
 
   const handleClearSettings = async () => {
     try {
-      // Clear token
       await clearAuthToken();
       setToken("");
 
-      // Clear custom API URL
       await storage.deleteItem("dev_api_base_url");
       setApiUrl("");
 
-      // Reconfigure API with defaults
       await configureMobileApi();
 
-      // Reload active URL
       const activeUrl = await getCurrentBaseUrl();
       setCurrentActiveUrl(activeUrl);
 
@@ -128,6 +116,32 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+      {/* Back header */}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.sm,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+        }}
+      >
+        <Pressable onPress={() => router.back()} style={{ padding: spacing.sm }}>
+          <Ionicons name="chevron-back" size={24} color={colors.textMain} />
+        </Pressable>
+        <Text
+          style={{
+            fontSize: 18,
+            fontWeight: "600",
+            color: colors.textMain,
+            marginLeft: spacing.sm,
+          }}
+        >
+          Developer Options
+        </Text>
+      </View>
+
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
         {/* Header */}
         <View

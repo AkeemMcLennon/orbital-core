@@ -1,41 +1,38 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  Image,
-  ScrollView,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuthContext } from '../contexts/AuthContext';
-import { colors, spacing, borderRadius } from '../theme';
+import React from "react";
+import { View, Text, Pressable, Image, ScrollView } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { DrawerActions } from "@react-navigation/native";
+import type { DrawerContentComponentProps } from "@react-navigation/drawer";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import { useAuthContext } from "../contexts/AuthContext";
+import { colors, spacing, borderRadius } from "../theme";
 
 const DRAWER_ITEMS = [
   {
-    id: '1',
-    icon: 'home',
-    label: 'Dashboard',
-    route: '(tabs)',
+    id: "1",
+    icon: "home",
+    label: "Dashboard",
+    route: "/(tabs)",
   },
   {
-    id: '2',
-    icon: 'people',
-    label: 'Contacts',
-    route: '(tabs)',
+    id: "2",
+    icon: "people",
+    label: "Contacts",
+    route: "/(tabs)",
   },
   {
-    id: '3',
-    icon: 'settings',
-    label: 'Settings',
-    route: 'settings',
+    id: "3",
+    icon: "settings",
+    label: "Settings",
+    route: "/settings",
   },
 ];
 
-export function DrawerContent() {
-  const navigation = useNavigation<DrawerNavigationProp<any>>();
+export function DrawerContent({
+  navigation,
+  ...props
+}: DrawerContentComponentProps) {
   const { logout, user } = useAuthContext();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -48,8 +45,8 @@ export function DrawerContent() {
         {/* User Profile Section */}
         <View
           style={{
-            flexDirection: 'row',
-            alignItems: 'center',
+            flexDirection: "row",
+            alignItems: "center",
             marginBottom: spacing.xxl,
             paddingBottom: spacing.lg,
             borderBottomWidth: 1,
@@ -57,7 +54,9 @@ export function DrawerContent() {
           }}
         >
           <Image
-            source={{ uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=4F46E5&color=fff` }}
+            source={{
+              uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "User")}&background=4F46E5&color=fff`,
+            }}
             style={{
               width: 48,
               height: 48,
@@ -69,11 +68,11 @@ export function DrawerContent() {
             <Text
               style={{
                 fontSize: 16,
-                fontWeight: '700',
+                fontWeight: "700",
                 color: colors.textMain,
               }}
             >
-              {user?.name || 'User'}
+              {user?.name || "User"}
             </Text>
             <Text
               style={{
@@ -81,7 +80,7 @@ export function DrawerContent() {
                 color: colors.textTertiary,
               }}
             >
-              {user?.email || ''}
+              {user?.email || ""}
             </Text>
           </View>
         </View>
@@ -92,12 +91,12 @@ export function DrawerContent() {
             <Pressable
               key={item.id}
               onPress={() => {
-                navigation.navigate(item.route);
-                navigation.closeDrawer();
+                router.push(item.route as any);
+                navigation.dispatch(DrawerActions.closeDrawer());
               }}
               style={{
-                flexDirection: 'row',
-                alignItems: 'center',
+                flexDirection: "row",
+                alignItems: "center",
                 paddingVertical: spacing.md,
                 paddingHorizontal: spacing.md,
                 borderRadius: borderRadius.md,
@@ -106,12 +105,16 @@ export function DrawerContent() {
                 borderWidth: 1,
               }}
             >
-              <Ionicons name={item.icon as any} size={20} color={colors.primary} />
+              <Ionicons
+                name={item.icon as any}
+                size={20}
+                color={colors.primary}
+              />
               <Text
                 style={{
                   marginLeft: spacing.md,
                   fontSize: 14,
-                  fontWeight: '500',
+                  fontWeight: "500",
                   color: colors.textMain,
                 }}
               >
@@ -133,12 +136,16 @@ export function DrawerContent() {
         >
           <Pressable
             style={{
-              flexDirection: 'row',
-              alignItems: 'center',
+              flexDirection: "row",
+              alignItems: "center",
               paddingVertical: spacing.md,
             }}
           >
-            <Ionicons name="help-circle" size={18} color={colors.textTertiary} />
+            <Ionicons
+              name="help-circle"
+              size={18}
+              color={colors.textTertiary}
+            />
             <Text
               style={{
                 marginLeft: spacing.md,
@@ -153,8 +160,8 @@ export function DrawerContent() {
           <Pressable
             onPress={() => logout()}
             style={{
-              flexDirection: 'row',
-              alignItems: 'center',
+              flexDirection: "row",
+              alignItems: "center",
               paddingVertical: spacing.md,
             }}
           >

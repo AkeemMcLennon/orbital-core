@@ -105,7 +105,7 @@ function AuthGate() {
           drawerActiveTintColor: colors.primary,
           drawerInactiveTintColor: colors.textSecondary,
         }}
-        drawerContent={() => <DrawerContent />}
+        drawerContent={DrawerContent}
       >
         <Drawer.Screen
           name="(tabs)"
@@ -125,6 +125,20 @@ function AuthGate() {
           name="contacts/import"
           options={{
             drawerLabel: "Import Contacts",
+            headerShown: false,
+          }}
+        />
+        <Drawer.Screen
+          name="settings"
+          options={{
+            drawerItemStyle: { display: "none" },
+            headerShown: false,
+          }}
+        />
+        <Drawer.Screen
+          name="developer-options"
+          options={{
+            drawerItemStyle: { display: "none" },
             headerShown: false,
           }}
         />
