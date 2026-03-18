@@ -16,6 +16,8 @@ import { ORPCError } from "@orpc/server";
 import { base58IdSchema } from "@orbital/utils";
 import { PaginationInputSchema, paginatedSchema } from "../utils/pagination";
 import { StorageService } from "../services/storage";
+import { generateRepsForNewContact } from "../services/memory-reps";
+import { waitUntil } from "../utils/wait-until";
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
 type AllowedImageType = (typeof ALLOWED_IMAGE_TYPES)[number];
@@ -198,6 +200,8 @@ export const createContact = authProc
         group: (input.group as "work" | "personal" | undefined) ?? null,
       })
       .returning();
+
+    waitUntil(generateRepsForNewContact(db, user.id, contact.id));
 
     return contact;
   });

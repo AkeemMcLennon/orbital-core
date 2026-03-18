@@ -1,4 +1,4 @@
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, or, lte, sql } from "drizzle-orm";
 import * as z from "zod";
 import { contacts, memoryReps } from "../database/schema";
 import { authProc } from "../middleware/auth";
@@ -19,6 +19,7 @@ const MemoryRepItemSchema = z.object({
   questionType: z.string(),
   answeredAt: z.date().nullable(),
   wasCorrect: z.boolean().nullable(),
+  scheduledFor: z.date().nullable(),
   createdAt: z.date(),
 });
 
@@ -45,6 +46,10 @@ export const listMemoryReps = authProc
     if (!input.includeAnswered) {
       conditions.push(isNull(memoryReps.answeredAt));
     }
+    // Exclude future-scheduled reps
+    conditions.push(
+      or(isNull(memoryReps.scheduledFor), lte(memoryReps.scheduledFor, sql`(unixepoch())`))!,
+    );
 
     const whereClause = conditions.length === 1 ? conditions[0]! : and(...conditions)!;
 
@@ -69,6 +74,7 @@ export const listMemoryReps = authProc
       correctAnswer: r.memory_reps.correctAnswer,
       sourceField: r.memory_reps.sourceField,
       questionType: r.memory_reps.questionType,
+      scheduledFor: r.memory_reps.scheduledFor,
       answeredAt: r.memory_reps.answeredAt,
       wasCorrect: r.memory_reps.wasCorrect,
       createdAt: r.memory_reps.createdAt,

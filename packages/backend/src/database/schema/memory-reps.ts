@@ -17,6 +17,7 @@ export const memoryReps = sqliteTable('memory_reps', {
   correctAnswer: integer('correct_answer').notNull(), // 0-3 index into options
   sourceField: text('source_field').notNull(), // which contact field was quizzed
   questionType: text('question_type').notNull().default('detail'), // "detail" | "identify"
+  scheduledFor: integer('scheduled_for', { mode: 'timestamp' }),
   answeredAt: integer('answered_at', { mode: 'timestamp' }),
   wasCorrect: integer('was_correct', { mode: 'boolean' }),
   createdAt: integer('created_at', { mode: 'timestamp' })

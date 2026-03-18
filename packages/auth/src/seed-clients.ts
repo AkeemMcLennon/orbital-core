@@ -46,7 +46,7 @@ export async function ensureMobileClient(db: D1Database): Promise<void> {
         "orbital-mobile",
         "orbital-mobile",
         "Orbital Mobile",
-        JSON.stringify(["mobile://auth-callback", "diy.orbital.mobile://auth-callback"]),
+        JSON.stringify(["mobile://auth-callback", "diy.orbital.mobile://auth-callback", "exp://192.168.5.100:8081/--/auth-callback"]),
         "mobile",
         JSON.stringify(["authorization_code", "refresh_token"]),
         JSON.stringify(["code"]),

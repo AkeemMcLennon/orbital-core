@@ -5,6 +5,7 @@ import { contacts, memoryReps } from "../database/schema";
 import type { Contact } from "../database/schema/contacts";
 import { shuffle } from "es-toolkit";
 import { getAI } from "./llm";
+import { settings } from "../config";
 
 const ContactSchema = f.object({
   contactId: f.string("Contact ID"),
@@ -50,6 +51,7 @@ interface GenerateResultItem {
   correctAnswer: number;
   sourceField: string;
   questionType: string;
+  scheduledFor: Date | null;
   answeredAt: Date | null;
   wasCorrect: boolean | null;
   createdAt: Date;
@@ -133,6 +135,56 @@ function generateIdentifyQuestions(
   });
 }
 
+interface RepInsert {
+  userId: string;
+  contactId: string;
+  question: string;
+  options: string[];
+  correctAnswer: number;
+  sourceField: string;
+  questionType: string;
+}
+
+/**
+ * Generate LLM-based detail questions for contacts that have notes.
+ * Calls the LLM to produce trivia questions, shuffles options, and
+ * filters results to only include valid contact IDs.
+ */
+async function generateDetailQuestions(
+  contactsWithNotes: Contact[],
+  userId: string,
+): Promise<RepInsert[]> {
+  if (contactsWithNotes.length === 0) return [];
+
+  const validContactIds = new Set(contactsWithNotes.map((c) => c.id));
+
+  const gen = new AxGen(quizSignature);
+  const result: QuizResult = await gen.forward(getAI(), {
+    contacts: contactsWithNotes.map((c) => ({
+      contactId: c.id,
+      name: c.name,
+      notes: c.notes!,
+    })),
+  });
+
+  return result.questions
+    .filter((q) => validContactIds.has(q.contactId))
+    .map((q) => {
+      // Shuffle options since LLM tends to place correct answer at index 0
+      const correctOption = q.options[q.correctAnswer];
+      const shuffledOptions = shuffle([...q.options]);
+      return {
+        userId,
+        contactId: q.contactId,
+        question: q.question,
+        options: shuffledOptions,
+        correctAnswer: shuffledOptions.indexOf(correctOption),
+        sourceField: q.sourceField,
+        questionType: "detail",
+      };
+    });
+}
+
 /**
  * Generate memory rep questions for a user's contacts.
  */
@@ -151,8 +203,6 @@ export async function generateMemoryReps(
     return { generated: 0, contactsUsed: 0, items: [] };
   }
 
-  const validContactIds = new Set(eligibleContacts.map((c) => c.id));
-
   // Shuffle and randomly split contacts between detail and identify sources
   const shuffled = shuffle([...eligibleContacts]);
   const splitAt = Math.floor(Math.random() * (shuffled.length + 1));
@@ -161,43 +211,7 @@ export async function generateMemoryReps(
 
   // Generate LLM-based detail questions
   const contactsWithNotes = detailPool.filter((c) => c.notes);
-  let detailInserts: Array<{
-    userId: string;
-    contactId: string;
-    question: string;
-    options: string[];
-    correctAnswer: number;
-    sourceField: string;
-    questionType: string;
-  }> = [];
-
-  if (contactsWithNotes.length > 0) {
-    const gen = new AxGen(quizSignature);
-    const result: QuizResult = await gen.forward(getAI(), {
-      contacts: contactsWithNotes.map((c) => ({
-        contactId: c.id,
-        name: c.name,
-        notes: c.notes!,
-      })),
-    });
-
-    detailInserts = result.questions
-      .filter((q) => validContactIds.has(q.contactId))
-      .map((q) => {
-        // Shuffle options since LLM tends to place correct answer at index 0
-        const correctOption = q.options[q.correctAnswer];
-        const shuffledOptions = shuffle([...q.options]);
-        return {
-          userId,
-          contactId: q.contactId,
-          question: q.question,
-          options: shuffledOptions,
-          correctAnswer: shuffledOptions.indexOf(correctOption),
-          sourceField: q.sourceField,
-          questionType: "detail",
-        };
-      });
-  }
+  const detailInserts = await generateDetailQuestions(contactsWithNotes, userId);
 
   // Generate deterministic identify questions
   const identifyInserts = generateIdentifyQuestions(identifyPool, eligibleContacts, userId);
@@ -235,6 +249,7 @@ export async function generateMemoryReps(
     correctAnswer: r.memory_reps.correctAnswer,
     sourceField: r.memory_reps.sourceField,
     questionType: r.memory_reps.questionType,
+    scheduledFor: r.memory_reps.scheduledFor,
     answeredAt: r.memory_reps.answeredAt,
     wasCorrect: r.memory_reps.wasCorrect,
     createdAt: r.memory_reps.createdAt,
@@ -245,4 +260,64 @@ export async function generateMemoryReps(
     contactsUsed: insertedContactIds.length,
     items,
   };
+}
+
+/**
+ * Auto-generate memory reps when a new contact is created.
+ * Always generates an identify question (if 4+ contacts exist).
+ * Also generates a detail question via LLM if the contact has notes and LLM is configured.
+ */
+export async function generateRepsForNewContact(
+  db: DatabaseClient,
+  userId: string,
+  contactId: string,
+  scheduledFor?: Date,
+): Promise<void> {
+  const schedule = scheduledFor ?? new Date(Date.now() + 3 * 86400000); // 3 days from now
+
+  // Fetch the newly created contact
+  const [newContact] = await db
+    .select()
+    .from(contacts)
+    .where(and(eq(contacts.id, contactId), eq(contacts.userId, userId)))
+    .limit(1);
+
+  if (!newContact) return;
+
+  // Fetch all user contacts for the name pool
+  const allContacts = await db
+    .select()
+    .from(contacts)
+    .where(eq(contacts.userId, userId));
+
+  // Generate identify question if 4+ contacts exist
+  const identifyInserts = generateIdentifyQuestions([newContact], allContacts, userId);
+
+  // Generate detail question via LLM if contact has notes and LLM is configured
+  let detailInserts: RepInsert[] = [];
+  if (
+    newContact.notes &&
+    settings.LLM_BASE_URL &&
+    settings.LLM_API_KEY &&
+    settings.LLM_FAST_MODEL
+  ) {
+    try {
+      detailInserts = await generateDetailQuestions(
+        [newContact],
+        userId,
+      );
+    } catch (err) {
+      // Silently skip LLM failures — identify question still gets inserted
+      console.error("Failed to generate detail question for new contact:", err);
+    }
+  }
+
+  const toInsert = [...identifyInserts, ...detailInserts].map((q) => ({
+    ...q,
+    scheduledFor: schedule,
+  }));
+
+  if (toInsert.length > 0) {
+    await db.insert(memoryReps).values(toInsert);
+  }
 }

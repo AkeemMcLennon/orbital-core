@@ -2,6 +2,7 @@ import {
   getMemoryReps,
   generateMemoryReps,
   answerMemoryRep,
+  createContact,
   initializeApiClient,
   getSuccessData,
 } from "@orbital/client";
@@ -645,6 +646,129 @@ describe("Memory Reps API (unit)", () => {
       expect(data.generated).toBe(0);
       expect(data.contactsUsed).toBe(0);
       expect(data.items).toEqual([]);
+    });
+  });
+
+  describe("Auto-generated reps on contact creation", () => {
+    it("should auto-generate scheduled reps when creating a contact with 4+ existing contacts", async () => {
+      // Seed 3 existing contacts (we need 4+ total for identify questions)
+      for (const name of ["Alice", "Bob", "Charlie"]) {
+        await seedRichContact(db, "user-1", {
+          name,
+          avatarUrl: `https://example.com/${name.toLowerCase()}.jpg`,
+        });
+      }
+
+      // Create a 4th contact via API (triggers auto-generation)
+      const createRes = await createContact({
+        name: "Diana",
+        avatarUrl: "https://example.com/diana.jpg",
+      });
+      expect(createRes.status).toBe(200);
+
+      // Wait briefly for background task to complete
+      await new Promise((r) => setTimeout(r, 200));
+
+      // Reps should be scheduled 3 days in the future, so NOT visible in listing
+      const listRes = await getMemoryReps();
+      const listData = getSuccessData(listRes) as any;
+      const dianaReps = listData.items.filter(
+        (i: any) => i.contactName === "Diana",
+      );
+      expect(dianaReps).toHaveLength(0);
+
+      // Verify reps were actually created in DB
+      const dbReps = await db
+        .select()
+        .from(schema.memoryReps)
+        .where(eq(schema.memoryReps.userId, (await db.select().from(schema.users).where(eq(schema.users.externalId, "user-1")).limit(1))[0]!.id));
+
+      const scheduledReps = dbReps.filter((r) => r.scheduledFor !== null);
+      expect(scheduledReps.length).toBeGreaterThan(0);
+
+      // All scheduled reps should be ~3 days in the future
+      const threeDaysMs = 3 * 86400000;
+      for (const rep of scheduledReps) {
+        const diff = rep.scheduledFor!.getTime() - Date.now();
+        expect(diff).toBeGreaterThan(threeDaysMs - 5000);
+        expect(diff).toBeLessThan(threeDaysMs + 5000);
+      }
+    });
+
+    it("should show past-scheduled reps in listing", async () => {
+      // Seed a user and contact, then insert a rep with scheduledFor in the past
+      const [user] = await db
+        .select()
+        .from(schema.users)
+        .where(eq(schema.users.externalId, "user-1"))
+        .limit(1);
+
+      await db.insert(schema.contacts).values({
+        userId: user!.id,
+        name: "PastRep Person",
+      });
+
+      const [contact] = await db
+        .select()
+        .from(schema.contacts)
+        .where(eq(schema.contacts.userId, user!.id))
+        .limit(1);
+
+      await db.insert(schema.memoryReps).values({
+        userId: user!.id,
+        contactId: contact!.id,
+        question: "Test past scheduled?",
+        options: ["A", "B", "C", "D"],
+        correctAnswer: 0,
+        sourceField: "notes",
+        questionType: "detail",
+        scheduledFor: new Date(Date.now() - 86400000), // 1 day ago
+      });
+
+      const listRes = await getMemoryReps();
+      const listData = getSuccessData(listRes) as any;
+      expect(listData.items.length).toBeGreaterThan(0);
+      const pastRep = listData.items.find(
+        (i: any) => i.question === "Test past scheduled?",
+      );
+      expect(pastRep).toBeDefined();
+    });
+
+    it("should not show future-scheduled reps in listing", async () => {
+      const [user] = await db
+        .select()
+        .from(schema.users)
+        .where(eq(schema.users.externalId, "user-1"))
+        .limit(1);
+
+      await db.insert(schema.contacts).values({
+        userId: user!.id,
+        name: "FutureRep Person",
+      });
+
+      const [contact] = await db
+        .select()
+        .from(schema.contacts)
+        .where(eq(schema.contacts.userId, user!.id))
+        .limit(1);
+
+      await db.insert(schema.memoryReps).values({
+        userId: user!.id,
+        contactId: contact!.id,
+        question: "Test future scheduled?",
+        options: ["A", "B", "C", "D"],
+        correctAnswer: 0,
+        sourceField: "notes",
+        questionType: "detail",
+        scheduledFor: new Date(Date.now() + 7 * 86400000), // 7 days from now
+      });
+
+      const listRes = await getMemoryReps();
+      const listData = getSuccessData(listRes) as any;
+      const futureRep = listData.items.find(
+        (i: any) => i.question === "Test future scheduled?",
+      );
+      expect(futureRep).toBeUndefined();
     });
   });
 });
