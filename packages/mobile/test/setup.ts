@@ -5,6 +5,7 @@ jest.mock('../app/_layout', () => {
   const React = require('react');
   const { Slot } = require('expo-router');
   const { QueryClient, QueryClientProvider } = require('@tanstack/react-query');
+  const { AuthProvider } = require('../src/contexts/AuthContext');
 
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: 0, gcTime: 0 } },
@@ -16,7 +17,7 @@ jest.mock('../app/_layout', () => {
       React.createElement(
         QueryClientProvider,
         { client: queryClient },
-        React.createElement(Slot),
+        React.createElement(AuthProvider, null, React.createElement(Slot)),
       ),
   };
 });
@@ -35,6 +36,19 @@ jest.mock('../app/(tabs)/_layout', () => {
 jest.mock('../src/api/config', () => ({
   configureMobileApi: jest.fn(() => Promise.resolve()),
   getCurrentBaseUrl: jest.fn(() => Promise.resolve('http://localhost:8787/rpc')),
+  refreshAccessToken: jest.fn(() => Promise.resolve(null)),
+  getToken: jest.fn(() => Promise.resolve('')),
+  DEFAULT_AUTH_CONFIG: {
+    issuerUrl: 'https://auth.example.com',
+    clientId: 'orbital-mobile',
+    scopes: ['openid', 'profile', 'email', 'offline_access'],
+  },
+  STORAGE_KEYS: {
+    accessToken: 'auth_token',
+    refreshToken: 'auth_refresh_token',
+    authIssuerUrl: 'auth_issuer_url',
+    authClientId: 'auth_client_id',
+  },
 }));
 
 // ── NativeSourceCode (getDevServer needs scriptURL) ──
@@ -244,4 +258,6 @@ jest.mock('expo-web-browser', () => ({
 jest.mock('expo-linking', () => ({
   createURL: jest.fn((path: string) => `exp://localhost:8081/${path}`),
   openURL: jest.fn(),
+  getInitialURL: jest.fn(() => Promise.resolve(null)),
+  parse: jest.fn((_url: string) => ({ path: null, queryParams: {} })),
 }));

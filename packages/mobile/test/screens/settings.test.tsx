@@ -1,8 +1,18 @@
+import { initializeApiClient } from '@orbital/client';
 import { fireEvent, screen, testRouter, waitFor } from 'expo-router/testing-library';
 
 import { renderAppRoute } from '../helpers/render';
+import { getServerInfo } from '../helpers/server';
 
 const WAIT_OPTIONS = { timeout: 10000 };
+
+beforeAll(() => {
+  const { url, token } = getServerInfo();
+  initializeApiClient({
+    baseURL: `${url}/rpc`,
+    getToken: () => token,
+  });
+});
 
 describe('Settings Screen', () => {
   it('should render settings options', async () => {
