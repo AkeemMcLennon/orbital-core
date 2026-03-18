@@ -1,11 +1,12 @@
 import React from "react";
-import { View, Text, Pressable, Image, ScrollView } from "react-native";
+import { View, Text, Pressable, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DrawerActions } from "@react-navigation/native";
 import type { DrawerContentComponentProps } from "@react-navigation/drawer";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useAuthContext } from "../contexts/AuthContext";
+import { FaceAvatar } from "./FaceAvatar";
 import { colors, spacing, borderRadius } from "../theme";
 
 const DRAWER_ITEMS = [
@@ -53,17 +54,14 @@ export function DrawerContent({
             borderBottomColor: colors.border,
           }}
         >
-          <Image
-            source={{
-              uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "User")}&background=4F46E5&color=fff`,
-            }}
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: borderRadius.full,
-              marginRight: spacing.md,
-            }}
-          />
+          <View style={{ marginRight: spacing.md }}>
+            <FaceAvatar
+              name={user?.name || "User"}
+              size={48}
+              showLabel={false}
+              noMargin={true}
+            />
+          </View>
           <View>
             <Text
               style={{

@@ -5,7 +5,6 @@ import { RelativePathString, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   ScrollView,
   Text,
@@ -14,6 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FaceAvatar, QuizCard, TimelineItem } from "../../src/components";
+import { useAuthContext } from "../../src/contexts/AuthContext";
 import { contactKeys, useContactsList } from "../../src/queries/contacts";
 import {
   memoryRepKeys,
@@ -26,6 +26,7 @@ export default function DailyOrbitScreen() {
   const [searchText, setSearchText] = useState("");
   const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set());
   const navigation = useNavigation();
+  const { user } = useAuthContext();
   const queryClient = useQueryClient();
 
   useFocusEffect(
@@ -41,7 +42,11 @@ export default function DailyOrbitScreen() {
     }, [queryClient]),
   );
 
-  const { data: contactsData, isLoading, error } = useContactsList({ limit: 50, offset: 0, sort: "date" });
+  const {
+    data: contactsData,
+    isLoading,
+    error,
+  } = useContactsList({ limit: 50, offset: 0, sort: "date" });
   const contacts = contactsData?.items || [];
 
   const {
@@ -95,15 +100,12 @@ export default function DailyOrbitScreen() {
           >
             Orbital
           </Text>
-          <Image
-            source={{
-              uri: "https://ui-avatars.com/api/?name=You&background=4F46E5&color=fff",
-            }}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: borderRadius.full,
-            }}
+          <FaceAvatar
+            name={user?.name || "User"}
+            size={36}
+            showLabel={false}
+            noMargin={true}
+            onPress={() => (navigation as any).openDrawer()}
           />
         </View>
 
@@ -197,9 +199,7 @@ export default function DailyOrbitScreen() {
                 isAddButton
                 href={"/contact-add" as any}
               />
-              {contacts.map((contact) =>
-                renderFaceStreamItem(contact),
-              )}
+              {contacts.map((contact) => renderFaceStreamItem(contact))}
             </ScrollView>
           )}
         </View>
