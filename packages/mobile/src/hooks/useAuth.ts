@@ -136,6 +136,10 @@ export function useAuth(): AuthState {
           );
         }
         await configureMobileApi();
+        const me = getSuccessData(await getAuthMe());
+        if (me) {
+          setUser(me);
+        }
       } catch (error) {
         console.error("Token exchange failed:", error);
       } finally {
