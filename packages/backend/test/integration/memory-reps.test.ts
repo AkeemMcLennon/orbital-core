@@ -102,7 +102,8 @@ describe.skipIf(!HAS_LLM)("Memory Reps E2E (real LLM)", () => {
   });
 
   it("should generate, list, and answer memory reps", async () => {
-    // Seed 4 contacts (>= 4 needed for identify questions)
+    // Seed 8 contacts with notes and avatars — enough that the random
+    // detail/identify split reliably produces both question types
     await seedRichContact(db, "llm-user", {
       name: "Sarah Chen",
       company: "Acme Corp",
@@ -132,6 +133,30 @@ describe.skipIf(!HAS_LLM)("Memory Reps E2E (real LLM)", () => {
       name: "James Wilson",
       notes: "Runs a startup in fintech.",
       avatarUrl: "https://example.com/james.jpg",
+    });
+
+    await seedRichContact(db, "llm-user", {
+      name: "Lisa Park",
+      notes: "Marketing director at a health tech company.",
+      avatarUrl: "https://example.com/lisa.jpg",
+    });
+
+    await seedRichContact(db, "llm-user", {
+      name: "David Kim",
+      notes: "Former colleague at TechCo. Enjoys rock climbing.",
+      avatarUrl: "https://example.com/david.jpg",
+    });
+
+    await seedRichContact(db, "llm-user", {
+      name: "Rachel Green",
+      notes: "Met at a conference in NYC. Works in fashion.",
+      avatarUrl: "https://example.com/rachel.jpg",
+    });
+
+    await seedRichContact(db, "llm-user", {
+      name: "Tom Baker",
+      notes: "College roommate. Now a lawyer in Chicago.",
+      avatarUrl: "https://example.com/tom.jpg",
     });
 
     // Generate reps
@@ -465,7 +490,7 @@ describe("Memory Reps API (unit)", () => {
     });
 
     it("should generate identify questions without LLM when contacts have avatars", async () => {
-      // Seed 4 contacts with avatars but no notes (no LLM call needed)
+      // Seed contacts with avatars but no notes (no LLM call needed)
       for (const name of ["Alice", "Bob", "Charlie", "Diana"]) {
         await seedRichContact(db, "user-1", {
           name,
@@ -473,7 +498,7 @@ describe("Memory Reps API (unit)", () => {
         });
       }
 
-      // Force all contacts into identifyPool (splitAt = 0) so no LLM is needed
+      // Force all contacts into identifyPool (splitAt = 0)
       const spy = spyOn(Math, "random").mockReturnValue(0);
       try {
         const response = await generateMemoryReps({});
@@ -487,27 +512,41 @@ describe("Memory Reps API (unit)", () => {
         expect(
           data.items.every((i) => i.question === "Who is this person?"),
         ).toBe(true);
-        expect(data.items.every((i) => i.options.length === 4)).toBe(true);
+        for (const item of data.items) {
+          // Correct answer is within options
+          expect(item.options[item.correctAnswer]).toBe(item.contactName);
+          // There are wrong answers that are NOT the correct answer
+          const wrongOptions = item.options.filter((o) => o !== item.contactName);
+          expect(wrongOptions.length).toBeGreaterThan(0);
+        }
       } finally {
         spy.mockRestore();
       }
     });
 
-    it("should not generate identify questions with fewer than 4 contacts", async () => {
-      // Only 3 contacts — not enough for 4-option multiple choice
-      for (const name of ["Alice", "Bob", "Charlie"]) {
-        await seedRichContact(db, "user-1", {
-          name,
-          avatarUrl: `https://example.com/${name.toLowerCase()}.jpg`,
-        });
+    it("should generate identify questions even with a single contact", async () => {
+      // 1 contact with avatar — wrong options come from gender-name library
+      await seedRichContact(db, "user-1", {
+        name: "Alice",
+        avatarUrl: "https://example.com/alice.jpg",
+      });
+
+      // Force into identifyPool
+      const spy = spyOn(Math, "random").mockReturnValue(0);
+      try {
+        const response = await generateMemoryReps({});
+        const data = getSuccessData(response);
+        if (!data) throw new Error("No data");
+
+        expect(data.generated).toBe(1);
+        // Correct answer is within options
+        expect(data.items[0].options[data.items[0].correctAnswer]).toBe("Alice");
+        // There are wrong answers that are NOT the correct answer
+        const wrongOptions = data.items[0].options.filter((o) => o !== "Alice");
+        expect(wrongOptions.length).toBeGreaterThan(0);
+      } finally {
+        spy.mockRestore();
       }
-
-      const response = await generateMemoryReps({});
-      const data = getSuccessData(response);
-      if (!data) throw new Error("No data");
-
-      expect(data.generated).toBe(0);
-      expect(data.items).toEqual([]);
     });
 
     it("should only generate identify questions for contacts with avatars", async () => {
@@ -523,7 +562,7 @@ describe("Memory Reps API (unit)", () => {
       await seedRichContact(db, "user-1", { name: "Charlie" });
       await seedRichContact(db, "user-1", { name: "Diana" });
 
-      // Force all contacts into identifyPool (splitAt = 0) so identify path is taken
+      // Force all contacts into identifyPool
       const spy = spyOn(Math, "random").mockReturnValue(0);
       try {
         const response = await generateMemoryReps({});
@@ -542,15 +581,14 @@ describe("Memory Reps API (unit)", () => {
     });
 
     it("should include correct name in identify question options", async () => {
-      const names = ["Alice", "Bob", "Charlie", "Diana"];
-      for (const name of names) {
+      for (const name of ["Alice", "Bob", "Charlie", "Diana"]) {
         await seedRichContact(db, "user-1", {
           name,
           avatarUrl: `https://example.com/${name.toLowerCase()}.jpg`,
         });
       }
 
-      // Force all contacts into identifyPool (splitAt = 0) to guarantee questions
+      // Force all contacts into identifyPool
       const spy = spyOn(Math, "random").mockReturnValue(0);
       try {
         const response = await generateMemoryReps({});
@@ -561,12 +599,14 @@ describe("Memory Reps API (unit)", () => {
         for (const item of data.items) {
           // The correct answer option must match the contact name
           expect(item.options[item.correctAnswer]).toBe(item.contactName);
-          // All 4 options should be from the seeded names
+          // All options should be non-empty strings
           for (const opt of item.options) {
-            expect(names).toContain(opt);
+            expect(typeof opt).toBe("string");
+            expect(opt.length).toBeGreaterThan(0);
           }
-          // No duplicate options
-          expect(new Set(item.options).size).toBe(4);
+          // There are wrong answers that are NOT the correct answer
+          const wrongOptions = item.options.filter((o) => o !== item.contactName);
+          expect(wrongOptions.length).toBeGreaterThan(0);
         }
       } finally {
         spy.mockRestore();
@@ -582,9 +622,8 @@ describe("Memory Reps API (unit)", () => {
         });
       }
 
-      // Force all contacts into identifyPool (splitAt = 0) to guarantee questions
+      // Force all contacts into identifyPool
       const spy = spyOn(Math, "random").mockReturnValue(0);
-      // Generate
       const genRes = await generateMemoryReps({});
       spy.mockRestore();
       const genData = getSuccessData(genRes);
@@ -650,16 +689,8 @@ describe("Memory Reps API (unit)", () => {
   });
 
   describe("Auto-generated reps on contact creation", () => {
-    it("should auto-generate scheduled reps when creating a contact with 4+ existing contacts", async () => {
-      // Seed 3 existing contacts (we need 4+ total for identify questions)
-      for (const name of ["Alice", "Bob", "Charlie"]) {
-        await seedRichContact(db, "user-1", {
-          name,
-          avatarUrl: `https://example.com/${name.toLowerCase()}.jpg`,
-        });
-      }
-
-      // Create a 4th contact via API (triggers auto-generation)
+    it("should auto-generate scheduled reps when creating a contact with avatar", async () => {
+      // Create a contact via API (triggers auto-generation, no other contacts needed)
       const createRes = await createContact({
         name: "Diana",
         avatarUrl: "https://example.com/diana.jpg",

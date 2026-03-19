@@ -4,6 +4,7 @@ import type { DatabaseClient } from "../database/client";
 import { contacts, memoryReps } from "../database/schema";
 import type { Contact } from "../database/schema/contacts";
 import { shuffle } from "es-toolkit";
+import { determineNameInfo, getNameByGender } from "gender-name";
 import { getAI } from "./llm";
 import { settings } from "../config";
 
@@ -94,11 +95,11 @@ async function selectEligibleContacts(
 
 /**
  * Generate deterministic "Who is this person?" identify questions.
- * Requires >= 4 eligible contacts so we can build 4-option multiple choice.
+ * Uses the gender-name library to produce plausible wrong-answer names
+ * matching the contact's gender and language origin.
  */
 function generateIdentifyQuestions(
   questionContacts: Contact[],
-  namePool: Contact[],
   userId: string,
 ): Array<{
   userId: string;
@@ -110,14 +111,31 @@ function generateIdentifyQuestions(
   questionType: string;
 }> {
   const withAvatar = questionContacts.filter((c) => c.avatarUrl);
-  if (withAvatar.length === 0 || namePool.length < 4) return [];
+  if (withAvatar.length === 0) return [];
 
   return withAvatar.map((contact) => {
-    // Pick 3 random wrong names from other contacts in the name pool
-    const otherNames = namePool
-      .filter((c) => c.id !== contact.id)
-      .map((c) => c.name);
-    const wrongNames = shuffle([...otherNames]).slice(0, 3);
+    // Determine gender/language from contact's name for plausible distractors
+    const nameInfo = determineNameInfo(contact.name);
+    const gender = nameInfo?.gender;
+    const language = nameInfo?.language;
+
+    // Generate 3 unique wrong names using a Set to avoid duplicates
+    const wrongNames = new Set<string>();
+
+    // Try with matched gender/language first, then fall back to unconstrained
+    const strategies: Array<[typeof gender, typeof language]> = [
+      [gender, language],
+      [gender, undefined],
+      [undefined, undefined],
+    ];
+
+    for (const [g, l] of strategies) {
+      for (let i = 0; i < 30 && wrongNames.size < 3; i++) {
+        const name = getNameByGender(g, l);
+        if (name && name !== contact.name) wrongNames.add(name);
+      }
+      if (wrongNames.size >= 3) break;
+    }
 
     // Build options with correct answer at a random position
     const options = shuffle([...wrongNames, contact.name]);
@@ -211,10 +229,13 @@ export async function generateMemoryReps(
 
   // Generate LLM-based detail questions
   const contactsWithNotes = detailPool.filter((c) => c.notes);
-  const detailInserts = await generateDetailQuestions(contactsWithNotes, userId);
+  const detailInserts = await generateDetailQuestions(
+    contactsWithNotes,
+    userId,
+  );
 
   // Generate deterministic identify questions
-  const identifyInserts = generateIdentifyQuestions(identifyPool, eligibleContacts, userId);
+  const identifyInserts = generateIdentifyQuestions(identifyPool, userId);
 
   const toInsert = [...detailInserts, ...identifyInserts];
 
@@ -264,7 +285,7 @@ export async function generateMemoryReps(
 
 /**
  * Auto-generate memory reps when a new contact is created.
- * Always generates an identify question (if 4+ contacts exist).
+ * Always generates an identify question if the contact has an avatar.
  * Also generates a detail question via LLM if the contact has notes and LLM is configured.
  */
 export async function generateRepsForNewContact(
@@ -284,14 +305,8 @@ export async function generateRepsForNewContact(
 
   if (!newContact) return;
 
-  // Fetch all user contacts for the name pool
-  const allContacts = await db
-    .select()
-    .from(contacts)
-    .where(eq(contacts.userId, userId));
-
-  // Generate identify question if 4+ contacts exist
-  const identifyInserts = generateIdentifyQuestions([newContact], allContacts, userId);
+  // Generate identify question using gender-name library for wrong options
+  const identifyInserts = generateIdentifyQuestions([newContact], userId);
 
   // Generate detail question via LLM if contact has notes and LLM is configured
   let detailInserts: RepInsert[] = [];
@@ -302,10 +317,7 @@ export async function generateRepsForNewContact(
     settings.LLM_FAST_MODEL
   ) {
     try {
-      detailInserts = await generateDetailQuestions(
-        [newContact],
-        userId,
-      );
+      detailInserts = await generateDetailQuestions([newContact], userId);
     } catch (err) {
       // Silently skip LLM failures — identify question still gets inserted
       console.error("Failed to generate detail question for new contact:", err);

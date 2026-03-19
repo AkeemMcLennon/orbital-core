@@ -1,0 +1,1 @@
+ALTER TABLE `memory_reps` ADD `scheduled_for` integer;
