@@ -8,7 +8,9 @@ import {
   QueryClientProvider,
   useQueryClient,
 } from "@tanstack/react-query";
+import * as Linking from "expo-linking";
 import * as SplashScreen from "expo-splash-screen";
+import { router } from "expo-router";
 import { Drawer } from "expo-router/drawer";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
@@ -72,6 +74,23 @@ function AuthGate() {
       }
 
       await SplashScreen.hideAsync();
+
+      // Handle Android ACTION_SEND share intent: the shared text arrives as
+      // the initial URL via expo-linking when the app is launched from the
+      // share sheet. Route to /contact-add with the shared URL as a param.
+      if (isAuthenticated) {
+        const initialUrl = await Linking.getInitialURL();
+        if (initialUrl) {
+          const parsed = Linking.parse(initialUrl);
+          // Deep link from share sheet: mobile://contact-add?url=<value>
+          if (parsed.path === "contact-add" && parsed.queryParams?.url) {
+            router.replace({
+              pathname: "/contact-add",
+              params: { url: parsed.queryParams.url as string },
+            });
+          }
+        }
+      }
     }
 
     prepare();

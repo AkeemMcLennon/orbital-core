@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebounceValue } from "usehooks-ts";
 import {
@@ -18,12 +18,17 @@ import {
   searchAvailableContacts,
   getAvailableContacts,
 } from "@orbital/client";
+import Constants from "expo-constants";
 import { colors, spacing, borderRadius, shadows } from "../src/theme";
+import { fetchMetadata, isUrl, type MetadataResult } from "../src/utils/metadata";
 
 export default function AddContactScreen() {
+  const { url: deepLinkUrl } = useLocalSearchParams<{ url?: string }>();
   const [isAiMode, setIsAiMode] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [debouncedSearchText] = useDebounceValue(searchText, 300);
+  const [urlMetadata, setUrlMetadata] = useState<MetadataResult | null>(null);
+  const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
   
   // We'll trust the API return type, but define a partial shape for local state
   // to avoid complex generic imports.
@@ -37,6 +42,38 @@ export default function AddContactScreen() {
   const [showResults, setShowResults] = useState(false);
   const [notes, setNotes] = useState("");
   const queryClient = useQueryClient();
+
+  // Pre-fill from deep link url param on mount
+  useEffect(() => {
+    if (deepLinkUrl) {
+      setSearchText(deepLinkUrl);
+      triggerMetadataFetch(deepLinkUrl);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-fetch metadata when search text looks like a URL
+  useEffect(() => {
+    if (isUrl(debouncedSearchText) && !selectedContact) {
+      triggerMetadataFetch(debouncedSearchText);
+    } else if (!isUrl(debouncedSearchText)) {
+      setUrlMetadata(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearchText]);
+
+  async function triggerMetadataFetch(url: string) {
+    setUrlMetadata(null);
+    setIsFetchingMetadata(true);
+    try {
+      const result = await fetchMetadata(url, Constants.userAgent ?? undefined);
+      setUrlMetadata(result);
+    } catch (e) {
+      console.warn("Metadata fetch failed:", e);
+    } finally {
+      setIsFetchingMetadata(false);
+    }
+  }
 
   // Query for searching/listing available contacts
   const { data: searchData, isLoading: isSearching } = useQuery({
@@ -318,6 +355,101 @@ export default function AddContactScreen() {
             </View>
           )}
         </View>
+
+        {/* URL Metadata Preview Card */}
+        {(isFetchingMetadata || urlMetadata) && !selectedContact && (
+          <Pressable
+            onPress={() => {
+              if (!urlMetadata) return;
+              setSelectedContact({
+                id: urlMetadata.url,
+                name: urlMetadata.title || urlMetadata.url,
+                email: undefined,
+                avatarUrl: urlMetadata.image || undefined,
+              });
+              setNotes(urlMetadata.description || "");
+              setShowResults(false);
+            }}
+            style={{
+              backgroundColor: colors.card,
+              borderRadius: borderRadius.lg,
+              marginBottom: spacing.lg,
+              overflow: "hidden",
+              borderColor: colors.border,
+              borderWidth: 1,
+              ...shadows.md,
+            }}
+          >
+            {isFetchingMetadata ? (
+              <View
+                style={{
+                  padding: spacing.md,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: spacing.sm,
+                }}
+              >
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={{ fontSize: 13, color: colors.textSecondary }}>
+                  Fetching link preview...
+                </Text>
+              </View>
+            ) : urlMetadata ? (
+              <View style={{ flexDirection: "row" }}>
+                {urlMetadata.image ? (
+                  <Image
+                    source={{ uri: urlMetadata.image }}
+                    style={{ width: 80, height: 80 }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View
+                    style={{
+                      width: 80,
+                      height: 80,
+                      backgroundColor: colors.primaryLight,
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Ionicons name="link" size={32} color={colors.primary} />
+                  </View>
+                )}
+                <View style={{ flex: 1, padding: spacing.md }}>
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontWeight: "600",
+                      color: colors.textMain,
+                      marginBottom: 2,
+                    }}
+                    numberOfLines={2}
+                  >
+                    {urlMetadata.title || "No title"}
+                  </Text>
+                  {urlMetadata.description ? (
+                    <Text
+                      style={{ fontSize: 11, color: colors.textSecondary }}
+                      numberOfLines={2}
+                    >
+                      {urlMetadata.description}
+                    </Text>
+                  ) : null}
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      color: colors.textTertiary,
+                      marginTop: spacing.xs,
+                    }}
+                    numberOfLines={1}
+                  >
+                    Tap to add as contact
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+          </Pressable>
+        )}
 
         {/* Selected Contact Card */}
         {selectedContact && (

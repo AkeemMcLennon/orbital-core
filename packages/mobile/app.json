@@ -13,7 +13,14 @@
       "supportsTablet": true,
       "bundleIdentifier": "diy.orbital.mobile",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleDocumentTypes": [
+          {
+            "CFBundleTypeName": "URL",
+            "LSItemContentTypes": ["public.url"],
+            "CFBundleTypeRole": "Viewer"
+          }
+        ]
       }
     },
     "android": {
@@ -29,6 +36,13 @@
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.RECORD_AUDIO"
+      ],
+      "intentFilters": [
+        {
+          "action": "android.intent.action.SEND",
+          "data": [{ "mimeType": "text/plain" }],
+          "category": ["android.intent.category.DEFAULT"]
+        }
       ]
     },
     "web": {
