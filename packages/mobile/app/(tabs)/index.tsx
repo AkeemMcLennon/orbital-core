@@ -19,6 +19,7 @@ import {
   memoryRepKeys,
   useMemoryRepsList,
   useAnswerMemoryRep,
+  useGenerateMemoryReps,
 } from "../../src/queries/memory-reps";
 import { borderRadius, colors, shadows, spacing } from "../../src/theme";
 
@@ -55,6 +56,8 @@ export default function DailyOrbitScreen() {
     error: repsError,
   } = useMemoryRepsList();
   const answerMutation = useAnswerMemoryRep();
+  const { mutate: generateReps, isPending: isGenerating } =
+    useGenerateMemoryReps();
   const memoryReps = (repsData?.items || []).filter(
     (rep) => !answeredIds.has(rep.id),
   );
@@ -265,6 +268,30 @@ export default function DailyOrbitScreen() {
               >
                 Quizzes and reminders will appear here as you add new contacts.
               </Text>
+              <Pressable
+                onPress={() => generateReps({})}
+                disabled={isGenerating}
+                style={{
+                  marginTop: spacing.md,
+                  backgroundColor: colors.primary,
+                  paddingVertical: spacing.sm,
+                  paddingHorizontal: spacing.lg,
+                  borderRadius: borderRadius.full,
+                  opacity: isGenerating ? 0.7 : 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: spacing.xs,
+                }}
+              >
+                {isGenerating && (
+                  <ActivityIndicator size="small" color="#fff" />
+                )}
+                <Text
+                  style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}
+                >
+                  Generate Quizzes
+                </Text>
+              </Pressable>
             </View>
           ) : (
             memoryReps.map((rep) => (
