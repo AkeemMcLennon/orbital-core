@@ -85,7 +85,7 @@ export async function refreshAccessToken(
       );
     }
 
-    return tokenResult.accessToken;
+    return tokenResult.idToken || null;
   } catch (error) {
     console.error("Token refresh failed:", error);
     // Clear expired tokens
