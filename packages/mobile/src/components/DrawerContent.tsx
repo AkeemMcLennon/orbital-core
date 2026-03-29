@@ -20,7 +20,7 @@ const DRAWER_ITEMS = [
     id: "2",
     icon: "people",
     label: "Contacts",
-    route: "/(tabs)",
+    route: "/contacts",
   },
   {
     id: "3",

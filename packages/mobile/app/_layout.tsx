@@ -134,6 +134,13 @@ function AuthGate() {
           }}
         />
         <Drawer.Screen
+          name="contacts/index"
+          options={{
+            drawerLabel: "Contacts",
+            headerShown: false,
+          }}
+        />
+        <Drawer.Screen
           name="contact-add"
           options={{
             drawerLabel: "Add Contact",

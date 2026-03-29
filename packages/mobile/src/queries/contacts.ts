@@ -1,5 +1,12 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
+import {
+  useQuery,
+  useQueryClient,
+  useInfiniteQuery,
+} from "@tanstack/react-query";
 import { getContacts, getContactById, getSuccessData } from "@orbital/client";
+
+const PAGE_SIZE = 100;
 
 type ContactsListData = ReturnType<
   typeof getSuccessData<Awaited<ReturnType<typeof getContacts>>>
@@ -7,6 +14,7 @@ type ContactsListData = ReturnType<
 
 export const contactKeys = {
   all: ["contacts"] as const,
+  allPages: ["contacts", "all-pages"] as const,
   detail: (id: string) => ["contacts", id] as const,
 };
 
@@ -18,6 +26,31 @@ export function useContactsList(params?: Parameters<typeof getContacts>[0]) {
     staleTime: 5 * 60 * 1000,
     throwOnError: false,
   });
+}
+
+export function useAllContactsList() {
+  const query = useInfiniteQuery({
+    queryKey: contactKeys.allPages,
+    queryFn: ({ pageParam }) =>
+      getContacts({ limit: PAGE_SIZE, offset: pageParam, sort: "name" }),
+    getNextPageParam: (lastPage, pages) => {
+      const data = getSuccessData(lastPage);
+      const loaded = pages.length * PAGE_SIZE;
+      return loaded < (data?.pagination.total ?? 0) ? loaded : undefined;
+    },
+    initialPageParam: 0,
+    select: (data) => data.pages.flatMap((p) => getSuccessData(p)?.items ?? []),
+    staleTime: 5 * 60 * 1000,
+    throwOnError: false,
+  });
+
+  useEffect(() => {
+    if (query.hasNextPage && !query.isFetchingNextPage) {
+      query.fetchNextPage();
+    }
+  }, [query.hasNextPage, query.isFetchingNextPage, query.fetchNextPage, query]);
+
+  return query;
 }
 
 export function useContact(id: string) {
