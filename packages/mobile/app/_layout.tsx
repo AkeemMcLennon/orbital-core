@@ -10,11 +10,8 @@ import {
 } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
 import * as SplashScreen from "expo-splash-screen";
-import { router } from "expo-router";
-import { Drawer } from "expo-router/drawer";
-import { StatusBar } from "expo-status-bar";
+import { router, Stack } from "expo-router";
 import { useEffect } from "react";
-import { useWindowDimensions, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -22,8 +19,6 @@ import { TamaguiProvider } from "tamagui";
 import { getContacts, getMemoryReps } from "@orbital/client";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { configureMobileApi } from "../src/api/config";
-import { DrawerContent } from "../src/components/DrawerContent";
 import { AuthProvider, useAuthContext } from "../src/contexts/AuthContext";
 import { contactKeys } from "../src/queries/contacts";
 import { memoryRepKeys } from "../src/queries/memory-reps";
@@ -37,7 +32,7 @@ SplashScreen.preventAutoHideAsync();
 // Module level - executes on import, before RootLayout mounts
 
 export const unstable_settings = {
-  anchor: "(tabs)",
+  anchor: "(main)",
 };
 
 // Initialize React Query client
@@ -52,8 +47,6 @@ const queryClient = new QueryClient({
 
 function AuthGate() {
   const { isReady, isAuthenticated } = useAuthContext();
-  const { width } = useWindowDimensions();
-  const isWideScreen = width >= 768;
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -94,7 +87,7 @@ function AuthGate() {
     }
 
     prepare();
-  }, [isReady, isAuthenticated]);
+  }, [isReady, isAuthenticated, queryClient]);
 
   if (!isReady) return null;
 
@@ -103,81 +96,15 @@ function AuthGate() {
   }
 
   return (
-    <View
-      style={{
-        flex: 1,
-        maxWidth: isWideScreen ? 1024 : undefined,
-        alignSelf: isWideScreen ? "center" : undefined,
-        width: "100%",
-      }}
-    >
-      <Drawer
-        screenOptions={{
-          drawerStyle: {
-            backgroundColor: colors.bg,
-            width: 280,
-          },
-          drawerLabelStyle: {
-            marginLeft: -16,
-          },
-          headerShown: false,
-          drawerActiveTintColor: colors.primary,
-          drawerInactiveTintColor: colors.textSecondary,
-        }}
-        drawerContent={DrawerContent}
-      >
-        <Drawer.Screen
-          name="(tabs)"
-          options={{
-            drawerLabel: "Dashboard",
-            headerShown: false,
-          }}
-        />
-        <Drawer.Screen
-          name="contacts/index"
-          options={{
-            drawerLabel: "Contacts",
-            headerShown: false,
-          }}
-        />
-        <Drawer.Screen
-          name="contact-add"
-          options={{
-            drawerLabel: "Add Contact",
-            headerShown: false,
-          }}
-        />
-        <Drawer.Screen
-          name="contacts/import"
-          options={{
-            drawerLabel: "Import Contacts",
-            headerShown: false,
-          }}
-        />
-        <Drawer.Screen
-          name="settings"
-          options={{
-            drawerItemStyle: { display: "none" },
-            headerShown: false,
-          }}
-        />
-        <Drawer.Screen
-          name="developer-options"
-          options={{
-            drawerItemStyle: { display: "none" },
-            headerShown: false,
-          }}
-        />
-        <Drawer.Screen
-          name="login"
-          options={{
-            drawerItemStyle: { display: "none" },
-            headerShown: false,
-          }}
-        />
-      </Drawer>
-      <StatusBar style="auto" />
-    </View>
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(main)" />
+      <Stack.Screen name="contact-add" />
+      <Stack.Screen name="contacts/[id]" />
+      <Stack.Screen name="contacts/[id]/edit" />
+      <Stack.Screen name="contacts/import" />
+      <Stack.Screen name="settings" />
+      <Stack.Screen name="developer-options" />
+    </Stack>
   );
 }
 

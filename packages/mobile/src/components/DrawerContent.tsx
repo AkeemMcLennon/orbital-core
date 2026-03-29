@@ -14,7 +14,7 @@ const DRAWER_ITEMS = [
     id: "1",
     icon: "home",
     label: "Dashboard",
-    route: "/(tabs)",
+    route: "/",
   },
   {
     id: "2",

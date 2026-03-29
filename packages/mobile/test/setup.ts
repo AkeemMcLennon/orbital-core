@@ -22,8 +22,8 @@ jest.mock('../app/_layout', () => {
   };
 });
 
-// ── Tabs layout → minimal Slot ──
-jest.mock('../app/(tabs)/_layout', () => {
+// ── Main (Drawer) layout → minimal Slot ──
+jest.mock('../app/(main)/_layout', () => {
   const React = require('react');
   const { Slot } = require('expo-router');
   return {
