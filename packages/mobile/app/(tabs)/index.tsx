@@ -6,6 +6,7 @@ import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   Text,
   TextInput,
@@ -26,9 +27,19 @@ import { borderRadius, colors, shadows, spacing } from "../../src/theme";
 export default function DailyOrbitScreen() {
   const [searchText, setSearchText] = useState("");
   const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set());
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const navigation = useNavigation();
   const { user } = useAuthContext();
   const queryClient = useQueryClient();
+
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await Promise.all([
+      queryClient.refetchQueries({ queryKey: contactKeys.all }),
+      queryClient.refetchQueries({ queryKey: memoryRepKeys.all }),
+    ]);
+    setIsRefreshing(false);
+  }, [queryClient]);
 
   useFocusEffect(
     useCallback(() => {
@@ -80,6 +91,14 @@ export default function DailyOrbitScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: spacing.xxl }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
         {/* Header */}
         <View
