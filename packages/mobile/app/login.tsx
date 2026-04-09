@@ -1,11 +1,27 @@
 import React from "react";
-import { View, Text, Pressable, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  ActivityIndicator,
+  Image,
+  useWindowDimensions,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthContext } from "../src/contexts/AuthContext";
-import { colors, spacing, borderRadius, shadows, typography } from "../src/theme";
+import {
+  colors,
+  spacing,
+  borderRadius,
+  shadows,
+  typography,
+} from "../src/theme";
 
 export default function LoginScreen() {
   const { login, isLoading, rememberMe, setRememberMe } = useAuthContext();
+  const { width } = useWindowDimensions();
+  const logoWidth = width - spacing.xl * 2;
+  const logoHeight = logoWidth / (10792 / 6341);
 
   return (
     <View
@@ -19,35 +35,16 @@ export default function LoginScreen() {
     >
       {/* Branding */}
       <View style={{ alignItems: "center", marginBottom: spacing.xxl }}>
-        <View
-          style={{
-            width: 80,
-            height: 80,
-            borderRadius: borderRadius.xl,
-            backgroundColor: colors.primary,
-            justifyContent: "center",
-            alignItems: "center",
-            marginBottom: spacing.lg,
-            ...shadows.lg,
-          }}
-        >
-          <Ionicons name="planet" size={40} color="#FFFFFF" />
-        </View>
-        <Text
-          style={{
-            fontSize: typography["3xl"],
-            fontWeight: "800",
-            color: colors.textMain,
-            marginBottom: spacing.xs,
-          }}
-        >
-          Orbital
-        </Text>
+        <Image
+          source={require("../assets/images/logo.png")}
+          style={{ width: logoWidth, height: logoHeight }}
+        />
         <Text
           style={{
             fontSize: typography.base,
             color: colors.textSecondary,
             textAlign: "center",
+            marginTop: spacing.sm,
           }}
         >
           Your personal relationship manager
@@ -73,7 +70,10 @@ export default function LoginScreen() {
         })}
       >
         {isLoading ? (
-          <ActivityIndicator color="#FFFFFF" style={{ marginRight: spacing.sm }} />
+          <ActivityIndicator
+            color="#FFFFFF"
+            style={{ marginRight: spacing.sm }}
+          />
         ) : (
           <Ionicons
             name="log-in"
@@ -116,7 +116,9 @@ export default function LoginScreen() {
             marginRight: spacing.sm,
           }}
         >
-          {rememberMe && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+          {rememberMe && (
+            <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+          )}
         </View>
         <Text style={{ fontSize: typography.sm, color: colors.textSecondary }}>
           Remember me
