@@ -1,4 +1,4 @@
-import { eq, and, isNull, desc, inArray } from "drizzle-orm";
+import { eq, and, isNull, desc, inArray, gte } from "drizzle-orm";
 import { AxGen, f } from "@ax-llm/ax";
 import type { DatabaseClient } from "../database/client";
 import { contacts, memoryReps } from "../database/schema";
@@ -66,25 +66,29 @@ interface GenerateResult {
 
 /**
  * Select contacts eligible for quiz generation.
- * Picks recent contacts that have no unanswered reps.
+ * Excludes contacts that have any rep created within the last 6 months.
  */
 async function selectEligibleContacts(
   db: DatabaseClient,
   userId: string,
   limit: number,
 ): Promise<Contact[]> {
-  // Left join contacts with unanswered reps, keep only contacts with no match
+  // Exclude contacts that have any rep created within the last 6 months
+  // (whether answered or not). This enforces a cooldown period.
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
   const results = await db
     .select()
     .from(contacts)
     .leftJoin(
       memoryReps,
-      and(eq(memoryReps.contactId, contacts.id), isNull(memoryReps.answeredAt)),
+      and(eq(memoryReps.contactId, contacts.id), gte(memoryReps.createdAt, sixMonthsAgo)),
     )
     .where(
       and(
         eq(contacts.userId, userId),
-        isNull(memoryReps.id), // no unanswered reps
+        isNull(memoryReps.id), // no reps in the last 6 months
       ),
     )
     .orderBy(desc(contacts.createdAt))
