@@ -39,9 +39,9 @@
       ],
       "intentFilters": [
         {
-          "action": "android.intent.action.SEND",
+          "action": "SEND",
           "data": [{ "mimeType": "text/plain" }],
-          "category": ["android.intent.category.DEFAULT"]
+          "category": ["DEFAULT"]
         }
       ]
     },
