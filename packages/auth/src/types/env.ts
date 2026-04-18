@@ -12,6 +12,8 @@ export interface Env {
 
   // Apple Sign-In (optional)
   APPLE_CLIENT_ID?: string;
-  APPLE_CLIENT_SECRET?: string;
+  APPLE_TEAM_ID?: string;
+  APPLE_KEY_ID?: string;
+  APPLE_PRIVATE_KEY?: string;
   APPLE_APP_BUNDLE_IDENTIFIER?: string;
 }

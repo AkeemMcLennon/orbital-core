@@ -28,7 +28,7 @@ app.get("/health", (c) => {
 
 // OIDC Discovery
 app.get("/.well-known/openid-configuration", async (c) => {
-  const auth = createAuth(c.env);
+  const auth = await createAuth(c.env);
   const handler = oauthProviderOpenIdConfigMetadata(auth);
   return await handler(c.req.raw);
 });
@@ -46,7 +46,7 @@ app.onError((err, c) => {
 app.all("/*", async (c) => {
   // Ensure the mobile OAuth client exists (idempotent, runs once per isolate)
   await ensureMobileClient(c.env.DB);
-  const auth = createAuth(c.env);
+  const auth = await createAuth(c.env);
   return await auth.handler(c.req.raw);
 });
 

@@ -67,6 +67,32 @@
       flex-shrink: 0;
     }
 
+    .apple-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border: none;
+      border-radius: 0.5rem;
+      background: #000;
+      color: #fff;
+      font-size: 1rem;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-top: 0.625rem;
+    }
+    .apple-btn:hover {
+      background: #222;
+    }
+    .apple-btn svg {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
     .divider {
       display: flex;
       align-items: center;
@@ -112,6 +138,13 @@
       Sign in with Google
     </button>
 
+    <button type="button" class="apple-btn" id="apple-sign-in">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="#fff">
+        <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.52-3.23 0-1.44.64-2.2.46-3.06-.4C3.79 16.17 4.36 9.83 8.77 9.6c1.27.06 2.15.72 2.91.76.87-.18 1.7-.88 2.99-.82 1.54.07 2.7.72 3.35 1.83-3.03 1.85-2.37 5.67.53 6.7-.55 1.32-1.25 2.63-2.5 4.21zM12.03 9.5C11.88 7.3 13.6 5.5 15.66 5.31c.31 2.4-2.15 4.38-3.63 4.19z"/>
+      </svg>
+      Sign in with Apple
+    </button>
+
     <div class="divider">or</div>
 
     <wa-tab-group>
@@ -143,19 +176,19 @@
     const queryString = window.location.search.slice(1);
     const callbackURL = queryString ? '/oauth2/authorize?' + queryString : '/';
 
-    document.getElementById('google-sign-in').addEventListener('click', async () => {
+    async function socialSignIn(provider) {
       document.getElementById('error-callout').hidden = true;
       try {
         const res = await fetch('/sign-in/social', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ provider: 'google', callbackURL }),
+          body: JSON.stringify({ provider, callbackURL }),
         });
         const json = await res.json();
         if (json.url) {
           window.location.href = json.url;
         } else if (!res.ok) {
-          const msg = json?.message || json?.error?.message || 'Google sign-in failed.';
+          const msg = json?.message || json?.error?.message || provider + ' sign-in failed.';
           document.getElementById('error-message').textContent = msg;
           document.getElementById('error-callout').hidden = false;
         }
@@ -163,7 +196,10 @@
         document.getElementById('error-message').textContent = 'Network error. Please try again.';
         document.getElementById('error-callout').hidden = false;
       }
-    });
+    }
+
+    document.getElementById('google-sign-in').addEventListener('click', () => socialSignIn('google'));
+    document.getElementById('apple-sign-in').addEventListener('click', () => socialSignIn('apple'));
 
     document.querySelectorAll('form').forEach(form => {
       form.addEventListener('submit', async (e) => {
