@@ -17,7 +17,9 @@
         "CFBundleDocumentTypes": [
           {
             "CFBundleTypeName": "URL",
-            "LSItemContentTypes": ["public.url"],
+            "LSItemContentTypes": [
+              "public.url"
+            ],
             "CFBundleTypeRole": "Viewer"
           }
         ]
@@ -37,13 +39,6 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.RECORD_AUDIO"
       ],
-      "intentFilters": [
-        {
-          "action": "SEND",
-          "data": [{ "mimeType": "text/plain" }],
-          "category": ["DEFAULT"]
-        }
-      ]
     },
     "web": {
       "output": "static",
@@ -70,7 +65,15 @@
           }
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-share-intent",
+        {
+          "androidMainActivityAttributes": {
+            "android:launchMode": "singleTask"
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

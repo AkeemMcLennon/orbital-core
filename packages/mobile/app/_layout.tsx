@@ -12,6 +12,9 @@ import * as Linking from "expo-linking";
 import * as SplashScreen from "expo-splash-screen";
 import { router, Stack } from "expo-router";
 import { useEffect } from "react";
+import { useShareIntent } from "expo-share-intent";
+
+import { extractUrlFromText } from "../src/utils/metadata";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -45,9 +48,35 @@ const queryClient = new QueryClient({
   },
 });
 
+/** Shared handler for all incoming deep links (VIEW intents and synthesized share intents). */
+function handleDeepLink(url: string) {
+  const parsed = Linking.parse(url);
+  if (parsed.path === "contact-add" && parsed.queryParams?.url) {
+    router.replace({
+      pathname: "/contact-add",
+      params: { url: parsed.queryParams.url as string },
+    });
+  }
+}
+
 function AuthGate() {
   const { isReady, isAuthenticated } = useAuthContext();
   const queryClient = useQueryClient();
+  const { shareIntent, resetShareIntent } = useShareIntent();
+
+  // Handle Android SEND intent: extract URL from shared text, synthesize a deep
+  // link URL, and route through the same handleDeepLink() as regular deep links.
+  useEffect(() => {
+    if (!isAuthenticated || !shareIntent) return;
+    const sharedText = shareIntent.text || shareIntent.webUrl || "";
+    const extracted = extractUrlFromText(sharedText) ?? sharedText.trim();
+    if (extracted) {
+      resetShareIntent();
+      handleDeepLink(
+        Linking.createURL("contact-add", { queryParams: { url: extracted } }),
+      );
+    }
+  }, [isAuthenticated, shareIntent]);
 
   useEffect(() => {
     async function prepare() {
@@ -68,26 +97,23 @@ function AuthGate() {
 
       await SplashScreen.hideAsync();
 
-      // Handle Android ACTION_SEND share intent: the shared text arrives as
-      // the initial URL via expo-linking when the app is launched from the
-      // share sheet. Route to /contact-add with the shared URL as a param.
+      // Handle VIEW deep links on initial launch
       if (isAuthenticated) {
         const initialUrl = await Linking.getInitialURL();
-        if (initialUrl) {
-          const parsed = Linking.parse(initialUrl);
-          // Deep link from share sheet: mobile://contact-add?url=<value>
-          if (parsed.path === "contact-add" && parsed.queryParams?.url) {
-            router.replace({
-              pathname: "/contact-add",
-              params: { url: parsed.queryParams.url as string },
-            });
-          }
-        }
+        if (initialUrl) handleDeepLink(initialUrl);
       }
     }
 
     prepare();
   }, [isReady, isAuthenticated, queryClient]);
+
+  // Handle VIEW deep links when the app is already open
+  useEffect(() => {
+    const sub = Linking.addEventListener("url", ({ url }) => {
+      if (isAuthenticated) handleDeepLink(url);
+    });
+    return () => sub.remove();
+  }, [isAuthenticated]);
 
   if (!isReady) return null;
 

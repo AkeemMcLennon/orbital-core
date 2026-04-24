@@ -89,3 +89,9 @@ export async function fetchMetadata(url: string, userAgent?: string): Promise<Me
 export function isUrl(text: string): boolean {
   return /^https?:\/\/.+/i.test(text.trim());
 }
+
+/** Extract the first URL from arbitrary text (e.g. "Check this: https://example.com via Twitter"). */
+export function extractUrlFromText(text: string): string | null {
+  const match = text.match(/https?:\/\/[^\s]+/i);
+  return match ? match[0] : null;
+}
