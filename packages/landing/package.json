@@ -1,0 +1,26 @@
+{
+  "name": "@orbital/landing",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "license": "Elastic-2.0",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "deploy": "astro build && wrangler deploy",
+    "typecheck": "astro check",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.0",
+    "@astrojs/react": "^4.2.0",
+    "astro": "^6.1.10",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "wrangler": "^4.0.0"
+  }
+}

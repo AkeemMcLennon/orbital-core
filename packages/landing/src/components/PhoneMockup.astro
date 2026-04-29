@@ -1,0 +1,211 @@
+<style>
+  .phone-mockup {
+    width: 280px;
+    height: 580px;
+    background: #111;
+    border-radius: 40px;
+    border: 8px solid #222;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    padding: 12px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .phone-screen {
+    background: var(--white);
+    width: 100%;
+    height: 100%;
+    border-radius: 24px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .screen-header {
+    height: 64px;
+    background: var(--primary);
+    padding: 16px 18px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+
+  .screen-title {
+    color: white;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: -0.01em;
+  }
+
+  .screen-badge {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 9999px;
+  }
+
+  .screen-content {
+    padding: 14px;
+    flex: 1;
+  }
+
+  .screen-section-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--gray);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 10px;
+  }
+
+  .mock-item {
+    height: 56px;
+    background: var(--primary-light);
+    border-radius: 12px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    position: relative;
+  }
+
+  .mock-item.active {
+    background: rgba(51, 24, 117, 0.08);
+    border: 1px solid rgba(51, 24, 117, 0.15);
+  }
+
+  .mock-avatar {
+    width: 36px;
+    height: 36px;
+    background: var(--primary);
+    border-radius: 50%;
+    margin-right: 10px;
+    opacity: 0.15;
+    flex-shrink: 0;
+  }
+
+  .mock-item.active .mock-avatar {
+    opacity: 0.3;
+  }
+
+  .mock-text-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .mock-text {
+    height: 8px;
+    background: var(--primary);
+    border-radius: 4px;
+    opacity: 0.08;
+  }
+
+  .mock-text.name {
+    width: 55%;
+    opacity: 0.15;
+    height: 9px;
+  }
+
+  .mock-text.detail {
+    width: 75%;
+    opacity: 0.06;
+  }
+
+  .mock-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--success);
+    border-radius: 50%;
+    position: absolute;
+    top: 12px;
+    right: 12px;
+  }
+
+  .mock-time {
+    font-size: 8px;
+    color: var(--gray);
+    opacity: 0.5;
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .decor-circle {
+    position: absolute;
+    width: 500px;
+    height: 500px;
+    border: 2px dashed var(--primary);
+    border-radius: 50%;
+    opacity: 0.08;
+    z-index: 1;
+  }
+
+  @media (max-width: 600px) {
+    .phone-mockup {
+      width: 220px;
+      height: 460px;
+      border-radius: 32px;
+      padding: 10px;
+    }
+    .phone-screen {
+      border-radius: 20px;
+    }
+  }
+</style>
+
+<div class="phone-mockup">
+  <div class="phone-screen">
+    <div class="screen-header">
+      <span class="screen-title">Daily Orbit</span>
+      <span class="screen-badge">3 due</span>
+    </div>
+    <div class="screen-content">
+      <div class="screen-section-label">Today</div>
+      <div class="mock-item active">
+        <div class="mock-avatar"></div>
+        <div class="mock-text-group">
+          <div class="mock-text name" style="width: 50%;"></div>
+          <div class="mock-text detail" style="width: 70%;"></div>
+        </div>
+        <div class="mock-dot"></div>
+      </div>
+      <div class="mock-item">
+        <div class="mock-avatar"></div>
+        <div class="mock-text-group">
+          <div class="mock-text name" style="width: 60%;"></div>
+          <div class="mock-text detail" style="width: 45%;"></div>
+        </div>
+        <span class="mock-time">2h ago</span>
+      </div>
+      <div class="mock-item active">
+        <div class="mock-avatar"></div>
+        <div class="mock-text-group">
+          <div class="mock-text name" style="width: 40%;"></div>
+          <div class="mock-text detail" style="width: 65%;"></div>
+        </div>
+        <div class="mock-dot"></div>
+      </div>
+      <div class="mock-item">
+        <div class="mock-avatar"></div>
+        <div class="mock-text-group">
+          <div class="mock-text name" style="width: 55%;"></div>
+          <div class="mock-text detail" style="width: 50%;"></div>
+        </div>
+        <span class="mock-time">1d ago</span>
+      </div>
+      <div class="mock-item">
+        <div class="mock-avatar"></div>
+        <div class="mock-text-group">
+          <div class="mock-text name" style="width: 45%;"></div>
+          <div class="mock-text detail" style="width: 80%;"></div>
+        </div>
+        <span class="mock-time">3d ago</span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="decor-circle"></div>

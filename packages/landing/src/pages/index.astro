@@ -1,0 +1,69 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Hero from '../components/Hero.astro';
+import FeatureList from '../components/FeatureList.astro';
+import StoreButtons from '../components/StoreButtons.astro';
+import PhoneMockup from '../components/PhoneMockup.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<style>
+  .split-container {
+    display: flex;
+    min-height: 100vh;
+    flex-wrap: wrap;
+  }
+
+  .side-content {
+    flex: 1;
+    min-width: 50%;
+    padding: 4rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .side-visual {
+    flex: 1;
+    min-width: 50%;
+    background-color: var(--primary-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  @media (max-width: 1024px) {
+    .side-content, .side-visual {
+      min-width: 100%;
+      padding: 3rem 2rem;
+    }
+    .side-visual { min-height: 400px; }
+  }
+
+  @media (max-width: 600px) {
+    .side-content {
+      padding: 2.5rem 1.5rem;
+    }
+    .side-visual {
+      min-height: 350px;
+      padding: 1.5rem;
+    }
+  }
+</style>
+
+<BaseLayout title="Orbital | PRM for Professionals">
+  <div class="split-container">
+    <div class="side-content">
+      <Hero />
+      <FeatureList />
+      <StoreButtons />
+    </div>
+    <div class="side-visual">
+      <PhoneMockup />
+    </div>
+  </div>
+  <Footer />
+</BaseLayout>
