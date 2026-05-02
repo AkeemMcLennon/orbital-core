@@ -51,7 +51,8 @@ const queryClient = new QueryClient({
 /** Shared handler for all incoming deep links (VIEW intents and synthesized share intents). */
 function handleDeepLink(url: string) {
   const parsed = Linking.parse(url);
-  if (parsed.path === "contact-add" && parsed.queryParams?.url) {
+  const route = parsed.path || parsed.hostname;
+  if (route === "contact-add" && parsed.queryParams?.url) {
     router.replace({
       pathname: "/contact-add",
       params: { url: parsed.queryParams.url as string },
