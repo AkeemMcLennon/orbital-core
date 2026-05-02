@@ -68,13 +68,20 @@ function AuthGate() {
   // link URL, and route through the same handleDeepLink() as regular deep links.
   useEffect(() => {
     if (!isAuthenticated || !shareIntent) return;
+    console.log("Share intent!");
     const sharedText = shareIntent.text || shareIntent.webUrl || "";
+    console.log(
+      `Share intent text: ${shareIntent.text} url: ${shareIntent.webUrl} `,
+    );
     const extracted = extractUrlFromText(sharedText) ?? sharedText.trim();
     if (extracted) {
+      console.log(`Extracted: ${extracted}`);
       resetShareIntent();
-      handleDeepLink(
-        Linking.createURL("contact-add", { queryParams: { url: extracted } }),
-      );
+      const link = Linking.createURL("contact-add", {
+        queryParams: { url: extracted },
+      });
+      console.log(`Link: ${link}`);
+      handleDeepLink(link);
     }
   }, [isAuthenticated, shareIntent]);
 
