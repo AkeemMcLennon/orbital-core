@@ -36,6 +36,37 @@ function parseTitle(html: string): string | null {
   return m?.[1] ? decodeHTMLEntities(m[1].trim()) : null;
 }
 
+export function detectSocialPlatform(url: string): 'linkedin' | 'instagram' | null {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (host.includes('linkedin.com')) return 'linkedin';
+    if (host.includes('instagram.com')) return 'instagram';
+  } catch {}
+  return null;
+}
+
+/** Strip platform-specific noise from a social media og:title. */
+export function cleanSocialTitle(title: string | null, url: string): string | null {
+  if (!title) return title;
+  const platform = detectSocialPlatform(url);
+  if (platform === 'linkedin') {
+    // "John Doe - VP Eng | LinkedIn" → "John Doe"  (space-dash-space = job title separator)
+    // "John Doe | LinkedIn" → "John Doe"
+    // Hyphenated names ("Mary-Jane") use no spaces, so \s+[-–]\s+ is safe to strip
+    return title.replace(/\s+[-–]\s+.*$/i, '').replace(/\s*\|.*$/i, '').trim() || title;
+  }
+  if (platform === 'instagram') {
+    // "natgeo (@natgeo) • Instagram photos and videos" → "natgeo"
+    // "@natgeo • Instagram" → "natgeo"
+    return title
+      .replace(/\s*\(@[^)]+\).*$/i, '')
+      .replace(/\s*•\s*Instagram.*$/i, '')
+      .replace(/^@/, '')
+      .trim() || title;
+  }
+  return title;
+}
+
 /** Minimal HTML entity decoding for common cases in OG tags. */
 function decodeHTMLEntities(text: string): string {
   return text
@@ -78,8 +109,9 @@ export async function fetchMetadata(url: string, userAgent?: string): Promise<Me
     }
   }
 
+  const rawTitle = parseMetaTag(html, "og:title") ?? parseTitle(html);
   return {
-    title: parseMetaTag(html, "og:title") ?? parseTitle(html),
+    title: cleanSocialTitle(rawTitle, url),
     image,
     description: parseMetaTag(html, "og:description"),
     url,

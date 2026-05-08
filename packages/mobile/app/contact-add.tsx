@@ -20,7 +20,7 @@ import {
 } from "@orbital/client";
 import Constants from "expo-constants";
 import { colors, spacing, borderRadius, shadows } from "../src/theme";
-import { fetchMetadata, isUrl, type MetadataResult } from "../src/utils/metadata";
+import { fetchMetadata, isUrl, detectSocialPlatform, type MetadataResult } from "../src/utils/metadata";
 
 export default function AddContactScreen() {
   const { url: deepLinkUrl } = useLocalSearchParams<{ url?: string }>();
@@ -47,7 +47,7 @@ export default function AddContactScreen() {
   useEffect(() => {
     if (deepLinkUrl) {
       setSearchText(deepLinkUrl);
-      triggerMetadataFetch(deepLinkUrl);
+      triggerMetadataFetch(deepLinkUrl, true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -62,12 +62,29 @@ export default function AddContactScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearchText]);
 
-  async function triggerMetadataFetch(url: string) {
+  function selectFromMetadata(metadata: MetadataResult) {
+    const name = metadata.title || metadata.url;
+    setSearchText(name);
+    setSelectedContact({
+      id: metadata.url,
+      name,
+      email: undefined,
+      avatarUrl: metadata.image || undefined,
+    });
+    setNotes(metadata.description || "");
+    setShowResults(false);
+  }
+
+  async function triggerMetadataFetch(url: string, autoSelect = false) {
     setUrlMetadata(null);
     setIsFetchingMetadata(true);
     try {
       const result = await fetchMetadata(url, Constants.userAgent ?? undefined);
-      setUrlMetadata(result);
+      if (autoSelect && detectSocialPlatform(url) && result.title) {
+        selectFromMetadata(result);
+      } else {
+        setUrlMetadata(result);
+      }
     } catch (e) {
       console.warn("Metadata fetch failed:", e);
     } finally {
@@ -361,14 +378,7 @@ export default function AddContactScreen() {
           <Pressable
             onPress={() => {
               if (!urlMetadata) return;
-              setSelectedContact({
-                id: urlMetadata.url,
-                name: urlMetadata.title || urlMetadata.url,
-                email: undefined,
-                avatarUrl: urlMetadata.image || undefined,
-              });
-              setNotes(urlMetadata.description || "");
-              setShowResults(false);
+              selectFromMetadata(urlMetadata);
             }}
             style={{
               backgroundColor: colors.card,
