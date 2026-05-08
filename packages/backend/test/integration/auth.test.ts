@@ -10,6 +10,7 @@ import {
 } from "@orbital/testing/backend/auth";
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { loadSettings } from "../../src/config";
+import * as schema from "../../src/database/schema";
 import { startServer } from "../../src/server";
 
 type TestServer = backend.TestServer;
@@ -19,6 +20,12 @@ describe("Authentication", () => {
   let jwksPort: number;
 
   beforeAll(async () => {
+    // Create DB with migrations so auth middleware can look up/create users
+    await backend.createTestDatabase({
+      schema,
+      migrationsPath: `${import.meta.dir}/../../src/database/migrations`,
+    });
+
     // Start JWKS server for JWT verification
     jwksPort = await backend.auth.startJWKSServer();
 
