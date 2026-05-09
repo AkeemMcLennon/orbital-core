@@ -4,6 +4,7 @@
     "slug": "orbitaldiy",
     "owner": "REPLACE_WITH_YOUR_EXPO_USERNAME",
     "version": "1.0.0",
+    "privacy": "https://beta.example.com/privacy/",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mobile",
@@ -12,6 +13,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "diy.orbital.mobile",
+      "icon": "./assets/images/icon.png",
+      "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleDocumentTypes": [
