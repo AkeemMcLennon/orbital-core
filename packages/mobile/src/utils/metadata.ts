@@ -7,7 +7,7 @@ export interface MetadataResult {
 
 // Fallback UA used when the caller doesn't supply one (e.g. the Bun test script).
 const UA_FALLBACK =
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
+  "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
 
 /** Extract a single OG meta tag value from raw HTML. Handles both attribute orderings. */
 function parseMetaTag(html: string, property: string): string | null {
@@ -67,6 +67,43 @@ export function cleanSocialTitle(title: string | null, url: string): string | nu
   return title;
 }
 
+/**
+ * Fetch HTML using XMLHttpRequest instead of the global fetch polyfill.
+ *
+ * React Native's fetch polyfill calls `new Response(body, { status: 0 })` when
+ * a server drops the TCP connection (e.g. LinkedIn on blocked IPs). The Response
+ * constructor rejects status 0 with a RangeError thrown synchronously inside the
+ * XHR onload callback — bypassing try/catch and crashing the Bridgeless runtime.
+ * Using XHR directly lets us check xhr.status before constructing any Response,
+ * so connection drops become normal Promise rejections.
+ */
+function xhrFetch(url: string, headers: Record<string, string>): Promise<string> {
+  // Bun / Node test environments don't have XMLHttpRequest — fall back to fetch.
+  if (typeof XMLHttpRequest === "undefined") {
+    return fetch(url, { headers }).then((r) => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}: Failed to fetch ${url}`);
+      return r.text();
+    });
+  }
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", url);
+    Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+    xhr.timeout = 10000;
+    xhr.onload = () => {
+      if (xhr.status === 0 || xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(`HTTP ${xhr.status}: Failed to fetch ${url}`));
+      } else {
+        resolve(xhr.responseText);
+      }
+    };
+    xhr.onerror = () => reject(new Error(`Network request failed for ${url}`));
+    xhr.ontimeout = () => reject(new Error(`Request timed out for ${url}`));
+    xhr.send();
+  });
+}
+
 /** Minimal HTML entity decoding for common cases in OG tags. */
 function decodeHTMLEntities(text: string): string {
   return text
@@ -83,20 +120,11 @@ function decodeHTMLEntities(text: string): string {
 }
 
 export async function fetchMetadata(url: string, userAgent?: string): Promise<MetadataResult> {
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": userAgent ?? UA_FALLBACK,
-      Accept:
-        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "Accept-Language": "en-US,en;q=0.5",
-    },
+  const html = await xhrFetch(url, {
+    "User-Agent": userAgent ?? UA_FALLBACK,
+    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
   });
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: Failed to fetch ${url}`);
-  }
-
-  const html = await response.text();
 
   let image = parseMetaTag(html, "og:image");
   // Resolve relative image URLs

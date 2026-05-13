@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
+  Alert,
   View,
   Text,
   TextInput,
@@ -21,6 +22,14 @@ import {
 import Constants from "expo-constants";
 import { colors, spacing, borderRadius, shadows } from "../src/theme";
 import { fetchMetadata, isUrl, detectSocialPlatform, type MetadataResult } from "../src/utils/metadata";
+
+let cachedWebViewUA: string | null | undefined;
+async function getWebViewUA(): Promise<string | undefined> {
+  if (cachedWebViewUA === undefined) {
+    cachedWebViewUA = await Constants.getWebViewUserAgentAsync();
+  }
+  return cachedWebViewUA ?? undefined;
+}
 
 export default function AddContactScreen() {
   const { url: deepLinkUrl } = useLocalSearchParams<{ url?: string }>();
@@ -79,7 +88,7 @@ export default function AddContactScreen() {
     setUrlMetadata(null);
     setIsFetchingMetadata(true);
     try {
-      const result = await fetchMetadata(url, Constants.userAgent ?? undefined);
+      const result = await fetchMetadata(url, await getWebViewUA());
       if (autoSelect && detectSocialPlatform(url) && result.title) {
         selectFromMetadata(result);
       } else {
@@ -87,6 +96,10 @@ export default function AddContactScreen() {
       }
     } catch (e) {
       console.warn("Metadata fetch failed:", e);
+      Alert.alert(
+        "Unable to fetch link",
+        "We were unable to retrieve data for this link at this time.",
+      );
     } finally {
       setIsFetchingMetadata(false);
     }
