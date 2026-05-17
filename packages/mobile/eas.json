@@ -14,12 +14,16 @@
       "channel": "preview"
     },
     "production": {
-      "distribution": "internal",
+      "distribution": "store",
       "autoIncrement": true,
       "channel": "production"
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "REPLACE_WITH_YOUR_ASC_APP_ID"
+      }
+    }
   }
 }
