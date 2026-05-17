@@ -20,6 +20,7 @@ import { generateRepsForNewContact } from "../services/memory-reps";
 import { waitUntil } from "../utils/wait-until";
 import { crypto } from "../utils/crypto";
 import { settings } from "../config";
+import { extractContactFromImage } from "../services/contact-extract";
 
 function shouldEncryptNotes(): boolean {
   return settings.DISABLE_NOTE_ENCRYPTION !== "true" && !!settings.DB_ENCRYPTION_KEY;
@@ -591,6 +592,18 @@ export const getAvatarUploadUrl = authProc
     return storage.getPresignedUploadUrl(key, input.contentType, input.contentLength);
   });
 
+export const extractFromImage = authProc
+  .route({ method: "POST", path: "/contacts/extract-from-image" })
+  .input(
+    z.object({
+      image: z.string().min(1),
+      mimeType: z.enum(ALLOWED_IMAGE_TYPES),
+    }),
+  )
+  .handler(async ({ input }) => {
+    return await extractContactFromImage(input.image, input.mimeType);
+  });
+
 /**
  * Export router with all contact procedures
  */
@@ -605,6 +618,7 @@ export const router = {
   searchAvailable,
   import: importContacts,
   getAvatarUploadUrl,
+  extractFromImage,
 };
 
 export default router;

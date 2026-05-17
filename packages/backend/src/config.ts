@@ -43,6 +43,7 @@ const envSchema = {
   LLM_BASE_URL: z.string().optional(),
   LLM_API_KEY: z.string().optional(),
   LLM_FAST_MODEL: z.string().optional(),
+  LLM_VISION_MODEL: z.string().optional(),
 };
 const envObject = z.object(envSchema);
 // Type for settings
