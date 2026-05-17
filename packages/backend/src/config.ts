@@ -28,6 +28,9 @@ const envSchema = {
   // Testing (optional with defaults)
   DISABLE_JWT_VERIFICATION: z.enum(["true", "false"]).default("false"),
 
+  // Notes encryption (default: enabled — set to "true" to disable)
+  DISABLE_NOTE_ENCRYPTION: z.enum(["true", "false"]).default("false"),
+
   // S3/R2 Storage (optional — required only when using avatar upload)
   S3_ENDPOINT: z.string().optional(),
   S3_ACCESS_KEY_ID: z.string().optional(),

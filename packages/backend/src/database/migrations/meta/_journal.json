@@ -57,6 +57,13 @@
       "when": 1773800290989,
       "tag": "0007_cynical_dragon_lord",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1778790413504,
+      "tag": "0008_good_sasquatch",
+      "breakpoints": true
     }
   ]
 }

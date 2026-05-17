@@ -1,6 +1,13 @@
 # Database Provider (sqlite or d1)
 DB_PROVIDER=sqlite
 
+# Database Encryption (required when ENCRYPT_NOTES=true)
+# Generate: openssl rand -base64 32
+DB_ENCRYPTION_KEY=your-32-byte-base64-encoded-secret
+
+# Notes Encryption (enabled by default — set to true to disable)
+DISABLE_NOTE_ENCRYPTION=false
+
 # Google OAuth (optional - for Contacts integration)
 GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-google-client-secret

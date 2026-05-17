@@ -1,0 +1,1 @@
+ALTER TABLE `contacts` ADD `notes_encrypted` integer DEFAULT false NOT NULL;

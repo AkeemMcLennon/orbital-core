@@ -29,6 +29,7 @@ export async function startTestServer(
     PORT: "8787",
     NODE_ENV: "test",
     DB_ENCRYPTION_KEY: "0sv02gmzhamuqCx36UDVUboTqNfMSO3jSMpTFhhCvnE",
+    DISABLE_NOTE_ENCRYPTION: "false",
   };
 
   // Merge defaults with overrides

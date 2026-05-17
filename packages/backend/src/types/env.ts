@@ -9,6 +9,7 @@ export interface Env {
   DB_PROVIDER?: string;
   SQLITE_DB_PATH?: string;
   DISABLE_JWT_VERIFICATION?: string;
+  DISABLE_NOTE_ENCRYPTION?: string;
   S3_ENDPOINT?: string;
   S3_ACCESS_KEY_ID?: string;
   S3_SECRET_ACCESS_KEY?: string;

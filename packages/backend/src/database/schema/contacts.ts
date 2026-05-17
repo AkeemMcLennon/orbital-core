@@ -26,6 +26,7 @@ export const contacts = sqliteTable('contacts', {
 
   // Context & Categorization
   notes: text('notes'), // Renamed from 'context' - stores relationship context, origin story, etc.
+  notesEncrypted: integer('notes_encrypted', { mode: 'boolean' }).notNull().default(false),
   group: text('group', { enum: ['work', 'personal'] }),
 
   // Relationship Management

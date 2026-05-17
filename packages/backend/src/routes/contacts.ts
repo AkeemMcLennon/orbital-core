@@ -18,6 +18,30 @@ import { PaginationInputSchema, paginatedSchema } from "../utils/pagination";
 import { StorageService } from "../services/storage";
 import { generateRepsForNewContact } from "../services/memory-reps";
 import { waitUntil } from "../utils/wait-until";
+import { crypto } from "../utils/crypto";
+import { settings } from "../config";
+
+function shouldEncryptNotes(): boolean {
+  return settings.DISABLE_NOTE_ENCRYPTION !== "true" && !!settings.DB_ENCRYPTION_KEY;
+}
+
+function encryptNotes(
+  notes: string | null | undefined,
+  userId: string,
+): { notes: string | null; notesEncrypted: boolean } {
+  if (!notes || !shouldEncryptNotes()) {
+    return { notes: notes ?? null, notesEncrypted: false };
+  }
+  return { notes: crypto.encrypt(notes, userId), notesEncrypted: true };
+}
+
+function decryptContact<T extends { notes: string | null; notesEncrypted: boolean }>(
+  contact: T,
+  userId: string,
+): T {
+  if (!contact.notesEncrypted || !contact.notes) return contact;
+  return { ...contact, notes: crypto.decrypt(contact.notes, userId) };
+}
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
 type AllowedImageType = (typeof ALLOWED_IMAGE_TYPES)[number];
@@ -116,7 +140,7 @@ export const listContacts = authProc
     const total = countResult ?? 0;
 
     return {
-      items: results,
+      items: results.map((c) => decryptContact(c, user.id)),
       pagination: {
         total,
         limit: input.limit,
@@ -155,7 +179,7 @@ export const getContact = authProc
       throw new ORPCError("NOT_FOUND", { message: "Contact not found" });
     }
 
-    return contact;
+    return decryptContact(contact, user.id);
   });
 
 /**
@@ -184,6 +208,7 @@ export const createContact = authProc
   .output(ContactOutputSchema)
   .handler(async ({ input, context }) => {
     const { db, user } = context;
+    const { notes: encNotes, notesEncrypted } = encryptNotes(input.notes, user.id);
 
     const [contact] = await db
       .insert(contacts)
@@ -196,14 +221,15 @@ export const createContact = authProc
         jobTitle: input.jobTitle ?? null,
         company: input.company ?? null,
         birthday: input.birthday ?? null,
-        notes: input.notes ?? null,
+        notes: encNotes,
+        notesEncrypted,
         group: (input.group as "work" | "personal" | undefined) ?? null,
       })
       .returning();
 
     waitUntil(generateRepsForNewContact(db, user.id, contact.id));
 
-    return contact;
+    return decryptContact(contact, user.id);
   });
 
 /**
@@ -234,7 +260,13 @@ export const updateContact = authProc
   .handler(async ({ input, context }) => {
     const { db, user } = context;
     const { id, ...patch } = input;
-    const updateData: typeof patch & { updatedAt: Date } = { updatedAt: new Date(), ...patch };
+    const updateData: typeof patch & { updatedAt: Date; notesEncrypted?: boolean } = { updatedAt: new Date(), ...patch };
+
+    if (patch.notes !== undefined) {
+      const { notes: encNotes, notesEncrypted } = encryptNotes(patch.notes, user.id);
+      updateData.notes = encNotes ?? undefined;
+      updateData.notesEncrypted = notesEncrypted;
+    }
 
     const [contact] = await db
       .update(contacts)
@@ -251,7 +283,7 @@ export const updateContact = authProc
       throw new ORPCError("NOT_FOUND", { message: "Contact not found" });
     }
 
-    return contact;
+    return decryptContact(contact, user.id);
   });
 
 /**
@@ -323,7 +355,7 @@ export const searchContacts = authProc
     const total = countResult ?? 0;
 
     return {
-      items: results,
+      items: results.map((c) => decryptContact(c, user.id)),
       pagination: {
         total,
         limit: input.limit,
