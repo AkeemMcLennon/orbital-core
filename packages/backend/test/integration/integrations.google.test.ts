@@ -26,7 +26,8 @@ const { google } = backend.integrations;
 describe("Google Integration (MSW Mocked)", () => {
   let db: DatabaseClient;
   let mswServer: ReturnType<typeof google.setupGoogleMockServer>;
-  const userId = "test-user-google";
+  const userExternalId = "test-user-google";
+  let userId: string; // internal DB id resolved each beforeEach
 
   beforeAll(async () => {
     // Initialize test database
@@ -51,16 +52,15 @@ describe("Google Integration (MSW Mocked)", () => {
 
   beforeEach(async () => {
     await backend.clearDatabase(db, { schema });
-    await backend.seedTestUser(db, userId, { schema });
+    await backend.seedTestUser(db, userExternalId, { schema });
 
-    // Clean integrations/contacts/directory
-    await db
-      .delete(schema.integrations)
-      .where(eq(schema.integrations.userId, userId));
-    await db.delete(schema.contacts).where(eq(schema.contacts.userId, userId));
-    await db
-      .delete(schema.directory)
-      .where(eq(schema.directory.userId, userId));
+    // Resolve internal user ID for FK-constrained operations
+    const [user] = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.externalId, userExternalId))
+      .limit(1);
+    userId = user.id;
 
     // Reset MSW state
     mswServer.resetHandlers();

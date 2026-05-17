@@ -6,3 +6,4 @@ export * from './integrations';
 export * from './oauth-sessions';
 export * from './relationships';
 export * from './memory-reps';
+export * from './deletion-queue';

@@ -7,7 +7,7 @@ export interface MetadataResult {
 
 // Fallback UA used when the caller doesn't supply one (e.g. the Bun test script).
 const UA_FALLBACK =
-  "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
 
 /** Extract a single OG meta tag value from raw HTML. Handles both attribute orderings. */
 function parseMetaTag(html: string, property: string): string | null {

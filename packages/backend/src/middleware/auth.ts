@@ -5,6 +5,7 @@ import { getDbClient } from "../database/client";
 import type { DatabaseClient } from "../database/client";
 import { settings } from "../config";
 import { getOrCreateUserByExternalId } from "../services/auth";
+import { cancelPendingDeletion } from "../services/account-deletion";
 import type { User } from "../database/schema/users";
 import { z } from "zod";
 
@@ -114,6 +115,9 @@ export const authProc = os
         email: payload.email,
         name: payload.name,
       });
+
+      // Cancel any pending deletion when user logs back in
+      await cancelPendingDeletion(db, user.id);
 
       // Pass authenticated context to next handler
       return next({

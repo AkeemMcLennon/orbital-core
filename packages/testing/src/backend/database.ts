@@ -27,6 +27,7 @@ export async function createTestDatabase(
 
   // Create test database file
   const sqlite = new Database(dbPath);
+  sqlite.exec("PRAGMA foreign_keys = ON");
   const db = drizzle(sqlite, { schema });
 
   // Apply migrations
@@ -67,6 +68,9 @@ export async function clearDatabase(
   const { schema } = options;
 
   // Delete in order to respect foreign key constraints
+  if (schema.deletionQueue) {
+    await db.delete(schema.deletionQueue);
+  }
   if (schema.memoryReps) {
     await db.delete(schema.memoryReps);
   }

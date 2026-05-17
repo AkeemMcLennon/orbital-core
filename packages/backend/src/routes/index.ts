@@ -3,6 +3,7 @@ import auth from './auth';
 import { router as integrations } from './integrations';
 import relationships from './relationships';
 import memoryReps from './memory-reps';
+import account from './account';
 
 export const router = {
   contacts,
@@ -10,6 +11,7 @@ export const router = {
   integrations,
   relationships,
   memoryReps,
+  account,
 };
 
 export default router;

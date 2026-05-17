@@ -22,7 +22,8 @@ import type { NewDirectoryEntry } from "../../src/database/schema";
 
 describe("Directory Integrations", () => {
   let db: DatabaseClient;
-  let userId: string = "test-user-123";
+  const userExternalId: string = "test-user-123";
+  let userId: string; // internal DB id resolved each beforeEach
 
   beforeAll(async () => {
     // Initialize test database
@@ -39,15 +40,15 @@ describe("Directory Integrations", () => {
 
   beforeEach(async () => {
     await backend.clearDatabase(db, { schema });
-    await backend.seedTestUser(db, userId, { schema });
-    // Explicitly clear integrations, contacts, and directory for this user to ensure clean state
-    await db
-      .delete(schema.integrations)
-      .where(eq(schema.integrations.userId, userId));
-    await db.delete(schema.contacts).where(eq(schema.contacts.userId, userId));
-    await db
-      .delete(schema.directory)
-      .where(eq(schema.directory.userId, userId));
+    await backend.seedTestUser(db, userExternalId, { schema });
+
+    // Resolve internal user ID for FK-constrained operations
+    const [user] = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.externalId, userExternalId))
+      .limit(1);
+    userId = user.id;
   });
 
   describe("Sync Pipeline", () => {

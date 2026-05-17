@@ -64,6 +64,13 @@
       "when": 1778790413504,
       "tag": "0008_good_sasquatch",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1779036901099,
+      "tag": "0009_married_shaman",
+      "breakpoints": true
     }
   ]
 }

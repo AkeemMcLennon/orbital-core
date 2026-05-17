@@ -23,14 +23,6 @@ import Constants from "expo-constants";
 import { colors, spacing, borderRadius, shadows } from "../src/theme";
 import { fetchMetadata, isUrl, detectSocialPlatform, type MetadataResult } from "../src/utils/metadata";
 
-let cachedWebViewUA: string | null | undefined;
-async function getWebViewUA(): Promise<string | undefined> {
-  if (cachedWebViewUA === undefined) {
-    cachedWebViewUA = await Constants.getWebViewUserAgentAsync();
-  }
-  return cachedWebViewUA ?? undefined;
-}
-
 export default function AddContactScreen() {
   const { url: deepLinkUrl } = useLocalSearchParams<{ url?: string }>();
   const [isAiMode, setIsAiMode] = useState(false);
@@ -88,7 +80,7 @@ export default function AddContactScreen() {
     setUrlMetadata(null);
     setIsFetchingMetadata(true);
     try {
-      const result = await fetchMetadata(url, await getWebViewUA());
+      const result = await fetchMetadata(url, Constants.userAgent ?? undefined);
       if (autoSelect && detectSocialPlatform(url) && result.title) {
         selectFromMetadata(result);
       } else {
