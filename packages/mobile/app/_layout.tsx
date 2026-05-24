@@ -52,11 +52,21 @@ const queryClient = new QueryClient({
 function handleDeepLink(url: string) {
   const parsed = Linking.parse(url);
   const route = parsed.path || parsed.hostname;
-  if (route === "contact-add" && parsed.queryParams?.url) {
-    router.replace({
-      pathname: "/contact-add",
-      params: { url: parsed.queryParams.url as string },
-    });
+  if (route === "contact-add") {
+    if (parsed.queryParams?.sharedImageUri) {
+      router.replace({
+        pathname: "/contact-screenshot-crop" as any,
+        params: {
+          sharedImageUri: parsed.queryParams.sharedImageUri as string,
+          sharedImageMimeType: (parsed.queryParams.sharedImageMimeType as string) ?? "image/jpeg",
+        },
+      });
+    } else if (parsed.queryParams?.url) {
+      router.replace({
+        pathname: "/contact-add",
+        params: { url: parsed.queryParams.url as string },
+      });
+    }
   }
 }
 
@@ -65,23 +75,33 @@ function AuthGate() {
   const queryClient = useQueryClient();
   const { shareIntent, resetShareIntent } = useShareIntent();
 
-  // Handle Android SEND intent: extract URL from shared text, synthesize a deep
-  // link URL, and route through the same handleDeepLink() as regular deep links.
+  // Handle Android SEND intent: images go to extract-from-image flow; text/URLs
+  // go through the existing URL metadata flow.
   useEffect(() => {
     if (!isAuthenticated || !shareIntent) return;
-    console.log("Share intent!");
+
+    // Image share
+    const imageFile = shareIntent.files?.[0];
+    if (imageFile?.mimeType?.startsWith("image/")) {
+      resetShareIntent();
+      const link = Linking.createURL("contact-add", {
+        queryParams: {
+          sharedImageUri: imageFile.path,
+          sharedImageMimeType: imageFile.mimeType,
+        },
+      });
+      handleDeepLink(link);
+      return;
+    }
+
+    // Text/URL share (existing behavior)
     const sharedText = shareIntent.text || shareIntent.webUrl || "";
-    console.log(
-      `Share intent text: ${shareIntent.text} url: ${shareIntent.webUrl} `,
-    );
     const extracted = extractUrlFromText(sharedText) ?? sharedText.trim();
     if (extracted) {
-      console.log(`Extracted: ${extracted}`);
       resetShareIntent();
       const link = Linking.createURL("contact-add", {
         queryParams: { url: extracted },
       });
-      console.log(`Link: ${link}`);
       handleDeepLink(link);
     }
   }, [isAuthenticated, shareIntent]);
@@ -132,6 +152,7 @@ function AuthGate() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(main)" />
+      <Stack.Screen name="contact-screenshot-crop" />
       <Stack.Screen name="contact-add" />
       <Stack.Screen name="contacts/[id]" />
       <Stack.Screen name="contacts/[id]/edit" />

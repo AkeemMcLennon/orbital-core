@@ -1,0 +1,109 @@
+diff --git a/android/src/main/java/expo/modules/shareintent/ExpoShareIntentModule.kt b/android/src/main/java/expo/modules/shareintent/ExpoShareIntentModule.kt
+index 0153c89c7e2ce4fa20351bc2d5e7b1c6cd341dbe..063335c421f863254fa7395817899e0e9742295d 100644
+--- a/android/src/main/java/expo/modules/shareintent/ExpoShareIntentModule.kt
++++ b/android/src/main/java/expo/modules/shareintent/ExpoShareIntentModule.kt
+@@ -66,49 +66,66 @@ class ExpoShareIntentModule : Module() {
+                     "filePath" to instance?.getAbsolutePath(uri),
+                 )
+             }
+-            val queryResult: Cursor = resolver.query(uri, null, null, null, null)!!
+-            queryResult.moveToFirst()
+-            val fileName = queryResult.getString(queryResult.getColumnIndex(OpenableColumns.DISPLAY_NAME))
+-            val fileSize = queryResult.getString(queryResult.getColumnIndex(OpenableColumns.SIZE))
+-            queryResult.close()
+-
+-            val mimeType = resolver.getType(uri)!!
+-
+-            var mediaWidth: String? = null;
+-            var mediaHeight: String? = null;
+-            var mediaDuration: String? = null;
+-            if (mimeType.startsWith("image/")) {
+-                val options = BitmapFactory.Options().apply {
+-                    inJustDecodeBounds = true
++            try {
++                val queryResult: Cursor? = resolver.query(uri, null, null, null, null)
++                var fileName: String? = null
++                var fileSize: String? = null
++                if (queryResult != null) {
++                    queryResult.moveToFirst()
++                    fileName = queryResult.getString(queryResult.getColumnIndex(OpenableColumns.DISPLAY_NAME))
++                    fileSize = queryResult.getString(queryResult.getColumnIndex(OpenableColumns.SIZE))
++                    queryResult.close()
+                 }
+-                BitmapFactory.decodeStream(resolver.openInputStream(uri), null, options)
+-                mediaHeight = options.outHeight.toString()
+-                mediaWidth = options.outWidth.toString()
+-            }
+-            if (mimeType.startsWith("video/")) {
+-                val retriever = MediaMetadataRetriever()
+-                retriever.setDataSource(instance?.getAbsolutePath(uri))
+-                mediaWidth = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toInt().toString() ?: null
+-                mediaHeight = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toInt().toString() ?: null
+-                // Check orientation and flip size if required
+-                val metaRotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toInt() ?: 0;
+-                if (metaRotation == 90 || metaRotation == 270) {
+-                    mediaWidth = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toInt().toString() ?: null
+-                    mediaHeight = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toInt().toString() ?: null
++
++                val mimeType = resolver.getType(uri) ?: "application/octet-stream"
++
++                var mediaWidth: String? = null;
++                var mediaHeight: String? = null;
++                var mediaDuration: String? = null;
++                if (mimeType.startsWith("image/")) {
++                    try {
++                        val options = BitmapFactory.Options().apply {
++                            inJustDecodeBounds = true
++                        }
++                        BitmapFactory.decodeStream(resolver.openInputStream(uri), null, options)
++                        mediaHeight = options.outHeight.toString()
++                        mediaWidth = options.outWidth.toString()
++                    } catch (e: Exception) {
++                        Log.w("ExpoShareIntent", "Could not decode image dimensions: ${e.message}")
++                    }
++                }
++                if (mimeType.startsWith("video/")) {
++                    val retriever = MediaMetadataRetriever()
++                    retriever.setDataSource(instance?.getAbsolutePath(uri))
++                    mediaWidth = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toInt().toString() ?: null
++                    mediaHeight = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toInt().toString() ?: null
++                    // Check orientation and flip size if required
++                    val metaRotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toInt() ?: 0;
++                    if (metaRotation == 90 || metaRotation == 270) {
++                        mediaWidth = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toInt().toString() ?: null
++                        mediaHeight = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toInt().toString() ?: null
++                    }
++                    mediaDuration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toInt().toString() ?: null
+                 }
+-                mediaDuration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toInt().toString() ?: null
+-            }
+ 
+-            return mapOf(
++                return mapOf(
++                        "contentUri" to uri.toString(),
++                        "filePath" to instance?.getAbsolutePath(uri),
++                        "fileName" to fileName,
++                        "fileSize" to fileSize,
++                        "mimeType" to mimeType,
++                        "width" to mediaWidth,
++                        "height" to mediaHeight,
++                        "duration" to mediaDuration
++                )
++            } catch (e: Exception) {
++                Log.w("ExpoShareIntent", "getFileInfo failed for $uri: ${e.message}")
++                return mapOf(
+                     "contentUri" to uri.toString(),
+                     "filePath" to instance?.getAbsolutePath(uri),
+-                    "fileName" to fileName,
+-                    "fileSize" to fileSize,
+-                    "mimeType" to mimeType,
+-                    "width" to mediaWidth,
+-                    "height" to mediaHeight,
+-                    "duration" to mediaDuration
+-            )
++                    "mimeType" to (resolver.getType(uri) ?: "application/octet-stream"),
++                )
++            }
+         }
+ 
+         fun handleShareIntent(intent: Intent) {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   View,
@@ -14,17 +14,23 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebounceValue } from "usehooks-ts";
+import * as ImagePicker from "expo-image-picker";
 import {
   createContact,
   searchAvailableContacts,
   getAvailableContacts,
+  contactsExtractFromImage,
+  isSuccess,
 } from "@orbital/client";
+import { useExtractImageQuery } from "../src/hooks/useExtractImageQuery";
+import { contactKeys } from "../src/queries/contacts";
 import Constants from "expo-constants";
 import { colors, spacing, borderRadius, shadows } from "../src/theme";
 import { fetchMetadata, isUrl, detectSocialPlatform, type MetadataResult } from "../src/utils/metadata";
 
 export default function AddContactScreen() {
-  const { url: deepLinkUrl } = useLocalSearchParams<{ url?: string }>();
+  const { url: deepLinkUrl, sharedImageUri, sharedImageMimeType, croppedImageUri } =
+    useLocalSearchParams<{ url?: string; sharedImageUri?: string; sharedImageMimeType?: string; croppedImageUri?: string }>();
   const [isAiMode, setIsAiMode] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [debouncedSearchText] = useDebounceValue(searchText, 300);
@@ -42,7 +48,30 @@ export default function AddContactScreen() {
   
   const [showResults, setShowResults] = useState(false);
   const [notes, setNotes] = useState("");
+  const [isExtractingImage, setIsExtractingImage] = useState(false);
   const queryClient = useQueryClient();
+  const extractionApplied = useRef(false);
+
+  // If arriving from contact-screenshot-crop, extraction may already be cached
+  const {
+    data: extractedData,
+    isLoading: isLoadingExtraction,
+    isError: isExtractionError,
+  } = useExtractImageQuery(sharedImageUri, sharedImageMimeType);
+
+  function applyExtractedContact(data: { name?: string; email?: string | null; phone?: string; company?: string; jobTitle?: string; linkedinUrl?: string }, avatarUri?: string) {
+    const name = data.name || "Unknown";
+    setSearchText(name);
+    setSelectedContact({ id: `extracted:${Date.now()}`, name, email: data.email ?? null, avatarUrl: avatarUri ?? null });
+    setShowResults(false);
+    const extra = [
+      data.phone       && `Phone: ${data.phone}`,
+      data.company     && `Company: ${data.company}`,
+      data.jobTitle    && `Title: ${data.jobTitle}`,
+      data.linkedinUrl && `LinkedIn: ${data.linkedinUrl}`,
+    ].filter(Boolean).join("\n");
+    if (extra) setNotes(extra);
+  }
 
   // Pre-fill from deep link url param on mount
   useEffect(() => {
@@ -52,6 +81,19 @@ export default function AddContactScreen() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Populate form when shared-image extraction completes (may be instant from cache)
+  useEffect(() => {
+    if (isExtractionError) {
+      if (extractionApplied.current) return;
+      extractionApplied.current = true;
+      Alert.alert("Extraction failed", "Unable to read contact info from this image.");
+      return;
+    }
+    if (!extractedData || extractionApplied.current) return;
+    extractionApplied.current = true;
+    applyExtractedContact(extractedData, croppedImageUri);
+  }, [extractedData, isExtractionError]);
 
   // Auto-fetch metadata when search text looks like a URL
   useEffect(() => {
@@ -126,9 +168,14 @@ export default function AddContactScreen() {
       avatarUrl?: string;
     }) => createContact(data),
     onSuccess: () => {
-      // Invalidate and refetch contacts query
-      queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      router.back();
+      if (sharedImageUri) {
+        // Eager background fetch so cache is populated when home screen mounts
+        queryClient.refetchQueries({ queryKey: contactKeys.all });
+        router.replace("/(main)");
+      } else {
+        queryClient.invalidateQueries({ queryKey: contactKeys.all });
+        router.back();
+      }
     },
     onError: (error) => {
       console.error("Failed to create contact:", error);
@@ -141,6 +188,47 @@ export default function AddContactScreen() {
     setSearchText(contact.name);
     setShowResults(false);
   };
+
+  async function handleScanImage(source: "camera" | "library") {
+    const opts: ImagePicker.ImagePickerOptions = {
+      base64: true,
+      quality: 0.8,
+      mediaTypes: "images",
+    };
+    const result =
+      source === "camera"
+        ? await ImagePicker.launchCameraAsync(opts)
+        : await ImagePicker.launchImageLibraryAsync(opts);
+
+    if (result.canceled || !result.assets[0]?.base64) return;
+
+    const asset = result.assets[0];
+    setIsExtractingImage(true);
+    try {
+      const res = await contactsExtractFromImage({
+        image: asset.base64!,
+        mimeType: (asset.mimeType ?? "image/jpeg") as any,
+      });
+      if (!isSuccess(res)) throw new Error("Extraction failed");
+
+      applyExtractedContact(res.data as Record<string, string>, asset.uri);
+    } catch {
+      Alert.alert(
+        "Extraction failed",
+        "Unable to read contact info from this image.",
+      );
+    } finally {
+      setIsExtractingImage(false);
+    }
+  }
+
+  function promptScanImage() {
+    Alert.alert("Scan Contact", "Choose a source", [
+      { text: "Take Photo", onPress: () => handleScanImage("camera") },
+      { text: "Choose Photo", onPress: () => handleScanImage("library") },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  }
 
   const handleAddContact = async () => {
     const name = selectedContact?.name || searchText.trim();
@@ -221,6 +309,47 @@ export default function AddContactScreen() {
             size={18}
             color={colors.primary}
           />
+        </Pressable>
+        {/* Scan image button */}
+        <Pressable
+          onPress={promptScanImage}
+          disabled={isExtractingImage || isLoadingExtraction}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: colors.primaryLight,
+            borderRadius: borderRadius.md,
+            padding: spacing.md,
+            marginBottom: spacing.lg,
+            opacity: isExtractingImage || isLoadingExtraction ? 0.7 : 1,
+          }}
+        >
+          {isExtractingImage || isLoadingExtraction ? (
+            <ActivityIndicator
+              size="small"
+              color={colors.primary}
+              style={{ marginRight: spacing.sm }}
+            />
+          ) : (
+            <Ionicons
+              name="camera-outline"
+              size={20}
+              color={colors.primary}
+              style={{ marginRight: spacing.sm }}
+            />
+          )}
+          <Text
+            style={{
+              fontSize: 14,
+              fontWeight: "600",
+              color: colors.primary,
+              flex: 1,
+            }}
+          >
+            {isExtractingImage || isLoadingExtraction
+              ? "Extracting contact info..."
+              : "Scan Business Card / Screenshot"}
+          </Text>
         </Pressable>
         {/* Hybrid Search Input */}
         <View style={{ marginBottom: spacing.lg }}>

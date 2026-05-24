@@ -2,6 +2,11 @@ import { AxGen } from "@ax-llm/ax";
 import { backend } from "@orbital/testing";
 import { createTestToken } from "@orbital/testing/backend/auth";
 import {
+  contactsExtractFromImage,
+  initializeApiClient,
+  initializeDefaultClient,
+} from "@orbital/client";
+import {
   afterAll,
   beforeAll,
   beforeEach,
@@ -55,6 +60,8 @@ describe.skipIf(!HAS_VISION_LLM)("Contact Extract E2E (real LLM)", () => {
       sub: "extract-user",
       email: "extract@example.com",
     });
+
+    initializeApiClient({ baseURL: `${server.url}/rpc`, getToken: async () => token });
   });
 
   afterAll(() => {
@@ -71,21 +78,14 @@ describe.skipIf(!HAS_VISION_LLM)("Contact Extract E2E (real LLM)", () => {
     const imageBuffer = readFileSync("/tmp/linkin-profile.png");
     const base64Image = imageBuffer.toString("base64");
 
-    const response = await fetch(
-      `${server.url}/rpc/contacts/extract-from-image`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ image: base64Image, mimeType: "image/png" }),
-      },
-    );
+    const res = await contactsExtractFromImage({
+      image: base64Image,
+      mimeType: "image/png",
+    });
 
-    expect(response.status).toBe(200);
+    expect(res.status).toBe(200);
 
-    const data = (await response.json()) as Record<string, unknown>;
+    const data = res.data as Record<string, unknown>;
     console.log("Extracted contact data:", data);
 
     expect(typeof data.name).toBe("string");
@@ -144,6 +144,8 @@ describe("Contact Extract API (unit)", () => {
       sub: "extract-user",
       email: "extract@example.com",
     });
+
+    initializeApiClient({ baseURL: `${server.url}/rpc`, getToken: async () => token });
   });
 
   afterAll(() => {
@@ -158,20 +160,6 @@ describe("Contact Extract API (unit)", () => {
 
   const FAKE_IMAGE = Buffer.from("fake-image-data").toString("base64");
 
-  function postExtract(body: object, authToken?: string) {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-    if (authToken !== undefined) {
-      headers["Authorization"] = `Bearer ${authToken}`;
-    }
-    return fetch(`${server.url}/rpc/contacts/extract-from-image`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
-  }
-
   describe("extraction results", () => {
     it("should return all fields the LLM provides", async () => {
       const spy = spyOn(AxGen.prototype, "forward").mockResolvedValue({
@@ -185,12 +173,12 @@ describe("Contact Extract API (unit)", () => {
       });
 
       try {
-        const res = await postExtract(
-          { image: FAKE_IMAGE, mimeType: "image/png" },
-          token,
-        );
+        const res = await contactsExtractFromImage({
+          image: FAKE_IMAGE,
+          mimeType: "image/png",
+        });
         expect(res.status).toBe(200);
-        expect(await res.json()).toMatchObject({
+        expect(res.data).toMatchObject({
           name: "Jane Doe",
           email: "jane@acme.com",
           phone: "+1 555 123 4567",
@@ -211,12 +199,12 @@ describe("Contact Extract API (unit)", () => {
       });
 
       try {
-        const res = await postExtract(
-          { image: FAKE_IMAGE, mimeType: "image/jpeg" },
-          token,
-        );
+        const res = await contactsExtractFromImage({
+          image: FAKE_IMAGE,
+          mimeType: "image/jpeg",
+        });
         expect(res.status).toBe(200);
-        const data = await res.json();
+        const data = res.data as Record<string, unknown>;
         expect(data).toEqual({ name: "John Smith", company: "Startup Inc" });
         expect(Object.keys(data)).toHaveLength(2);
       } finally {
@@ -233,12 +221,12 @@ describe("Contact Extract API (unit)", () => {
       });
 
       try {
-        const res = await postExtract(
-          { image: FAKE_IMAGE, mimeType: "image/png" },
-          token,
-        );
+        const res = await contactsExtractFromImage({
+          image: FAKE_IMAGE,
+          mimeType: "image/png",
+        });
         expect(res.status).toBe(200);
-        const data = await res.json();
+        const data = res.data as Record<string, unknown>;
         expect(data).toEqual({ name: "Alice", jobTitle: "CEO" });
         expect("email" in data).toBe(false);
         expect("company" in data).toBe(false);
@@ -251,12 +239,12 @@ describe("Contact Extract API (unit)", () => {
       const spy = spyOn(AxGen.prototype, "forward").mockResolvedValue({});
 
       try {
-        const res = await postExtract(
-          { image: FAKE_IMAGE, mimeType: "image/png" },
-          token,
-        );
+        const res = await contactsExtractFromImage({
+          image: FAKE_IMAGE,
+          mimeType: "image/png",
+        });
         expect(res.status).toBe(200);
-        expect(await res.json()).toEqual({});
+        expect(res.data).toEqual({});
       } finally {
         spy.mockRestore();
       }
@@ -265,25 +253,30 @@ describe("Contact Extract API (unit)", () => {
 
   describe("input validation", () => {
     it("should return 401 when no auth token is provided", async () => {
-      const res = await postExtract({ image: FAKE_IMAGE, mimeType: "image/png" });
+      initializeDefaultClient({ baseURL: `${server.url}/rpc` }); // no getToken → no auth header
+      const res = await contactsExtractFromImage({
+        image: FAKE_IMAGE,
+        mimeType: "image/png",
+      });
       expect(res.status).toBe(401);
+      initializeApiClient({ baseURL: `${server.url}/rpc`, getToken: async () => token }); // restore
     });
 
     it("should return 400 for an unsupported mime type", async () => {
-      const res = await postExtract(
-        { image: FAKE_IMAGE, mimeType: "image/bmp" },
-        token,
-      );
+      const res = await contactsExtractFromImage({
+        image: FAKE_IMAGE,
+        mimeType: "image/bmp" as any,
+      });
       expect(res.status).toBe(400);
     });
 
     it("should return 400 when image field is missing", async () => {
-      const res = await postExtract({ mimeType: "image/png" }, token);
+      const res = await contactsExtractFromImage({ mimeType: "image/png" } as any);
       expect(res.status).toBe(400);
     });
 
     it("should return 400 when mimeType field is missing", async () => {
-      const res = await postExtract({ image: FAKE_IMAGE }, token);
+      const res = await contactsExtractFromImage({ image: FAKE_IMAGE } as any);
       expect(res.status).toBe(400);
     });
   });

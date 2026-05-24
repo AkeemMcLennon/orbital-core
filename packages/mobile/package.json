@@ -14,6 +14,7 @@
     "test:build": "bash scripts/test-latest-build.sh"
   },
   "dependencies": {
+    "@bsky.app/expo-image-crop-tool": "^0.5.1",
     "@expo/vector-icons": "^15.0.3",
     "@orbital/client": "workspace:*",
     "@orbital/types": "workspace:*",

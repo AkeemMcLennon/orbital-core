@@ -43,14 +43,8 @@ export default function DailyOrbitScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      queryClient.refetchQueries({
-        queryKey: contactKeys.all,
-        type: "inactive",
-      });
-      queryClient.refetchQueries({
-        queryKey: memoryRepKeys.all,
-        type: "inactive",
-      });
+      queryClient.invalidateQueries({ queryKey: contactKeys.all });
+      queryClient.invalidateQueries({ queryKey: memoryRepKeys.all });
     }, [queryClient]),
   );
 

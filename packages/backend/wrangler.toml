@@ -13,6 +13,9 @@ keep_vars = true
 JWKS_URL = "https://auth.example.com/jwks"
 JWT_ISSUER = "https://auth.example.com"
 JWT_AUDIENCE = "https://auth.example.com"
+LLM_BASE_URL = "https://gateway.ai.cloudflare.com/v1/REPLACE_WITH_CF_ACCOUNT_ID/orbital-diy/compat"
+LLM_FAST_MODEL = "cerebras/gpt-oss-120b"
+LLM_VISION_MODEL = "workers-ai/@cf/google/gemma-4-26b-a4b-it"
 
 [triggers]
 crons = ["0 2 * * *"]

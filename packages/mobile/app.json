@@ -40,7 +40,7 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.READ_MEDIA_IMAGES"
       ],
     },
     "web": {
@@ -74,7 +74,8 @@
         {
           "androidMainActivityAttributes": {
             "android:launchMode": "singleTask"
-          }
+          },
+          "androidIntentFilters": ["text/*", "image/*"]
         }
       ]
     ],
