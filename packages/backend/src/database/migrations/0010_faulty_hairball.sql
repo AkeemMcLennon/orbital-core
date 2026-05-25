@@ -1,0 +1,1 @@
+ALTER TABLE `contact_tags` ADD `is_dynamic` integer DEFAULT false NOT NULL;

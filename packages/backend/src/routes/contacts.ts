@@ -17,6 +17,12 @@ import { base58IdSchema } from "@orbital/utils";
 import { PaginationInputSchema, paginatedSchema } from "../utils/pagination";
 import { StorageService } from "../services/storage";
 import { generateRepsForNewContact } from "../services/memory-reps";
+import {
+  assignStaticTags,
+  replaceStaticTags,
+  fetchContactTags,
+  generateDynamicTagsForContact,
+} from "../services/tags";
 import { waitUntil } from "../utils/wait-until";
 import { crypto } from "../utils/crypto";
 import { settings } from "../config";
@@ -78,6 +84,12 @@ const ContactOutputSchema = z.object({
   lastInteractionAt: dateField().nullable(),
   createdAt: dateField(),
   updatedAt: dateField(),
+  tags: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    color: z.string().nullable(),
+    isDynamic: z.boolean(),
+  })).optional(),
 });
 
 const DirectoryEntryOutputSchema = z.object({
@@ -180,7 +192,8 @@ export const getContact = authProc
       throw new ORPCError("NOT_FOUND", { message: "Contact not found" });
     }
 
-    return decryptContact(contact, user.id);
+    const tagList = await fetchContactTags(db, user.id, contact.id);
+    return { ...decryptContact(contact, user.id), tags: tagList };
   });
 
 /**
@@ -204,6 +217,7 @@ export const createContact = authProc
       birthday: z.string().regex(/^(\d{4}-\d{2}-\d{2}|\d{2}-\d{2})$/).optional(),
       notes: z.string().optional(),
       group: z.string().optional(),
+      tags: z.array(z.string()).optional(),
     }),
   )
   .output(ContactOutputSchema)
@@ -228,7 +242,15 @@ export const createContact = authProc
       })
       .returning();
 
+    if (input.tags) {
+      await assignStaticTags(db, user.id, contact.id, input.tags);
+    }
+
     waitUntil(generateRepsForNewContact(db, user.id, contact.id));
+
+    if (input.notes) {
+      waitUntil(generateDynamicTagsForContact(db, user.id, contact.id, input.notes));
+    }
 
     return decryptContact(contact, user.id);
   });
@@ -255,12 +277,13 @@ export const updateContact = authProc
       birthday: z.string().regex(/^(\d{4}-\d{2}-\d{2}|\d{2}-\d{2})$/).optional(),
       notes: z.string().optional(),
       group: z.string().optional(),
+      tags: z.array(z.string()).optional(),
     }),
   )
   .output(ContactOutputSchema)
   .handler(async ({ input, context }) => {
     const { db, user } = context;
-    const { id, ...patch } = input;
+    const { id, tags: inputTags, ...patch } = input;
     const updateData: typeof patch & { updatedAt: Date; notesEncrypted?: boolean } = { updatedAt: new Date(), ...patch };
 
     if (patch.notes !== undefined) {
@@ -282,6 +305,17 @@ export const updateContact = authProc
 
     if (!contact) {
       throw new ORPCError("NOT_FOUND", { message: "Contact not found" });
+    }
+
+    if (inputTags !== undefined) {
+      await replaceStaticTags(db, user.id, contact.id, inputTags);
+    }
+
+    if (patch.notes !== undefined) {
+      const plainNotes = input.notes ?? "";
+      if (plainNotes) {
+        waitUntil(generateDynamicTagsForContact(db, user.id, contact.id, plainNotes));
+      }
     }
 
     return decryptContact(contact, user.id);

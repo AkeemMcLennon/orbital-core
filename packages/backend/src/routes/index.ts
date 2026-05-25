@@ -4,6 +4,7 @@ import { router as integrations } from './integrations';
 import relationships from './relationships';
 import memoryReps from './memory-reps';
 import account from './account';
+import tags from './tags';
 
 export const router = {
   contacts,
@@ -12,6 +13,7 @@ export const router = {
   relationships,
   memoryReps,
   account,
+  tags,
 };
 
 export default router;

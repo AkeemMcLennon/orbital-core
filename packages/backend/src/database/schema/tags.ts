@@ -1,4 +1,4 @@
-import { sqliteTable, text, primaryKey, unique, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, primaryKey, unique, index } from 'drizzle-orm/sqlite-core';
 import { users } from './users';
 import { contacts } from './contacts';
 import { pk, uuidV7 } from '../custom-types';
@@ -32,6 +32,7 @@ export const contactTags = sqliteTable('contact_tags', {
   tagId: uuidV7('tag_id')
     .notNull()
     .references(() => tags.id, { onDelete: 'cascade' }),
+  isDynamic: integer('is_dynamic', { mode: 'boolean' }).notNull().default(false),
 }, (table) => ({
   pk: primaryKey({ columns: [table.contactId, table.tagId] }),
   // Index for querying contacts by tag
