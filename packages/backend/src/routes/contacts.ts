@@ -29,7 +29,9 @@ import { settings } from "../config";
 import { extractContactFromImage } from "../services/contact-extract";
 
 function shouldEncryptNotes(): boolean {
-  return settings.DISABLE_NOTE_ENCRYPTION !== "true" && !!settings.DB_ENCRYPTION_KEY;
+  return (
+    settings.DISABLE_NOTE_ENCRYPTION !== "true" && !!settings.DB_ENCRYPTION_KEY
+  );
 }
 
 function encryptNotes(
@@ -42,15 +44,19 @@ function encryptNotes(
   return { notes: crypto.encrypt(notes, userId), notesEncrypted: true };
 }
 
-function decryptContact<T extends { notes: string | null; notesEncrypted: boolean }>(
-  contact: T,
-  userId: string,
-): T {
+function decryptContact<
+  T extends { notes: string | null; notesEncrypted: boolean },
+>(contact: T, userId: string): T {
   if (!contact.notesEncrypted || !contact.notes) return contact;
   return { ...contact, notes: crypto.decrypt(contact.notes, userId) };
 }
 
-const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
+const ALLOWED_IMAGE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+] as const;
 type AllowedImageType = (typeof ALLOWED_IMAGE_TYPES)[number];
 
 const MAX_AVATAR_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -84,12 +90,16 @@ const ContactOutputSchema = z.object({
   lastInteractionAt: dateField().nullable(),
   createdAt: dateField(),
   updatedAt: dateField(),
-  tags: z.array(z.object({
-    id: z.string(),
-    name: z.string(),
-    color: z.string().nullable(),
-    isDynamic: z.boolean(),
-  })).optional(),
+  tags: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        color: z.string().nullable(),
+        isDynamic: z.boolean(),
+      }),
+    )
+    .optional(),
 });
 
 const DirectoryEntryOutputSchema = z.object({
@@ -214,7 +224,10 @@ export const createContact = authProc
       avatarUrl: z.string().url().optional(),
       jobTitle: z.string().optional(),
       company: z.string().optional(),
-      birthday: z.string().regex(/^(\d{4}-\d{2}-\d{2}|\d{2}-\d{2})$/).optional(),
+      birthday: z
+        .string()
+        .regex(/^(\d{4}-\d{2}-\d{2}|\d{2}-\d{2})$/)
+        .optional(),
       notes: z.string().optional(),
       group: z.string().optional(),
       tags: z.array(z.string()).optional(),
@@ -223,7 +236,10 @@ export const createContact = authProc
   .output(ContactOutputSchema)
   .handler(async ({ input, context }) => {
     const { db, user } = context;
-    const { notes: encNotes, notesEncrypted } = encryptNotes(input.notes, user.id);
+    const { notes: encNotes, notesEncrypted } = encryptNotes(
+      input.notes,
+      user.id,
+    );
 
     const [contact] = await db
       .insert(contacts)
@@ -249,7 +265,7 @@ export const createContact = authProc
     waitUntil(generateRepsForNewContact(db, user.id, contact.id));
 
     if (input.notes) {
-      waitUntil(generateDynamicTagsForContact(db, user.id, contact.id, input.notes));
+      await generateDynamicTagsForContact(db, user.id, contact.id, input.notes);
     }
 
     return decryptContact(contact, user.id);
@@ -274,7 +290,10 @@ export const updateContact = authProc
       avatarUrl: z.string().url().optional(),
       jobTitle: z.string().optional(),
       company: z.string().optional(),
-      birthday: z.string().regex(/^(\d{4}-\d{2}-\d{2}|\d{2}-\d{2})$/).optional(),
+      birthday: z
+        .string()
+        .regex(/^(\d{4}-\d{2}-\d{2}|\d{2}-\d{2})$/)
+        .optional(),
       notes: z.string().optional(),
       group: z.string().optional(),
       tags: z.array(z.string()).optional(),
@@ -284,10 +303,16 @@ export const updateContact = authProc
   .handler(async ({ input, context }) => {
     const { db, user } = context;
     const { id, tags: inputTags, ...patch } = input;
-    const updateData: typeof patch & { updatedAt: Date; notesEncrypted?: boolean } = { updatedAt: new Date(), ...patch };
+    const updateData: typeof patch & {
+      updatedAt: Date;
+      notesEncrypted?: boolean;
+    } = { updatedAt: new Date(), ...patch };
 
     if (patch.notes !== undefined) {
-      const { notes: encNotes, notesEncrypted } = encryptNotes(patch.notes, user.id);
+      const { notes: encNotes, notesEncrypted } = encryptNotes(
+        patch.notes,
+        user.id,
+      );
       updateData.notes = encNotes ?? undefined;
       updateData.notesEncrypted = notesEncrypted;
     }
@@ -314,7 +339,12 @@ export const updateContact = authProc
     if (patch.notes !== undefined) {
       const plainNotes = input.notes ?? "";
       if (plainNotes) {
-        waitUntil(generateDynamicTagsForContact(db, user.id, contact.id, plainNotes));
+        await generateDynamicTagsForContact(
+          db,
+          user.id,
+          contact.id,
+          plainNotes,
+        );
       }
     }
 
@@ -514,17 +544,23 @@ export const importContacts = authProc
   .input(
     z.object({
       source: z.string().min(1),
-      contacts: z.array(
-        z.object({
-          externalId: z.string().min(1),
-          name: z.string().min(1),
-          email: z.string().optional(),
-          phone: z.string().optional(),
-          avatarUrl: z.string().url().optional(),
-          company: z.string().optional(),
-          birthday: z.string().regex(/^(\d{4}-\d{2}-\d{2}|\d{2}-\d{2})$/).optional(),
-        }),
-      ).min(1).max(500),
+      contacts: z
+        .array(
+          z.object({
+            externalId: z.string().min(1),
+            name: z.string().min(1),
+            email: z.string().optional(),
+            phone: z.string().optional(),
+            avatarUrl: z.string().url().optional(),
+            company: z.string().optional(),
+            birthday: z
+              .string()
+              .regex(/^(\d{4}-\d{2}-\d{2}|\d{2}-\d{2})$/)
+              .optional(),
+          }),
+        )
+        .min(1)
+        .max(500),
     }),
   )
   .output(
@@ -623,7 +659,11 @@ export const getAvatarUploadUrl = authProc
     const storage = new StorageService();
     const ext = IMAGE_EXT[input.contentType];
     const key = `avatars/${user.id}/${input.contactId}-${Date.now()}.${ext}`;
-    return storage.getPresignedUploadUrl(key, input.contentType, input.contentLength);
+    return storage.getPresignedUploadUrl(
+      key,
+      input.contentType,
+      input.contentLength,
+    );
   });
 
 export const extractFromImage = authProc
