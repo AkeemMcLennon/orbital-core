@@ -139,4 +139,4 @@ class CryptoService {
 // Instantiate without args to allow lazy-loading from settings to prevent startup race conditions
 export const crypto = new CryptoService();
 
-export type { CryptoService };
+export { CryptoService };

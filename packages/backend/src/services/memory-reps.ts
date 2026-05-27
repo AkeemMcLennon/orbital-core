@@ -7,6 +7,15 @@ import { shuffle } from "es-toolkit";
 import { determineNameInfo, getNameByGender } from "gender-name";
 import { getAI } from "./llm";
 import { settings } from "../config";
+import { crypto } from "../utils/crypto";
+
+function decryptNotes<T extends { notes: string | null; notesEncrypted: boolean }>(
+  contact: T,
+  userId: string,
+): T {
+  if (!contact.notesEncrypted || !contact.notes) return contact;
+  return { ...contact, notes: crypto.decrypt(contact.notes, userId) };
+}
 
 const ContactSchema = f.object({
   contactId: f.string("Contact ID"),
@@ -232,7 +241,8 @@ export async function generateMemoryReps(
   const identifyPool = shuffled.slice(splitAt);
 
   // Generate LLM-based detail questions
-  const contactsWithNotes = detailPool.filter((c) => c.notes);
+  const decryptedDetailPool = detailPool.map((c) => decryptNotes(c, userId));
+  const contactsWithNotes = decryptedDetailPool.filter((c) => c.notes);
   const detailInserts = await generateDetailQuestions(
     contactsWithNotes,
     userId,
@@ -321,7 +331,7 @@ export async function generateRepsForNewContact(
     settings.LLM_FAST_MODEL
   ) {
     try {
-      detailInserts = await generateDetailQuestions([newContact], userId);
+      detailInserts = await generateDetailQuestions([decryptNotes(newContact, userId)], userId);
     } catch (err) {
       // Silently skip LLM failures — identify question still gets inserted
       console.error("Failed to generate detail question for new contact:", err);

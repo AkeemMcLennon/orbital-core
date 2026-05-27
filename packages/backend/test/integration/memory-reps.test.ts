@@ -15,8 +15,32 @@ import {
   describe,
   expect,
   it,
+  mock,
   spyOn,
 } from "bun:test";
+import { crypto } from "../../src/utils/crypto";
+
+// ─── Module-level mock for @ax-llm/ax ───────────────────────────────────────
+// Bun hoists mock.module() before all imports, so every require/import of
+// @ax-llm/ax in this process — including inside memory-reps.ts — gets this
+// replacement. import.meta.require returns the REAL module, letting us
+// preserve f and all other exports while only replacing AxGen.
+
+let capturedLLMContacts: Array<{ contactId: string; name: string; notes: string }> = [];
+
+mock.module("@ax-llm/ax", () => {
+  const actual = import.meta.require("@ax-llm/ax");
+  return {
+    ...actual,
+    AxGen: class MockAxGen {
+      constructor(_sig: any) {}
+      async forward(_ai: any, input: { contacts?: Array<{ contactId: string; name: string; notes: string }> }) {
+        capturedLLMContacts = input.contacts ?? [];
+        return { questions: [] };
+      }
+    },
+  };
+});
 import { eq } from "drizzle-orm";
 import { loadSettings } from "../../src/config";
 import type { DatabaseClient } from "../../src/database/client";
@@ -686,6 +710,7 @@ describe("Memory Reps API (unit)", () => {
       expect(data.contactsUsed).toBe(0);
       expect(data.items).toEqual([]);
     });
+
   });
 
   describe("Auto-generated reps on contact creation", () => {
@@ -801,5 +826,80 @@ describe("Memory Reps API (unit)", () => {
       );
       expect(futureRep).toBeUndefined();
     });
+  });
+});
+
+// ─── Encryption Tests ───────────────────────────────────────────────────────
+
+describe("Memory Reps: notes decrypted before LLM", () => {
+  let server: TestServer;
+  let db: DatabaseClient;
+  let token: string;
+
+  beforeAll(async () => {
+    db = await backend.createTestDatabase({
+      schema,
+      migrationsPath: "./src/database/migrations",
+    });
+    // Start server with dummy LLM config so getAI() doesn't throw BAD_REQUEST.
+    // DB_ENCRYPTION_KEY uses the standard test default so the shared crypto
+    // singleton decrypts with the same key used to encrypt below.
+    server = await backend.startTestServer({
+      startServer,
+      loadSettings,
+      envOverrides: {
+        LLM_BASE_URL: "http://localhost:9999",
+        LLM_API_KEY: "test-key",
+        LLM_FAST_MODEL: "test-model",
+      },
+    });
+
+    token = await createTestToken({ sub: "enc-user", email: "enc@example.com" });
+    initializeApiClient({ baseURL: `${server.url}/rpc`, getToken: () => token });
+  });
+
+  afterAll(() => {
+    server.stop();
+  });
+
+  beforeEach(async () => {
+    capturedLLMContacts = [];
+    await backend.clearDatabase(db, { schema });
+    await backend.seedTestUser(db, "enc-user", { schema });
+  });
+
+  it("passes plaintext notes to the LLM when notes are encrypted at rest", async () => {
+    const PLAINTEXT_NOTES = "Met at React Conf. Loves hiking.";
+
+    const [user] = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.externalId, "enc-user"))
+      .limit(1);
+
+    // Encrypt using the shared crypto singleton — same key the server uses to
+    // decrypt, so no hardcoded key constant is needed.
+    const encryptedNotes = crypto.encrypt(PLAINTEXT_NOTES, user!.id);
+
+    await db.insert(schema.contacts).values({
+      userId: user!.id,
+      name: "Alice Encrypted",
+      notes: encryptedNotes,
+      notesEncrypted: true,
+    });
+
+    // Force the contact into detailPool so generateDetailQuestions is reached.
+    const randomSpy = spyOn(Math, "random").mockReturnValue(0.9999);
+    try {
+      const response = await generateMemoryReps({});
+      // MockAxGen.forward was called (AxGen mocked at module level above).
+      // The notes field must be the plaintext, not the raw ciphertext.
+      expect(response.status).toBe(200);
+      expect(capturedLLMContacts).toHaveLength(1);
+      expect(capturedLLMContacts[0].notes).toBe(PLAINTEXT_NOTES);
+      expect(capturedLLMContacts[0].notes).not.toBe(encryptedNotes);
+    } finally {
+      randomSpy.mockRestore();
+    }
   });
 });
