@@ -73,6 +73,18 @@ export const typography = {
   '4xl': 36,
 };
 
+export const inputStyle = {
+  backgroundColor: colors.card,
+  borderRadius: borderRadius.md,
+  borderColor: colors.border,
+  borderWidth: 1,
+  paddingHorizontal: spacing.md,
+  paddingVertical: spacing.md,
+  color: colors.textMain,
+  fontSize: 14,
+  ...shadows.sm,
+} as const;
+
 // Helper function to create styled view props
 export const getStyleProps = (variant: 'card' | 'input' | 'button' = 'card') => {
   switch (variant) {

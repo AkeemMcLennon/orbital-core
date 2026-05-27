@@ -5,4 +5,8 @@ export { DrawerContent } from './DrawerContent';
 export { ContactDetails } from './ContactDetails';
 export { ContactImportList } from './ContactImportList';
 export { RelationshipsSection } from './RelationshipsSection';
+export { Tag } from './Tag';
+export { TagEditor } from './TagEditor';
+export type { TagItem } from './TagEditor';
+export { FormField } from './FormField';
 export type { DeviceContact } from './ContactImportList';

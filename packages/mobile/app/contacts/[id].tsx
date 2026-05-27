@@ -63,7 +63,7 @@ export default function ContactDetailsScreen() {
   return (
     <ContactDetails
       id={contact?.id || id || ""}
-      role=""
+      role={contact?.jobTitle || ""}
       name={contact?.name || "Unknown"}
       avatar={contact?.avatarUrl || ""}
       notes={contact?.notes || ""}
@@ -71,6 +71,7 @@ export default function ContactDetailsScreen() {
       phone={contact?.phone || ""}
       // interactions={contact?.interactions || []}
       interactions={[]}
+      tags={contact?.tags || []}
     />
   );
 }

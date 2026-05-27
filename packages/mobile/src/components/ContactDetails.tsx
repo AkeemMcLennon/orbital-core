@@ -12,6 +12,7 @@ import { Link, useRouter } from "expo-router";
 import { FaceAvatar } from "./FaceAvatar";
 import { TimelineItem } from "./TimelineItem";
 import { RelationshipsSection } from "./RelationshipsSection";
+import { Tag } from "./Tag";
 import { colors, spacing, borderRadius, shadows } from "../theme";
 import { useAvatarUpload } from "../hooks/useAvatarUpload";
 
@@ -28,6 +29,7 @@ interface ContactDetailsProps {
   }>;
   email?: string;
   phone?: string;
+  tags?: Array<{ id: string; name: string; color: string | null; isDynamic: boolean }>;
 }
 
 export function ContactDetails({
@@ -39,6 +41,7 @@ export function ContactDetails({
   interactions = [],
   email,
   phone,
+  tags = [],
 }: ContactDetailsProps) {
   const router = useRouter();
   const { onEdit, isUploading } = useAvatarUpload(id);
@@ -201,6 +204,34 @@ export function ContactDetails({
             </Pressable>
           </View>
         </View>
+
+        {/* Tags Section */}
+        {tags.length > 0 && (
+          <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.xl }}>
+            <Text
+              style={{
+                fontSize: 12,
+                fontWeight: "700",
+                textTransform: "uppercase",
+                letterSpacing: 1,
+                color: colors.textSecondary,
+                marginBottom: spacing.md,
+              }}
+            >
+              Tags
+            </Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
+              {tags.map((tag) => (
+                <Tag
+                  key={tag.id}
+                  name={tag.name}
+                  isDynamic={tag.isDynamic}
+                  color={tag.color}
+                />
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Notes Section */}
         <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.xl }}>

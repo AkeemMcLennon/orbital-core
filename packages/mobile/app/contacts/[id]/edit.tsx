@@ -13,8 +13,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateContact } from "@orbital/client";
 import { useContact, contactKeys } from "../../../src/queries/contacts";
-import { colors, spacing, borderRadius, shadows } from "../../../src/theme";
-import { FaceAvatar } from "../../../src/components";
+import { colors, spacing, borderRadius, inputStyle } from "../../../src/theme";
+import { FaceAvatar, TagEditor, FormField, type TagItem } from "../../../src/components";
 import { useAvatarUpload } from "../../../src/hooks/useAvatarUpload";
 
 export default function EditContactScreen() {
@@ -22,19 +22,19 @@ export default function EditContactScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const { data: contact, isLoading: isLoadingContacts } = useContact(id);
+  const { data: contact, isLoading } = useContact(id);
 
-  // Form state
   const [name, setName] = useState(contact?.name || "");
-
   const [email, setEmail] = useState(contact?.email || "");
   const [phone, setPhone] = useState(contact?.phone || "");
   const [jobTitle, setJobTitle] = useState(contact?.jobTitle || "");
   const [company, setCompany] = useState(contact?.company || "");
   const [notes, setNotes] = useState(contact?.notes || "");
   const [group, setGroup] = useState(contact?.group || "");
+  const [tags, setTags] = useState<TagItem[]>(
+    contact?.tags?.map((t) => ({ name: t.name, isDynamic: t.isDynamic, color: t.color })) ?? [],
+  );
 
-  // Sync form state when contact data becomes available
   useEffect(() => {
     if (contact) {
       setName(contact.name || "");
@@ -44,12 +44,14 @@ export default function EditContactScreen() {
       setCompany(contact.company || "");
       setNotes(contact.notes || "");
       setGroup(contact.group || "");
+      setTags(
+        contact.tags?.map((t) => ({ name: t.name, isDynamic: t.isDynamic, color: t.color })) ?? [],
+      );
     }
   }, [contact]);
 
   const { onEdit, isUploading } = useAvatarUpload(id);
 
-  // Update mutation
   const updateMutation = useMutation({
     mutationFn: (data: Parameters<typeof updateContact>[1]) =>
       updateContact(id || "", data),
@@ -68,7 +70,6 @@ export default function EditContactScreen() {
       alert("Please enter a contact name");
       return;
     }
-
     updateMutation.mutate({
       name: name.trim(),
       email: email.trim() || undefined,
@@ -77,27 +78,16 @@ export default function EditContactScreen() {
       company: company.trim() || undefined,
       notes: notes.trim() || undefined,
       group: group.trim() || undefined,
+      tags: tags.map((t) => t.name),
     });
   };
 
-  if (isLoadingContacts || !contact) {
+  if (isLoading || !contact) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-        <View
-          style={{
-            flex: 1,
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text
-            style={{
-              marginTop: spacing.lg,
-              color: colors.textSecondary,
-              fontSize: 14,
-            }}
-          >
+          <Text style={{ marginTop: spacing.lg, color: colors.textSecondary, fontSize: 14 }}>
             Loading contact...
           </Text>
         </View>
@@ -122,9 +112,7 @@ export default function EditContactScreen() {
         <Pressable onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color={colors.textMain} />
         </Pressable>
-        <Text
-          style={{ fontSize: 18, fontWeight: "700", color: colors.textMain }}
-        >
+        <Text style={{ fontSize: 18, fontWeight: "700", color: colors.textMain }}>
           Edit Contact
         </Text>
         <View style={{ width: 24 }} />
@@ -136,7 +124,7 @@ export default function EditContactScreen() {
           paddingVertical: spacing.lg,
         }}
       >
-        {/* Avatar Section */}
+        {/* Avatar */}
         <View
           style={{
             alignItems: "center",
@@ -156,228 +144,79 @@ export default function EditContactScreen() {
             showLabel={false}
             noMargin
           />
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "700",
-              color: colors.textMain,
-            }}
-          >
+          <Text style={{ fontSize: 18, fontWeight: "700", color: colors.textMain }}>
             {name || "Unnamed"}
           </Text>
         </View>
 
-        {/* Name Field */}
-        <View style={{ marginBottom: spacing.lg }}>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: colors.textMain,
-              marginBottom: spacing.sm,
-            }}
-          >
-            Name *
-          </Text>
+        <FormField label="Name *">
           <TextInput
             placeholder="Contact name"
             placeholderTextColor={colors.textTertiary}
             value={name}
             onChangeText={setName}
-            style={{
-              backgroundColor: colors.card,
-              borderRadius: borderRadius.md,
-              borderColor: colors.border,
-              borderWidth: 1,
-              paddingHorizontal: spacing.md,
-              paddingVertical: spacing.md,
-              color: colors.textMain,
-              fontSize: 14,
-              ...shadows.sm,
-            }}
+            style={inputStyle}
           />
-        </View>
+        </FormField>
 
-        {/* Email Field */}
-        <View style={{ marginBottom: spacing.lg }}>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: colors.textMain,
-              marginBottom: spacing.sm,
-            }}
-          >
-            Email
-          </Text>
+        <FormField label="Email">
           <TextInput
             placeholder="email@example.com"
             placeholderTextColor={colors.textTertiary}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
-            style={{
-              backgroundColor: colors.card,
-              borderRadius: borderRadius.md,
-              borderColor: colors.border,
-              borderWidth: 1,
-              paddingHorizontal: spacing.md,
-              paddingVertical: spacing.md,
-              color: colors.textMain,
-              fontSize: 14,
-              ...shadows.sm,
-            }}
+            style={inputStyle}
           />
-        </View>
+        </FormField>
 
-        {/* Phone Field */}
-        <View style={{ marginBottom: spacing.lg }}>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: colors.textMain,
-              marginBottom: spacing.sm,
-            }}
-          >
-            Phone
-          </Text>
+        <FormField label="Phone">
           <TextInput
             placeholder="+1 (555) 000-0000"
             placeholderTextColor={colors.textTertiary}
             value={phone}
             onChangeText={setPhone}
             keyboardType="phone-pad"
-            style={{
-              backgroundColor: colors.card,
-              borderRadius: borderRadius.md,
-              borderColor: colors.border,
-              borderWidth: 1,
-              paddingHorizontal: spacing.md,
-              paddingVertical: spacing.md,
-              color: colors.textMain,
-              fontSize: 14,
-              ...shadows.sm,
-            }}
+            style={inputStyle}
           />
-        </View>
+        </FormField>
 
-        {/* Job Title Field */}
-        <View style={{ marginBottom: spacing.lg }}>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: colors.textMain,
-              marginBottom: spacing.sm,
-            }}
-          >
-            Job Title
-          </Text>
+        <FormField label="Job Title">
           <TextInput
             placeholder="e.g., Software Engineer"
             placeholderTextColor={colors.textTertiary}
             value={jobTitle}
             onChangeText={setJobTitle}
-            style={{
-              backgroundColor: colors.card,
-              borderRadius: borderRadius.md,
-              borderColor: colors.border,
-              borderWidth: 1,
-              paddingHorizontal: spacing.md,
-              paddingVertical: spacing.md,
-              color: colors.textMain,
-              fontSize: 14,
-              ...shadows.sm,
-            }}
+            style={inputStyle}
           />
-        </View>
+        </FormField>
 
-        {/* Company Field */}
-        <View style={{ marginBottom: spacing.lg }}>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: colors.textMain,
-              marginBottom: spacing.sm,
-            }}
-          >
-            Company
-          </Text>
+        <FormField label="Company">
           <TextInput
             placeholder="Company name"
             placeholderTextColor={colors.textTertiary}
             value={company}
             onChangeText={setCompany}
-            style={{
-              backgroundColor: colors.card,
-              borderRadius: borderRadius.md,
-              borderColor: colors.border,
-              borderWidth: 1,
-              paddingHorizontal: spacing.md,
-              paddingVertical: spacing.md,
-              color: colors.textMain,
-              fontSize: 14,
-              ...shadows.sm,
-            }}
+            style={inputStyle}
           />
-        </View>
+        </FormField>
 
-        {/* Group Field */}
-        <View style={{ marginBottom: spacing.lg }}>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: colors.textMain,
-              marginBottom: spacing.sm,
-            }}
-          >
-            Group
-          </Text>
+        <FormField label="Group">
           <TextInput
             placeholder="e.g., Friends, Colleagues"
             placeholderTextColor={colors.textTertiary}
             value={group}
             onChangeText={setGroup}
-            style={{
-              backgroundColor: colors.card,
-              borderRadius: borderRadius.md,
-              borderColor: colors.border,
-              borderWidth: 1,
-              paddingHorizontal: spacing.md,
-              paddingVertical: spacing.md,
-              color: colors.textMain,
-              fontSize: 14,
-              ...shadows.sm,
-            }}
+            style={inputStyle}
           />
-        </View>
+        </FormField>
 
-        {/* Notes Field */}
-        <View style={{ marginBottom: spacing.lg }}>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: colors.textMain,
-              marginBottom: spacing.sm,
-            }}
-          >
-            Notes
-          </Text>
-          <View
-            style={{
-              backgroundColor: colors.card,
-              borderRadius: borderRadius.md,
-              borderColor: colors.border,
-              borderWidth: 1,
-              paddingHorizontal: spacing.md,
-              minHeight: 100,
-              ...shadows.sm,
-            }}
-          >
+        <FormField label="Tags">
+          <TagEditor tags={tags} onChange={setTags} />
+        </FormField>
+
+        <FormField label="Notes">
+          <View style={{ ...inputStyle, minHeight: 100, paddingVertical: 0 }}>
             <TextInput
               placeholder="Add notes about this person..."
               placeholderTextColor={colors.textTertiary}
@@ -385,14 +224,10 @@ export default function EditContactScreen() {
               onChangeText={setNotes}
               multiline
               numberOfLines={4}
-              style={{
-                paddingVertical: spacing.md,
-                color: colors.textMain,
-                fontSize: 14,
-              }}
+              style={{ paddingVertical: spacing.md, color: colors.textMain, fontSize: 14 }}
             />
           </View>
-        </View>
+        </FormField>
       </ScrollView>
 
       {/* Action Buttons */}
@@ -417,13 +252,7 @@ export default function EditContactScreen() {
             opacity: updateMutation.isPending ? 0.5 : 1,
           }}
         >
-          <Text
-            style={{
-              textAlign: "center",
-              color: colors.textMain,
-              fontWeight: "600",
-            }}
-          >
+          <Text style={{ textAlign: "center", color: colors.textMain, fontWeight: "600" }}>
             Cancel
           </Text>
         </Pressable>
@@ -435,29 +264,21 @@ export default function EditContactScreen() {
             paddingVertical: spacing.md,
             borderRadius: borderRadius.lg,
             backgroundColor:
-              name.trim() && !updateMutation.isPending
-                ? colors.primary
-                : colors.border,
+              name.trim() && !updateMutation.isPending ? colors.primary : colors.border,
             opacity: !name.trim() ? 0.5 : 1,
             justifyContent: "center",
             alignItems: "center",
             flexDirection: "row",
           }}
         >
-          {updateMutation.isPending ? (
+          {updateMutation.isPending && (
             <ActivityIndicator
               size="small"
               color={colors.card}
               style={{ marginRight: spacing.sm }}
             />
-          ) : null}
-          <Text
-            style={{
-              textAlign: "center",
-              color: colors.card,
-              fontWeight: "600",
-            }}
-          >
+          )}
+          <Text style={{ textAlign: "center", color: colors.card, fontWeight: "600" }}>
             {updateMutation.isPending ? "Saving..." : "Save Changes"}
           </Text>
         </Pressable>
