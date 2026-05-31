@@ -6,11 +6,17 @@ import {
   or,
   like,
   isNull,
+  inArray,
   sql,
   type SQL,
 } from "drizzle-orm";
 import * as z from "zod";
-import { contacts, directory, type NewContact } from "../database/schema";
+import {
+  contacts,
+  directory,
+  contactTags,
+  type NewContact,
+} from "../database/schema";
 import { authProc } from "../middleware/auth";
 import { ORPCError } from "@orpc/server";
 import { base58IdSchema } from "@orbital/utils";
@@ -130,6 +136,7 @@ export const listContacts = authProc
   .input(
     PaginationInputSchema.extend({
       group: z.string().optional(),
+      tagId: z.string().optional(),
       sort: z.enum(["date", "name"]).optional().default("date"),
     }),
   )
@@ -142,6 +149,14 @@ export const listContacts = authProc
       conditions.push(
         eq(contacts.group, input.group as "work" | "personal") as SQL,
       );
+    }
+
+    if (input.tagId) {
+      const subq = (db as any)
+        .select({ id: contactTags.contactId })
+        .from(contactTags)
+        .where(eq(contactTags.tagId, input.tagId));
+      conditions.push(inArray(contacts.id, subq) as SQL);
     }
     const [results, countResult] = await Promise.all([
       db

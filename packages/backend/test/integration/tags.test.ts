@@ -8,6 +8,7 @@ import {
   createTag,
   updateTag,
   deleteTag,
+  getContactsByTagId,
 } from "@orbital/client";
 import { backend } from "@orbital/testing";
 import { createTestToken } from "@orbital/testing/backend/auth";
@@ -85,16 +86,20 @@ describe("Contact Tags", () => {
         name: "Alice",
         tags: ["investor", "sf-bay-area"],
       });
-      if (createRes.status !== 200) throw new Error("Expected 200 from createContact");
+      if (createRes.status !== 200)
+        throw new Error("Expected 200 from createContact");
 
       const getRes = await getContactById(createRes.data.id);
-      if (getRes.status !== 200) throw new Error("Expected 200 from getContactById");
+      if (getRes.status !== 200)
+        throw new Error("Expected 200 from getContactById");
 
       const contact = getRes.data;
       expect(contact.tags).toHaveLength(2);
-      const names = (contact.tags ?? []).map(t => t.name).sort();
+      const names = (contact.tags ?? []).map((t) => t.name).sort();
       expect(names).toEqual(["investor", "sf-bay-area"].sort());
-      expect((contact.tags ?? []).every(t => t.isDynamic === false)).toBe(true);
+      expect((contact.tags ?? []).every((t) => t.isDynamic === false)).toBe(
+        true,
+      );
     });
 
     it("should create entries in the tag pool for new names", async () => {
@@ -102,15 +107,17 @@ describe("Contact Tags", () => {
 
       const listRes = await listTags();
       if (listRes.status !== 200) throw new Error("Expected 200 from listTags");
-      expect(listRes.data.some(t => t.name === "investor")).toBe(true);
+      expect(listRes.data.some((t) => t.name === "investor")).toBe(true);
     });
 
     it("should return an empty tags array when no tags are given", async () => {
       const createRes = await createContact({ name: "Bob" });
-      if (createRes.status !== 200) throw new Error("Expected 200 from createContact");
+      if (createRes.status !== 200)
+        throw new Error("Expected 200 from createContact");
 
       const getRes = await getContactById(createRes.data.id);
-      if (getRes.status !== 200) throw new Error("Expected 200 from getContactById");
+      if (getRes.status !== 200)
+        throw new Error("Expected 200 from getContactById");
       expect(getRes.data.tags).toEqual([]);
     });
 
@@ -120,7 +127,7 @@ describe("Contact Tags", () => {
 
       const listRes = await listTags();
       if (listRes.status !== 200) throw new Error("Expected 200 from listTags");
-      const investorRows = listRes.data.filter(t => t.name === "investor");
+      const investorRows = listRes.data.filter((t) => t.name === "investor");
       expect(investorRows).toHaveLength(1);
     });
   });
@@ -129,28 +136,40 @@ describe("Contact Tags", () => {
 
   describe("Static tags on updateContact", () => {
     it("should replace existing static tags with the new set", async () => {
-      const createRes = await createContact({ name: "Alice", tags: ["a", "b"] });
-      if (createRes.status !== 200) throw new Error("Expected 200 from createContact");
+      const createRes = await createContact({
+        name: "Alice",
+        tags: ["a", "b"],
+      });
+      if (createRes.status !== 200)
+        throw new Error("Expected 200 from createContact");
 
       await updateContact(createRes.data.id, { tags: ["c"] });
 
       const getRes = await getContactById(createRes.data.id);
-      if (getRes.status !== 200) throw new Error("Expected 200 from getContactById");
+      if (getRes.status !== 200)
+        throw new Error("Expected 200 from getContactById");
       const staticNames = (getRes.data.tags ?? [])
-        .filter(t => !t.isDynamic)
-        .map(t => t.name);
+        .filter((t) => !t.isDynamic)
+        .map((t) => t.name);
       expect(staticNames).toEqual(["c"]);
     });
 
     it("should clear all static tags when updated with an empty array", async () => {
-      const createRes = await createContact({ name: "Alice", tags: ["investor"] });
-      if (createRes.status !== 200) throw new Error("Expected 200 from createContact");
+      const createRes = await createContact({
+        name: "Alice",
+        tags: ["investor"],
+      });
+      if (createRes.status !== 200)
+        throw new Error("Expected 200 from createContact");
 
       await updateContact(createRes.data.id, { tags: [] });
 
       const getRes = await getContactById(createRes.data.id);
-      if (getRes.status !== 200) throw new Error("Expected 200 from getContactById");
-      expect((getRes.data.tags ?? []).filter(t => !t.isDynamic)).toHaveLength(0);
+      if (getRes.status !== 200)
+        throw new Error("Expected 200 from getContactById");
+      expect((getRes.data.tags ?? []).filter((t) => !t.isDynamic)).toHaveLength(
+        0,
+      );
     });
 
     it("should preserve dynamic tags when only updating the static set", async () => {
@@ -161,7 +180,8 @@ describe("Contact Tags", () => {
         name: "Alice",
         notes: "Runs a startup.",
       });
-      if (createRes.status !== 200) throw new Error("Expected 200 from createContact");
+      if (createRes.status !== 200)
+        throw new Error("Expected 200 from createContact");
       const contactId = createRes.data.id;
       await new Promise((r) => setTimeout(r, 200));
       spy.mockRestore();
@@ -169,10 +189,11 @@ describe("Contact Tags", () => {
       await updateContact(contactId, { tags: ["investor"] });
 
       const getRes = await getContactById(contactId);
-      if (getRes.status !== 200) throw new Error("Expected 200 from getContactById");
+      if (getRes.status !== 200)
+        throw new Error("Expected 200 from getContactById");
       const tags = getRes.data.tags ?? [];
-      const dynamicNames = tags.filter(t => t.isDynamic).map(t => t.name);
-      const staticNames = tags.filter(t => !t.isDynamic).map(t => t.name);
+      const dynamicNames = tags.filter((t) => t.isDynamic).map((t) => t.name);
+      const staticNames = tags.filter((t) => !t.isDynamic).map((t) => t.name);
       expect(dynamicNames).toContain("startup");
       expect(staticNames).toEqual(["investor"]);
     });
@@ -190,16 +211,18 @@ describe("Contact Tags", () => {
           name: "Alice",
           notes: "Runs a startup in fintech.",
         });
-        if (createRes.status !== 200) throw new Error("Expected 200 from createContact");
+        if (createRes.status !== 200)
+          throw new Error("Expected 200 from createContact");
 
         // Wait for the background waitUntil to complete
         await new Promise((r) => setTimeout(r, 200));
 
         const getRes = await getContactById(createRes.data.id);
-        if (getRes.status !== 200) throw new Error("Expected 200 from getContactById");
+        if (getRes.status !== 200)
+          throw new Error("Expected 200 from getContactById");
         const dynamicNames = (getRes.data.tags ?? [])
-          .filter(t => t.isDynamic)
-          .map(t => t.name);
+          .filter((t) => t.isDynamic)
+          .map((t) => t.name);
         expect(dynamicNames).toContain("startup");
         expect(dynamicNames).toContain("fintech");
       } finally {
@@ -217,20 +240,22 @@ describe("Contact Tags", () => {
           notes: "Investor in startups.",
           tags: ["investor"],
         });
-        if (createRes.status !== 200) throw new Error("Expected 200 from createContact");
+        if (createRes.status !== 200)
+          throw new Error("Expected 200 from createContact");
 
         await new Promise((r) => setTimeout(r, 200));
 
         const getRes = await getContactById(createRes.data.id);
-        if (getRes.status !== 200) throw new Error("Expected 200 from getContactById");
+        if (getRes.status !== 200)
+          throw new Error("Expected 200 from getContactById");
         const tags = getRes.data.tags ?? [];
 
         // "investor" must appear exactly once, as static
-        const investorEntries = tags.filter(t => t.name === "investor");
+        const investorEntries = tags.filter((t) => t.name === "investor");
         expect(investorEntries).toHaveLength(1);
         expect(investorEntries[0].isDynamic).toBe(false);
         // "startup" added as dynamic
-        const dynamicNames = tags.filter(t => t.isDynamic).map(t => t.name);
+        const dynamicNames = tags.filter((t) => t.isDynamic).map((t) => t.name);
         expect(dynamicNames).toContain("startup");
       } finally {
         spy.mockRestore();
@@ -243,13 +268,17 @@ describe("Contact Tags", () => {
       });
       try {
         const createRes = await createContact({ name: "Alice" });
-        if (createRes.status !== 200) throw new Error("Expected 200 from createContact");
+        if (createRes.status !== 200)
+          throw new Error("Expected 200 from createContact");
 
         await new Promise((r) => setTimeout(r, 200));
 
         const getRes = await getContactById(createRes.data.id);
-        if (getRes.status !== 200) throw new Error("Expected 200 from getContactById");
-        expect((getRes.data.tags ?? []).filter(t => t.isDynamic)).toHaveLength(0);
+        if (getRes.status !== 200)
+          throw new Error("Expected 200 from getContactById");
+        expect(
+          (getRes.data.tags ?? []).filter((t) => t.isDynamic),
+        ).toHaveLength(0);
         // AxGen.forward must not have been called for dynamic-tag generation
         // (may still be called zero times for memory-reps since there are no notes)
         expect(spy).not.toHaveBeenCalled();
@@ -268,15 +297,17 @@ describe("Contact Tags", () => {
           notes: "Some notes.",
           tags: ["investor"],
         });
-        if (createRes.status !== 200) throw new Error("Expected 200 from createContact");
+        if (createRes.status !== 200)
+          throw new Error("Expected 200 from createContact");
 
         await new Promise((r) => setTimeout(r, 200));
 
         const getRes = await getContactById(createRes.data.id);
-        if (getRes.status !== 200) throw new Error("Expected 200 from getContactById");
+        if (getRes.status !== 200)
+          throw new Error("Expected 200 from getContactById");
         const tags = getRes.data.tags ?? [];
-        expect(tags.some(t => t.name === "investor")).toBe(true);
-        expect(tags.filter(t => t.isDynamic)).toHaveLength(0);
+        expect(tags.some((t) => t.name === "investor")).toBe(true);
+        expect(tags.filter((t) => t.isDynamic)).toHaveLength(0);
       } finally {
         spy.mockRestore();
       }
@@ -294,7 +325,8 @@ describe("Contact Tags", () => {
         name: "Alice",
         notes: "Works in fintech.",
       });
-      if (createRes.status !== 200) throw new Error("Expected 200 from createContact");
+      if (createRes.status !== 200)
+        throw new Error("Expected 200 from createContact");
       const contactId = createRes.data.id;
       await new Promise((r) => setTimeout(r, 200));
       spy1.mockRestore();
@@ -308,10 +340,11 @@ describe("Contact Tags", () => {
         await new Promise((r) => setTimeout(r, 200));
 
         const getRes = await getContactById(contactId);
-        if (getRes.status !== 200) throw new Error("Expected 200 from getContactById");
+        if (getRes.status !== 200)
+          throw new Error("Expected 200 from getContactById");
         const dynamicNames = (getRes.data.tags ?? [])
-          .filter(t => t.isDynamic)
-          .map(t => t.name);
+          .filter((t) => t.isDynamic)
+          .map((t) => t.name);
         expect(dynamicNames).toContain("healthtech");
         expect(dynamicNames).not.toContain("fintech");
       } finally {
@@ -328,7 +361,8 @@ describe("Contact Tags", () => {
         notes: "Startup founder.",
         tags: ["vip"],
       });
-      if (createRes.status !== 200) throw new Error("Expected 200 from createContact");
+      if (createRes.status !== 200)
+        throw new Error("Expected 200 from createContact");
       const contactId = createRes.data.id;
       await new Promise((r) => setTimeout(r, 200));
       spy1.mockRestore();
@@ -341,11 +375,12 @@ describe("Contact Tags", () => {
         await new Promise((r) => setTimeout(r, 200));
 
         const getRes = await getContactById(contactId);
-        if (getRes.status !== 200) throw new Error("Expected 200 from getContactById");
+        if (getRes.status !== 200)
+          throw new Error("Expected 200 from getContactById");
         const tags = getRes.data.tags ?? [];
-        expect(tags.some(t => t.name === "vip" && !t.isDynamic)).toBe(true);
-        expect(tags.some(t => t.name === "vc" && t.isDynamic)).toBe(true);
-        expect(tags.some(t => t.name === "startup")).toBe(false);
+        expect(tags.some((t) => t.name === "vip" && !t.isDynamic)).toBe(true);
+        expect(tags.some((t) => t.name === "vc" && t.isDynamic)).toBe(true);
+        expect(tags.some((t) => t.name === "startup")).toBe(false);
       } finally {
         spy2.mockRestore();
       }
@@ -375,60 +410,76 @@ describe("Contact Tags", () => {
 
       const res = await listTags();
       if (res.status !== 200) throw new Error("Expected 200 from listTags");
-      const names = res.data.map(t => t.name).sort();
+      const names = res.data.map((t) => t.name).sort();
       expect(names).toContain("a");
       expect(names).toContain("b");
     });
 
     it("PUT /tags/{id} updates name and color", async () => {
       const createRes = await createTag({ name: "old-name" });
-      if (createRes.status !== 200) throw new Error("Expected 200 from createTag");
+      if (createRes.status !== 200)
+        throw new Error("Expected 200 from createTag");
 
-      const updateRes = await updateTag(createRes.data.id, { name: "new-name", color: "#00ff00" });
-      if (updateRes.status !== 200) throw new Error("Expected 200 from updateTag");
+      const updateRes = await updateTag(createRes.data.id, {
+        name: "new-name",
+        color: "#00ff00",
+      });
+      if (updateRes.status !== 200)
+        throw new Error("Expected 200 from updateTag");
       expect(updateRes.data.name).toBe("new-name");
       expect(updateRes.data.color).toBe("#00ff00");
     });
 
     it("DELETE /tags/{id} removes the tag", async () => {
       const createRes = await createTag({ name: "to-delete" });
-      if (createRes.status !== 200) throw new Error("Expected 200 from createTag");
+      if (createRes.status !== 200)
+        throw new Error("Expected 200 from createTag");
 
       const delRes = await deleteTag(createRes.data.id);
       expect(delRes.status).toBe(200);
 
       const listRes = await listTags();
       if (listRes.status !== 200) throw new Error("Expected 200 from listTags");
-      expect(listRes.data.some(t => t.id === createRes.data.id)).toBe(false);
+      expect(listRes.data.some((t) => t.id === createRes.data.id)).toBe(false);
     });
 
     it("DELETE /tags/{id} cascades to remove contact_tag rows", async () => {
-      const contactRes = await createContact({ name: "Alice", tags: ["cascade-test"] });
-      if (contactRes.status !== 200) throw new Error("Expected 200 from createContact");
+      const contactRes = await createContact({
+        name: "Alice",
+        tags: ["cascade-test"],
+      });
+      if (contactRes.status !== 200)
+        throw new Error("Expected 200 from createContact");
 
       const listRes = await listTags();
       if (listRes.status !== 200) throw new Error("Expected 200 from listTags");
-      const tag = listRes.data.find(t => t.name === "cascade-test");
+      const tag = listRes.data.find((t) => t.name === "cascade-test");
       if (!tag) throw new Error("Expected cascade-test tag to exist");
 
       await deleteTag(tag.id);
 
       const getRes = await getContactById(contactRes.data.id);
-      if (getRes.status !== 200) throw new Error("Expected 200 from getContactById");
-      expect((getRes.data.tags ?? []).some(t => t.name === "cascade-test")).toBe(false);
+      if (getRes.status !== 200)
+        throw new Error("Expected 200 from getContactById");
+      expect(
+        (getRes.data.tags ?? []).some((t) => t.name === "cascade-test"),
+      ).toBe(false);
     });
 
     it("enforces user isolation — user2 cannot see user1's tags", async () => {
       await createTag({ name: "private" });
 
-      const res = await listTags({ headers: { Authorization: `Bearer ${user2Token}` } });
+      const res = await listTags({
+        headers: { Authorization: `Bearer ${user2Token}` },
+      });
       if (res.status !== 200) throw new Error("Expected 200 from listTags");
-      expect(res.data.some(t => t.name === "private")).toBe(false);
+      expect(res.data.some((t) => t.name === "private")).toBe(false);
     });
 
     it("returns 404 when user2 tries to delete user1's tag", async () => {
       const createRes = await createTag({ name: "user1-tag" });
-      if (createRes.status !== 200) throw new Error("Expected 200 from createTag");
+      if (createRes.status !== 200)
+        throw new Error("Expected 200 from createTag");
 
       const delRes = await deleteTag(createRes.data.id, undefined, {
         headers: { Authorization: `Bearer ${user2Token}` },
@@ -444,7 +495,8 @@ describe("Contact Tags", () => {
 
     it("returns 400 when updating a tag with neither name nor color", async () => {
       const createRes = await createTag({ name: "patch-me" });
-      if (createRes.status !== 200) throw new Error("Expected 200 from createTag");
+      if (createRes.status !== 200)
+        throw new Error("Expected 200 from createTag");
 
       const res = await updateTag(createRes.data.id, {});
       expect(res.status).toBe(400);
@@ -453,6 +505,93 @@ describe("Contact Tags", () => {
     it("returns 401 when no auth token is provided", async () => {
       const res = await fetch(`${server.url}/rpc/tags`);
       expect(res.status).toBe(401);
+    });
+  });
+
+  // ─── GET /contacts?tagId filtering ──────────────────────────────────────────
+
+  describe("GET /contacts?tagId filtering", () => {
+    it("returns only contacts that have the given tag", async () => {
+      const alice = await createContact({ name: "Alice", tags: ["vip"] });
+      const bob = await createContact({ name: "Bob", tags: ["regular"] });
+      if (alice.status !== 200 || bob.status !== 200)
+        throw new Error("createContact failed");
+
+      const tagsRes = await listTags();
+      if (tagsRes.status !== 200) throw new Error("Expected 200 from listTags");
+      const vipTag = tagsRes.data.find((t) => t.name === "vip");
+      if (!vipTag) throw new Error("Expected vip tag to exist");
+
+      const res = await getContactsByTagId({
+        tagId: vipTag.id,
+        limit: 100,
+        offset: 0,
+      });
+      if (res.status !== 200)
+        throw new Error(`Expected 200, got ${res.status}`);
+      const names = res.data.items.map((c) => c.name);
+      expect(names).toContain("Alice");
+      expect(names).not.toContain("Bob");
+    });
+
+    it("returns multiple contacts that share the same tag", async () => {
+      await createContact({ name: "Alice", tags: ["shared"] });
+      await createContact({ name: "Bob", tags: ["shared"] });
+      await createContact({ name: "Carol", tags: ["other"] });
+
+      const tagsRes = await listTags();
+      if (tagsRes.status !== 200) throw new Error("Expected 200 from listTags");
+      const sharedTag = tagsRes.data.find((t) => t.name === "shared");
+      if (!sharedTag) throw new Error("Expected shared tag to exist");
+
+      const res = await getContactsByTagId({
+        tagId: sharedTag.id,
+        limit: 100,
+        offset: 0,
+      });
+      if (res.status !== 200)
+        throw new Error(`Expected 200, got ${res.status}`);
+      const names = res.data.items.map((c) => c.name);
+      expect(names).toContain("Alice");
+      expect(names).toContain("Bob");
+      expect(names).not.toContain("Carol");
+      expect(res.data.pagination.total).toBe(2);
+    });
+
+    it("returns an empty list when no contacts have the given tag", async () => {
+      await createContact({ name: "Alice", tags: ["other"] });
+      const orphanTag = await createTag({ name: "empty-tag" });
+      if (orphanTag.status !== 200)
+        throw new Error("Expected 200 from createTag");
+
+      const res = await getContactsByTagId({
+        tagId: orphanTag.data.id,
+        limit: 100,
+        offset: 0,
+      });
+      if (res.status !== 200)
+        throw new Error(`Expected 200, got ${res.status}`);
+      expect(res.data.items).toHaveLength(0);
+      expect(res.data.pagination.total).toBe(0);
+    });
+
+    it("does not return contacts from another user when filtering by tag", async () => {
+      // user1 creates a contact with tag "cross"
+      await createContact({ name: "User1Contact", tags: ["cross"] });
+
+      const tagsRes = await listTags();
+      if (tagsRes.status !== 200) throw new Error("Expected 200 from listTags");
+      const crossTag = tagsRes.data.find((t) => t.name === "cross");
+      if (!crossTag) throw new Error("Expected cross tag");
+
+      // user2 queries with user1's tag ID — should return nothing
+      const res = await getContactsByTagId(
+        { tagId: crossTag.id, limit: 100, offset: 0 },
+        { headers: { Authorization: `Bearer ${user2Token}` } },
+      );
+      if (res.status !== 200)
+        throw new Error(`Expected 200, got ${res.status}`);
+      expect(res.data.items).toHaveLength(0);
     });
   });
 });

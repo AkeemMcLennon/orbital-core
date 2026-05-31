@@ -36,12 +36,11 @@ export interface ExtractedContact {
   notes?: string;
 }
 
-const gen = new AxGen(extractSignature);
-
 export async function extractContactFromImage(
   imageData: string,
   mimeType: string,
 ): Promise<ExtractedContact> {
+  const gen = new AxGen(extractSignature);
   const result = await gen.forward(getVisionAI(), {
     profileImage: { mimeType, data: imageData },
   });
