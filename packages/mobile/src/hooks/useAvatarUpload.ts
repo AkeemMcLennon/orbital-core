@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Alert, Platform } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useQueryClient } from "@tanstack/react-query";
-import { getAvatarUploadUrl, updateContact } from "@orbital/client";
 import { contactKeys } from "../queries/contacts";
+import { uploadAvatar } from "../lib/uploadAvatar";
 
 type PickedImage = {
   uri: string;
@@ -44,26 +44,7 @@ export function useAvatarUpload(contactId: string) {
 
     setIsUploading(true);
     try {
-      const blob = await (await fetch(picked.uri)).blob();
-
-      const urlRes = await getAvatarUploadUrl(contactId, {
-        contentType: picked.mimeType as any,
-        contentLength: blob.size,
-      });
-      if (urlRes.status !== 200) throw new Error("Failed to get upload URL");
-      const { uploadUrl, publicUrl } = urlRes.data;
-
-      const putRes = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: {
-          "Content-Type": picked.mimeType,
-          "Content-Length": String(blob.size),
-        },
-        body: blob,
-      });
-      if (!putRes.ok) throw new Error(`Upload failed: ${putRes.status}`);
-
-      await updateContact(contactId, { avatarUrl: publicUrl });
+      await uploadAvatar(contactId, picked.uri, picked.mimeType);
       queryClient.invalidateQueries({
         queryKey: contactKeys.detail(contactId),
       });

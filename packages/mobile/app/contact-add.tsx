@@ -12,11 +12,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebounceValue } from "usehooks-ts";
 import * as ImagePicker from "expo-image-picker";
 import {
-  createContact,
   searchAvailableContacts,
   getAvailableContacts,
   contactsExtractFromImage,
@@ -24,6 +23,7 @@ import {
 } from "@orbital/client";
 import { useExtractImageQuery } from "../src/hooks/useExtractImageQuery";
 import { contactKeys } from "../src/queries/contacts";
+import { createContactWithAvatar } from "../src/lib/createContactWithAvatar";
 import Constants from "expo-constants";
 import { colors, spacing, borderRadius, shadows } from "../src/theme";
 import { fetchMetadata, isUrl, detectSocialPlatform, type MetadataResult } from "../src/utils/metadata";
@@ -49,6 +49,8 @@ export default function AddContactScreen() {
   const [showResults, setShowResults] = useState(false);
   const [notes, setNotes] = useState("");
   const [isExtractingImage, setIsExtractingImage] = useState(false);
+  const [avatarMimeType, setAvatarMimeType] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const queryClient = useQueryClient();
   const extractionApplied = useRef(false);
 
@@ -59,10 +61,11 @@ export default function AddContactScreen() {
     isError: isExtractionError,
   } = useExtractImageQuery(sharedImageUri, sharedImageMimeType);
 
-  function applyExtractedContact(data: { name?: string; email?: string | null; phone?: string; company?: string; jobTitle?: string; linkedinUrl?: string }, avatarUri?: string) {
+  function applyExtractedContact(data: { name?: string; email?: string | null; phone?: string; company?: string; jobTitle?: string; linkedinUrl?: string }, avatarUri?: string, mimeType?: string) {
     const name = data.name || "Unknown";
     setSearchText(name);
     setSelectedContact({ id: `extracted:${Date.now()}`, name, email: data.email ?? null, avatarUrl: avatarUri ?? null });
+    setAvatarMimeType(avatarUri && !avatarUri.startsWith("http") ? (mimeType ?? "image/jpeg") : null);
     setShowResults(false);
     const extra = [
       data.phone       && `Phone: ${data.phone}`,
@@ -159,32 +162,10 @@ export default function AddContactScreen() {
   const availableContacts =
     searchData?.status === 200 ? searchData.data.items : [];
 
-  // Mutation for creating contact
-  const createContactMutation = useMutation({
-    mutationFn: (data: {
-      name: string;
-      email?: string;
-      notes?: string;
-      avatarUrl?: string;
-    }) => createContact(data),
-    onSuccess: () => {
-      if (sharedImageUri) {
-        // Eager background fetch so cache is populated when home screen mounts
-        queryClient.refetchQueries({ queryKey: contactKeys.all });
-        router.replace("/(main)");
-      } else {
-        queryClient.invalidateQueries({ queryKey: contactKeys.all });
-        router.back();
-      }
-    },
-    onError: (error) => {
-      console.error("Failed to create contact:", error);
-      alert("Failed to create contact. Please try again.");
-    },
-  });
 
   const handleContactSelect = (contact: (typeof availableContacts)[0]) => {
     setSelectedContact(contact);
+    setAvatarMimeType(null);
     setSearchText(contact.name);
     setShowResults(false);
   };
@@ -211,7 +192,7 @@ export default function AddContactScreen() {
       });
       if (!isSuccess(res)) throw new Error("Extraction failed");
 
-      applyExtractedContact(res.data as Record<string, string>, asset.uri);
+      applyExtractedContact(res.data as Record<string, string>, asset.uri, asset.mimeType ?? "image/jpeg");
     } catch {
       Alert.alert(
         "Extraction failed",
@@ -232,17 +213,37 @@ export default function AddContactScreen() {
 
   const handleAddContact = async () => {
     const name = selectedContact?.name || searchText.trim();
-    if (!name) {
-      alert("Please enter a contact name");
-      return;
-    }
+    if (!name || isSubmitting) return;
 
-    createContactMutation.mutate({
-      name,
-      email: selectedContact?.email || undefined,
-      avatarUrl: selectedContact?.avatarUrl || undefined,
-      notes: notes || undefined,
-    });
+    setIsSubmitting(true);
+    try {
+      const created = await createContactWithAvatar({
+        name,
+        email: selectedContact?.email || undefined,
+        notes: notes || undefined,
+        avatarUrl: selectedContact?.avatarUrl ?? undefined,
+        avatarMimeType: avatarMimeType ?? undefined,
+      });
+      if (sharedImageUri) {
+        // Eager background fetch so cache is populated when home screen mounts
+        queryClient.refetchQueries({ queryKey: contactKeys.all });
+        router.replace("/(main)");
+      } else {
+        queryClient.invalidateQueries({ queryKey: contactKeys.all });
+        router.back();
+      }
+      if (created.avatarUploadFailed) {
+        Alert.alert(
+          "Photo upload failed",
+          "The contact was saved, but the photo couldn't be uploaded. You can try again from the edit screen.",
+        );
+      }
+    } catch (err) {
+      console.error("Failed to create contact:", err);
+      alert("Failed to create contact. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -650,6 +651,7 @@ export default function AddContactScreen() {
             <Pressable
               onPress={() => {
                 setSelectedContact(null);
+                setAvatarMimeType(null);
                 setSearchText("");
               }}
             >
@@ -711,13 +713,13 @@ export default function AddContactScreen() {
       >
         <Pressable
           onPress={() => router.back()}
-          disabled={createContactMutation.isPending}
+          disabled={isSubmitting}
           style={{
             flex: 1,
             paddingVertical: spacing.md,
             borderRadius: borderRadius.lg,
             backgroundColor: colors.border,
-            opacity: createContactMutation.isPending ? 0.5 : 1,
+            opacity: isSubmitting ? 0.5 : 1,
           }}
         >
           <Text
@@ -734,7 +736,7 @@ export default function AddContactScreen() {
           onPress={handleAddContact}
           disabled={
             (!selectedContact && !searchText.trim()) ||
-            createContactMutation.isPending
+            isSubmitting
           }
           style={{
             flex: 1,
@@ -750,7 +752,7 @@ export default function AddContactScreen() {
             flexDirection: "row",
           }}
         >
-          {createContactMutation.isPending ? (
+          {isSubmitting ? (
             <ActivityIndicator
               size="small"
               color={colors.card}
@@ -764,7 +766,7 @@ export default function AddContactScreen() {
               fontWeight: "600",
             }}
           >
-            {createContactMutation.isPending ? "Adding..." : "Add Contact"}
+            {isSubmitting ? "Adding..." : "Add Contact"}
           </Text>
         </Pressable>
       </View>
