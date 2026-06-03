@@ -13,4 +13,3 @@ export * from "./generated/client";
 
 // Hand-written client exports for newer endpoints
 export * from "./relationships";
-export * from "./tags-client";

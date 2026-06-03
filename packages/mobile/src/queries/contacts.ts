@@ -53,6 +53,17 @@ export function useAllContactsList() {
   return query;
 }
 
+export function useContactsByTag(tagId: string) {
+  return useQuery({
+    queryKey: ["contacts", "by-tag", tagId],
+    queryFn: () => getContacts({ tagId, limit: 100, offset: 0, sort: "name" }),
+    select: (data) => getSuccessData(data)?.items ?? [],
+    staleTime: 5 * 60 * 1000,
+    enabled: !!tagId,
+    throwOnError: false,
+  });
+}
+
 export function useContact(id: string) {
   const queryClient = useQueryClient();
 

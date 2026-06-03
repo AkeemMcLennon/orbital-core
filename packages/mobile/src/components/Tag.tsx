@@ -1,16 +1,49 @@
 import React from "react";
-import { View, Text, Pressable } from "react-native";
+import { View, Text, Pressable, PixelRatio } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius } from "../theme";
+
+const SIZE = {
+  small: {
+    fontSize: 12,
+    paddingH: spacing.sm,
+    paddingV: spacing.xs,
+    minHeight: 28,
+    iconSize: 12,
+  },
+  medium: {
+    fontSize: 15,
+    paddingH: 10,
+    paddingV: 5,
+    minHeight: 34,
+    iconSize: 15,
+  },
+  large: {
+    fontSize: 18,
+    paddingH: Math.round(spacing.sm * 1.5),
+    paddingV: Math.round(spacing.xs * 1.5),
+    minHeight: 42,
+    iconSize: 18,
+  },
+} as const;
 
 interface TagProps {
   name: string;
   isDynamic?: boolean;
   color?: string | null;
   onRemove?: () => void;
+  size?: keyof typeof SIZE;
 }
 
-export function Tag({ name, isDynamic = false, color, onRemove }: TagProps) {
+export function Tag({
+  name,
+  isDynamic = false,
+  color,
+  onRemove,
+  size = "small",
+}: TagProps) {
+  const fontScale = PixelRatio.getFontScale();
+  const s = SIZE[size];
   const bg = color ?? (isDynamic ? "#EEF2FF" : colors.primary);
   const textColor = isDynamic && !color ? colors.primary : "#FFFFFF";
 
@@ -21,16 +54,23 @@ export function Tag({ name, isDynamic = false, color, onRemove }: TagProps) {
         alignItems: "center",
         backgroundColor: bg,
         borderRadius: borderRadius.full,
-        paddingHorizontal: spacing.sm,
-        paddingVertical: spacing.xs,
+        paddingHorizontal: Math.round(s.paddingH * fontScale),
+        paddingVertical: Math.round(s.paddingV * fontScale),
+        minHeight: Math.round(s.minHeight * fontScale),
       }}
     >
-      <Text style={{ fontSize: 12, fontWeight: "600", color: textColor }}>
+      <Text
+        style={{ fontSize: s.fontSize, fontWeight: "600", color: textColor }}
+      >
         {name}
       </Text>
       {onRemove && (
-        <Pressable onPress={onRemove} style={{ marginLeft: spacing.xs }} hitSlop={8}>
-          <Ionicons name="close" size={12} color={textColor} />
+        <Pressable
+          onPress={onRemove}
+          style={{ marginLeft: spacing.xs }}
+          hitSlop={8}
+        >
+          <Ionicons name="close" size={s.iconSize} color={textColor} />
         </Pressable>
       )}
     </View>

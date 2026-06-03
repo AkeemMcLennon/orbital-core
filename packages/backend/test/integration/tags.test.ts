@@ -8,7 +8,7 @@ import {
   createTag,
   updateTag,
   deleteTag,
-  getContactsByTagId,
+  getContacts,
 } from "@orbital/client";
 import { backend } from "@orbital/testing";
 import { createTestToken } from "@orbital/testing/backend/auth";
@@ -522,7 +522,7 @@ describe("Contact Tags", () => {
       const vipTag = tagsRes.data.find((t) => t.name === "vip");
       if (!vipTag) throw new Error("Expected vip tag to exist");
 
-      const res = await getContactsByTagId({
+      const res = await getContacts({
         tagId: vipTag.id,
         limit: 100,
         offset: 0,
@@ -544,7 +544,7 @@ describe("Contact Tags", () => {
       const sharedTag = tagsRes.data.find((t) => t.name === "shared");
       if (!sharedTag) throw new Error("Expected shared tag to exist");
 
-      const res = await getContactsByTagId({
+      const res = await getContacts({
         tagId: sharedTag.id,
         limit: 100,
         offset: 0,
@@ -564,7 +564,7 @@ describe("Contact Tags", () => {
       if (orphanTag.status !== 200)
         throw new Error("Expected 200 from createTag");
 
-      const res = await getContactsByTagId({
+      const res = await getContacts({
         tagId: orphanTag.data.id,
         limit: 100,
         offset: 0,
@@ -585,7 +585,7 @@ describe("Contact Tags", () => {
       if (!crossTag) throw new Error("Expected cross tag");
 
       // user2 queries with user1's tag ID — should return nothing
-      const res = await getContactsByTagId(
+      const res = await getContacts(
         { tagId: crossTag.id, limit: 100, offset: 0 },
         { headers: { Authorization: `Bearer ${user2Token}` } },
       );

@@ -24,6 +24,12 @@ const DRAWER_ITEMS = [
   },
   {
     id: "3",
+    icon: "pricetag",
+    label: "Tags",
+    route: "/tags",
+  },
+  {
+    id: "4",
     icon: "settings",
     label: "Settings",
     route: "/settings",

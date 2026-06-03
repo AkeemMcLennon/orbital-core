@@ -58,7 +58,8 @@ function handleDeepLink(url: string) {
         pathname: "/contact-screenshot-crop" as any,
         params: {
           sharedImageUri: parsed.queryParams.sharedImageUri as string,
-          sharedImageMimeType: (parsed.queryParams.sharedImageMimeType as string) ?? "image/jpeg",
+          sharedImageMimeType:
+            (parsed.queryParams.sharedImageMimeType as string) ?? "image/jpeg",
         },
       });
     } else if (parsed.queryParams?.url) {
@@ -156,6 +157,7 @@ function AuthGate() {
       <Stack.Screen name="contact-add" />
       <Stack.Screen name="contacts/[id]" />
       <Stack.Screen name="contacts/[id]/edit" />
+      <Stack.Screen name="tags/[id]" />
       <Stack.Screen name="contacts/import" />
       <Stack.Screen name="settings" />
       <Stack.Screen name="developer-options" />

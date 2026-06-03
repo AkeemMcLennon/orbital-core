@@ -47,6 +47,13 @@ export default function MainLayout() {
             headerShown: false,
           }}
         />
+        <Drawer.Screen
+          name="tags/index"
+          options={{
+            drawerLabel: "Tags",
+            headerShown: false,
+          }}
+        />
       </Drawer>
       <StatusBar style="auto" />
     </View>
