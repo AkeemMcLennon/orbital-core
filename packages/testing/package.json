@@ -17,16 +17,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "jose": "^5.2.0",
-    "drizzle-orm": "^0.36.4"
+    "jose": "^5.2.0"
+  },
+  "peerDependencies": {
+    "@orbital/backend": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/node": "^25.0.7",
     "msw": "^2.12.7",
     "typescript": "^5.3.3"
-  },
-  "peerDependencies": {
-    "@orbital/backend": "workspace:*"
   }
 }

@@ -490,7 +490,7 @@ describe("Contact Tags", () => {
     it("returns 409 when creating a tag with a duplicate name", async () => {
       await createTag({ name: "dupe" });
       const res = await createTag({ name: "dupe" });
-      expect(res.status).toBe(409);
+      expect(res.status as number).toBe(409);
     });
 
     it("returns 400 when updating a tag with neither name nor color", async () => {

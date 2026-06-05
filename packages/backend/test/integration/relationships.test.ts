@@ -9,7 +9,14 @@ import {
 } from "@orbital/client";
 import { backend } from "@orbital/testing";
 import { createTestToken } from "@orbital/testing/backend/auth";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "bun:test";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
 import { loadSettings } from "../../src/config";
 import type { DatabaseClient } from "../../src/database/client";
 import * as schema from "../../src/database/schema";
@@ -133,7 +140,7 @@ describe("Relationships API", () => {
         type: "colleague",
       });
 
-      expect(response.status).toBe(409);
+      expect(response.status as number).toBe(409);
     });
 
     it("should reject non-existent contact", async () => {
@@ -145,7 +152,7 @@ describe("Relationships API", () => {
         type: "friend",
       });
 
-      expect(response.status).toBe(404);
+      expect(response.status as number).toBe(404);
     });
 
     it("should reject relationship with another user's contact", async () => {
@@ -164,7 +171,7 @@ describe("Relationships API", () => {
         type: "friend",
       });
 
-      expect(response.status).toBe(404);
+      expect(response.status as number).toBe(404);
     });
 
     it("should support negative sentiment", async () => {
@@ -269,8 +276,14 @@ describe("Relationships API", () => {
         });
       }
 
-      const page1 = await listContactRelationships(alice.id, { limit: 2, offset: 0 });
-      const page2 = await listContactRelationships(alice.id, { limit: 2, offset: 2 });
+      const page1 = await listContactRelationships(alice.id, {
+        limit: 2,
+        offset: 0,
+      });
+      const page2 = await listContactRelationships(alice.id, {
+        limit: 2,
+        offset: 2,
+      });
 
       if (page1.status !== 200 || page2.status !== 200) {
         throw new Error("Expected 200");

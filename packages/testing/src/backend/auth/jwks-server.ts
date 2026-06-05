@@ -1,8 +1,8 @@
-import { serve, type Server } from 'bun';
-import { getPublicJWK } from './jwt';
+import { serve } from "bun";
+import { getPublicJWK } from "./jwt";
 
-let jwksServer: Server | null = null;
-let jwksPort: number | null = null;
+let jwksServer: ReturnType<typeof serve> | null = null;
+let jwksPort: number | undefined;
 
 /**
  * Start mock JWKS server that serves public keys
@@ -22,25 +22,25 @@ export async function startJWKSServer(): Promise<number> {
       const url = new URL(req.url);
 
       // JWKS endpoint
-      if (url.pathname === '/.well-known/jwks.json') {
+      if (url.pathname === "/.well-known/jwks.json") {
         return new Response(
           JSON.stringify({
             keys: [publicJWK],
           }),
           {
-            headers: { 'Content-Type': 'application/json' },
-          }
+            headers: { "Content-Type": "application/json" },
+          },
         );
       }
 
       // Health check
-      if (url.pathname === '/health') {
-        return new Response(JSON.stringify({ status: 'ok' }), {
-          headers: { 'Content-Type': 'application/json' },
+      if (url.pathname === "/health") {
+        return new Response(JSON.stringify({ status: "ok" }), {
+          headers: { "Content-Type": "application/json" },
         });
       }
 
-      return new Response('Not Found', { status: 404 });
+      return new Response("Not Found", { status: 404 });
     },
   });
 
@@ -49,7 +49,7 @@ export async function startJWKSServer(): Promise<number> {
   // Wait for server to be ready
   await waitForServer(`http://localhost:${jwksPort}/health`);
 
-  return jwksPort;
+  return jwksPort!;
 }
 
 /**

@@ -1,4 +1,4 @@
-import type { Integration, SecondaryChannel } from '../database/schema';
+import type { Integration, SecondaryChannel } from "../database/schema";
 
 /**
  * OAuth2 token information
@@ -49,7 +49,7 @@ export interface ExternalContact {
  */
 export interface DecryptedIntegration extends Integration {
   accessToken: string; // Decrypted
-  refreshToken?: string; // Decrypted
+  refreshToken: string | null; // Decrypted
 }
 
 export type { SecondaryChannel };

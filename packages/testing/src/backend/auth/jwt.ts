@@ -1,8 +1,9 @@
-import { SignJWT, generateKeyPair, exportJWK } from 'jose';
+import { SignJWT, generateKeyPair, exportJWK } from "jose";
+import type { KeyLike } from "jose";
 
 interface TestKeyPair {
-  publicKey: CryptoKey;
-  privateKey: CryptoKey;
+  publicKey: KeyLike;
+  privateKey: KeyLike;
   kid: string;
 }
 
@@ -14,11 +15,11 @@ let testKeyPair: TestKeyPair | null = null;
 export async function generateTestKeyPair(): Promise<TestKeyPair> {
   if (testKeyPair) return testKeyPair;
 
-  const { publicKey, privateKey } = await generateKeyPair('RS256');
-  const kid = 'test-key-1';
+  const { publicKey, privateKey } = await generateKeyPair("RS256");
+  const kid = "test-key-1";
 
   testKeyPair = { publicKey, privateKey, kid };
-  return testKeyPair;
+  return testKeyPair!;
 }
 
 /**
@@ -31,14 +32,14 @@ export async function getPublicJWK() {
   return {
     ...jwk,
     kid,
-    alg: 'RS256',
-    use: 'sig',
+    alg: "RS256",
+    use: "sig",
   };
 }
 
 // Test issuer and audience - must match values in server.ts defaults
-export const TEST_ISSUER = 'http://localhost:9999/';
-export const TEST_AUDIENCE = 'test-audience';
+export const TEST_ISSUER = "http://localhost:9999/";
+export const TEST_AUDIENCE = "test-audience";
 
 /**
  * Create a valid test JWT token
@@ -52,11 +53,11 @@ export async function createTestToken(payload: {
   const { privateKey, kid } = await generateTestKeyPair();
 
   const token = await new SignJWT(payload)
-    .setProtectedHeader({ alg: 'RS256', kid })
+    .setProtectedHeader({ alg: "RS256", kid })
     .setIssuer(TEST_ISSUER)
     .setAudience(TEST_AUDIENCE)
     .setIssuedAt()
-    .setExpirationTime('1h')
+    .setExpirationTime("1h")
     .sign(privateKey);
 
   return token;
@@ -73,7 +74,7 @@ export async function createExpiredToken(payload: {
   const { privateKey, kid } = await generateTestKeyPair();
 
   const token = await new SignJWT(payload)
-    .setProtectedHeader({ alg: 'RS256', kid })
+    .setProtectedHeader({ alg: "RS256", kid })
     .setIssuer(TEST_ISSUER)
     .setAudience(TEST_AUDIENCE)
     .setIssuedAt(Math.floor(Date.now() / 1000) - 3600) // 1 hour ago
@@ -92,11 +93,11 @@ export async function createInvalidIssuerToken(payload: {
   const { privateKey, kid } = await generateTestKeyPair();
 
   const token = await new SignJWT(payload)
-    .setProtectedHeader({ alg: 'RS256', kid })
-    .setIssuer('http://wrong-issuer.example.com/')
+    .setProtectedHeader({ alg: "RS256", kid })
+    .setIssuer("http://wrong-issuer.example.com/")
     .setAudience(TEST_AUDIENCE)
     .setIssuedAt()
-    .setExpirationTime('1h')
+    .setExpirationTime("1h")
     .sign(privateKey);
 
   return token;
@@ -111,11 +112,11 @@ export async function createInvalidAudienceToken(payload: {
   const { privateKey, kid } = await generateTestKeyPair();
 
   const token = await new SignJWT(payload)
-    .setProtectedHeader({ alg: 'RS256', kid })
+    .setProtectedHeader({ alg: "RS256", kid })
     .setIssuer(TEST_ISSUER)
-    .setAudience('wrong-audience')
+    .setAudience("wrong-audience")
     .setIssuedAt()
-    .setExpirationTime('1h')
+    .setExpirationTime("1h")
     .sign(privateKey);
 
   return token;

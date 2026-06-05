@@ -35,7 +35,13 @@ export async function customFetch<T>(
   let finalUrl = `${baseUrl}${url}`;
 
   // Build headers with optional token injection
-  const headers = new Headers(options?.headers);
+  const headers = new Headers(
+    options?.headers as
+      | Record<string, string>
+      | [string, string][]
+      | Headers
+      | undefined,
+  );
 
   if (clientOptions?.getToken) {
     const tokenOrPromise = clientOptions.getToken();
@@ -81,7 +87,13 @@ export async function customFetch<T>(
         }
 
         // Retry the original request with the new token
-        const retryHeaders = new Headers(options?.headers);
+        const retryHeaders = new Headers(
+          options?.headers as
+            | Record<string, string>
+            | [string, string][]
+            | Headers
+            | undefined,
+        );
         retryHeaders.set("Authorization", `Bearer ${newToken}`);
 
         const retryResponse = await fetch(finalUrl, {

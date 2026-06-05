@@ -18,7 +18,10 @@ import type { DatabaseClient } from "../../src/database/client";
 import { google as gAPIS } from "googleapis";
 import { startServer } from "../../src/server";
 import { loadSettings } from "../../src/config";
-import { initializeApiClient, integrationsGoogleConnect } from "@orbital/client";
+import {
+  initializeApiClient,
+  integrationsGoogleConnect,
+} from "@orbital/client";
 
 // Import MSW utilities
 const { google } = backend.integrations;
@@ -435,7 +438,7 @@ describe("Google OAuth Flow (API)", () => {
     const connectResponse = await integrationsGoogleConnect();
 
     expect(connectResponse.status).toBe(200);
-    const connectData = connectResponse.data;
+    const connectData = connectResponse.data as { url: string; state: string };
 
     // Verify OAuth URL and session state
     expect(connectData.url).toContain("accounts.google.com");
@@ -511,7 +514,7 @@ describe("Google OAuth Flow (API)", () => {
 
     // Create OAuth session using API client
     const connectResponse = await integrationsGoogleConnect();
-    const connectData = connectResponse.data;
+    const connectData = connectResponse.data as { url: string; state: string };
 
     // Manually expire the session
     await db
@@ -540,7 +543,7 @@ describe("Google OAuth Flow (API)", () => {
 
     // Create OAuth session using API client
     const connectResponse = await integrationsGoogleConnect();
-    const connectData = connectResponse.data;
+    const connectData = connectResponse.data as { url: string; state: string };
 
     // Call callback without code
     const callbackResponse = await fetch(
@@ -563,7 +566,7 @@ describe("Google OAuth Flow (API)", () => {
 
     // Create OAuth session using API client
     const connectResponse = await integrationsGoogleConnect();
-    const connectData = connectResponse.data;
+    const connectData = connectResponse.data as { url: string; state: string };
 
     // Simulate OAuth error from provider
     const callbackResponse = await fetch(
@@ -578,4 +581,3 @@ describe("Google OAuth Flow (API)", () => {
     expect(location).toContain("error=access_denied");
   });
 });
-

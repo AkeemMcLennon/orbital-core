@@ -1,9 +1,12 @@
-import { eq, and } from 'drizzle-orm';
-import { integrations } from '../../database/schema';
-import { crypto } from '../../utils/crypto';
-import type { DatabaseClient } from '../../database/client';
-import type { Integration, NewIntegration } from '../../database/schema';
-import type { DecryptedIntegration, OAuth2Tokens } from '../../types/integrations';
+import { eq, and } from "drizzle-orm";
+import { integrations } from "../../database/schema";
+import { crypto } from "../../utils/crypto";
+import type { DatabaseClient } from "../../database/client";
+import type { Integration, NewIntegration } from "../../database/schema";
+import type {
+  DecryptedIntegration,
+  OAuth2Tokens,
+} from "../../types/integrations";
 
 /**
  * Store encrypted OAuth credentials for an integration
@@ -32,7 +35,11 @@ export async function storeIntegrationCredentials(
       tokenExpiresAt: tokens.expiresAt,
     })
     .onConflictDoUpdate({
-      target: [integrations.userId, integrations.source, integrations.accountId],
+      target: [
+        integrations.userId,
+        integrations.source,
+        integrations.accountId,
+      ],
       set: {
         accessToken: encryptedAccessToken,
         refreshToken: encryptedRefreshToken || undefined,
@@ -56,7 +63,9 @@ export async function getDecryptedIntegration(
   const [integration] = await db
     .select()
     .from(integrations)
-    .where(and(eq(integrations.id, integrationId), eq(integrations.userId, userId)));
+    .where(
+      and(eq(integrations.id, integrationId), eq(integrations.userId, userId)),
+    );
 
   if (!integration) {
     return null;
@@ -68,7 +77,7 @@ export async function getDecryptedIntegration(
     accessToken: crypto.decrypt(integration.accessToken, userId),
     refreshToken: integration.refreshToken
       ? crypto.decrypt(integration.refreshToken, userId)
-      : undefined,
+      : null,
   };
 
   return decrypted;
@@ -96,7 +105,9 @@ export async function updateIntegrationTokens(
       tokenExpiresAt: tokens.expiresAt,
       updatedAt: new Date(),
     })
-    .where(and(eq(integrations.id, integrationId), eq(integrations.userId, userId)))
+    .where(
+      and(eq(integrations.id, integrationId), eq(integrations.userId, userId)),
+    )
     .returning();
 
   return updated;
@@ -118,7 +129,9 @@ export async function updateIntegrationSyncState(
       lastSyncAt: new Date(),
       updatedAt: new Date(),
     })
-    .where(and(eq(integrations.id, integrationId), eq(integrations.userId, userId)))
+    .where(
+      and(eq(integrations.id, integrationId), eq(integrations.userId, userId)),
+    )
     .returning();
 
   return updated;
@@ -145,7 +158,9 @@ export async function getUserIntegrationsBySource(
   return db
     .select()
     .from(integrations)
-    .where(and(eq(integrations.userId, userId), eq(integrations.source, source)));
+    .where(
+      and(eq(integrations.userId, userId), eq(integrations.source, source)),
+    );
 }
 
 /**
@@ -156,9 +171,21 @@ export async function deleteIntegration(
   integrationId: string,
   userId: string,
 ): Promise<boolean> {
-  const result = await db
-    .delete(integrations)
-    .where(and(eq(integrations.id, integrationId), eq(integrations.userId, userId)));
+  const [existing] = await db
+    .select()
+    .from(integrations)
+    .where(
+      and(eq(integrations.id, integrationId), eq(integrations.userId, userId)),
+    )
+    .limit(1);
 
-  return result.changes > 0;
+  if (!existing) return false;
+
+  await db
+    .delete(integrations)
+    .where(
+      and(eq(integrations.id, integrationId), eq(integrations.userId, userId)),
+    );
+
+  return true;
 }

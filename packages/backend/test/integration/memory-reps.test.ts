@@ -470,7 +470,7 @@ describe("Memory Reps API (unit)", () => {
       await answerMemoryRep(rep.id, { selectedAnswer: 0 });
 
       const res2 = await answerMemoryRep(rep.id, { selectedAnswer: 1 });
-      expect(res2.status).toBe(409);
+      expect(res2.status as number).toBe(409);
     });
 
     it("should not allow answering another user's rep", async () => {
@@ -540,7 +540,9 @@ describe("Memory Reps API (unit)", () => {
           // Correct answer is within options
           expect(item.options[item.correctAnswer]).toBe(item.contactName);
           // There are wrong answers that are NOT the correct answer
-          const wrongOptions = item.options.filter((o) => o !== item.contactName);
+          const wrongOptions = item.options.filter(
+            (o) => o !== item.contactName,
+          );
           expect(wrongOptions.length).toBeGreaterThan(0);
         }
       } finally {
@@ -564,7 +566,9 @@ describe("Memory Reps API (unit)", () => {
 
         expect(data.generated).toBe(1);
         // Correct answer is within options
-        expect(data.items[0].options[data.items[0].correctAnswer]).toBe("Alice");
+        expect(data.items[0].options[data.items[0].correctAnswer]).toBe(
+          "Alice",
+        );
         // There are wrong answers that are NOT the correct answer
         const wrongOptions = data.items[0].options.filter((o) => o !== "Alice");
         expect(wrongOptions.length).toBeGreaterThan(0);
@@ -629,7 +633,9 @@ describe("Memory Reps API (unit)", () => {
             expect(opt.length).toBeGreaterThan(0);
           }
           // There are wrong answers that are NOT the correct answer
-          const wrongOptions = item.options.filter((o) => o !== item.contactName);
+          const wrongOptions = item.options.filter(
+            (o) => o !== item.contactName,
+          );
           expect(wrongOptions.length).toBeGreaterThan(0);
         }
       } finally {
@@ -662,7 +668,7 @@ describe("Memory Reps API (unit)", () => {
         selectedAnswer: wrongIndex,
       });
       expect(wrongRes.status).toBe(200);
-      const wrongData = getSuccessData(wrongRes);
+      const wrongData = getSuccessData(wrongRes)!;
       expect(wrongData.correct).toBe(false);
       expect(wrongData.correctAnswer).toBe(first.correctAnswer);
 
@@ -671,13 +677,13 @@ describe("Memory Reps API (unit)", () => {
         selectedAnswer: second.correctAnswer,
       });
       expect(rightRes.status).toBe(200);
-      const rightData = getSuccessData(rightRes);
+      const rightData = getSuccessData(rightRes)!;
       expect(rightData.correct).toBe(true);
       expect(rightData.correctAnswer).toBe(second.correctAnswer);
 
       // Verify answered reps are excluded from default list
       const listRes = await getMemoryReps();
-      const listData = getSuccessData(listRes);
+      const listData = getSuccessData(listRes)!;
       const answeredIds = [first.id, second.id];
       for (const item of listData.items) {
         expect(answeredIds).not.toContain(item.id);
@@ -685,7 +691,7 @@ describe("Memory Reps API (unit)", () => {
 
       // Verify answered reps appear with includeAnswered=true
       const allRes = await getMemoryReps({ includeAnswered: true });
-      const allData = getSuccessData(allRes);
+      const allData = getSuccessData(allRes)!;
       const answeredItems = allData.items.filter((i) =>
         answeredIds.includes(i.id),
       );
@@ -737,7 +743,18 @@ describe("Memory Reps API (unit)", () => {
       const dbReps = await db
         .select()
         .from(schema.memoryReps)
-        .where(eq(schema.memoryReps.userId, (await db.select().from(schema.users).where(eq(schema.users.externalId, "user-1")).limit(1))[0]!.id));
+        .where(
+          eq(
+            schema.memoryReps.userId,
+            (
+              await db
+                .select()
+                .from(schema.users)
+                .where(eq(schema.users.externalId, "user-1"))
+                .limit(1)
+            )[0]!.id,
+          ),
+        );
 
       const scheduledReps = dbReps.filter((r) => r.scheduledFor !== null);
       expect(scheduledReps.length).toBeGreaterThan(0);

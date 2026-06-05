@@ -33,7 +33,7 @@ export async function createTestDatabase(
   // Apply migrations
   await applyMigrations(sqlite, migrationsPath);
 
-  return db;
+  return db as unknown as DatabaseClient;
 }
 
 /**

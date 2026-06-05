@@ -63,6 +63,7 @@ export class MockDirectoryProvider implements DirectoryProvider {
  * Validates authorization tokens against stored credentials
  */
 export class MockContactServer {
+  port: number = 0;
   private server: any;
   private contacts: NewDirectoryEntry[] = [];
   private nextSyncToken = "sync-token-2";

@@ -253,7 +253,7 @@ describe("Contacts API", () => {
       const responseDate = await getContacts({ sort: "date" });
       expect(responseDate.status).toBe(200);
       if (responseDate.status === 200) {
-        const dateOrder = responseDefault.data.items.map((c) => c.name);
+        const dateOrder = responseDate.data.items.map((c) => c.name);
         expect(dateOrder).toEqual(["Contact 1", "Contact 2", "Contact 3"]);
       }
     });
@@ -729,7 +729,11 @@ describe("Contacts API", () => {
       expect(response.data.uploadUrl).toContain("X-Amz-Signature");
       expect(response.data.publicUrl).toBe(MOCK_PUBLIC_URL);
       expect(storageSpy).toHaveBeenCalledTimes(1);
-      const [key, contentType, contentLength] = storageSpy.mock.calls[0] as [string, string, number];
+      const [key, contentType, contentLength] = storageSpy.mock.calls[0] as [
+        string,
+        string,
+        number,
+      ];
       expect(key).toMatch(/^avatars\/.+\/.+-\d+\.jpg$/);
       expect(contentType).toBe("image/jpeg");
       expect(contentLength).toBe(512_000);
@@ -811,7 +815,9 @@ describe("Contacts API", () => {
       for (const { contentType, ext } of types) {
         storageSpy.mockClear();
 
-        const contact = await createContact({ name: `Type Test ${contentType}` });
+        const contact = await createContact({
+          name: `Type Test ${contentType}`,
+        });
         if (contact.status !== 200) throw new Error("Contact creation failed");
 
         const response = await getAvatarUploadUrl(contact.data.id, {

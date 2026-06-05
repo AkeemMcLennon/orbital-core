@@ -26,14 +26,18 @@ export async function syncIntegration(
     errorDetails: [],
   };
 
-  console.log(`[sync] Starting sync integrationId=${integrationId} userId=${userId}`);
+  console.log(
+    `[sync] Starting sync integrationId=${integrationId} userId=${userId}`,
+  );
 
   // 1. Fetch and decrypt integration record
   const integration = await getDecryptedIntegration(db, integrationId, userId);
   if (!integration) {
     throw new Error(`Integration not found: ${integrationId}`);
   }
-  console.log(`[sync] Integration found source=${integration.source} lastSyncToken=${integration.lastSyncToken ? "set" : "none"}`);
+  console.log(
+    `[sync] Integration found source=${integration.source} lastSyncToken=${integration.lastSyncToken ? "set" : "none"}`,
+  );
 
   // 2. Get the provider
   const provider = getProvider(integration.source);
@@ -43,8 +47,8 @@ export async function syncIntegration(
 
   // 3. Refresh token if needed
   let accessToken = integration.accessToken;
-  let refreshToken = integration.refreshToken;
-  let expiresAt = integration.tokenExpiresAt;
+  let refreshToken = integration.refreshToken ?? undefined;
+  let expiresAt = integration.tokenExpiresAt ?? undefined;
 
   try {
     const refreshed = await provider.refreshTokenIfNeeded(
@@ -69,7 +73,9 @@ export async function syncIntegration(
     if (expiresAt && new Date() >= expiresAt) {
       throw error; // Token is definitely expired, fail the sync
     }
-    console.log(`[sync] Token refresh failed (continuing with existing token): ${error instanceof Error ? error.message : String(error)}`);
+    console.log(
+      `[sync] Token refresh failed (continuing with existing token): ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   // 4. Fetch and process contacts page-by-page as they arrive
@@ -78,7 +84,7 @@ export async function syncIntegration(
 
   for await (const page of provider.fetchContacts(
     accessToken,
-    integration.lastSyncToken,
+    integration.lastSyncToken ?? undefined,
   )) {
     if (page.nextSyncToken) nextSyncToken = page.nextSyncToken;
     console.log(`[sync] Page ${pageIndex}: ${page.contacts.length} contacts`);
@@ -111,11 +117,17 @@ export async function syncIntegration(
             },
           });
         result.imported += batch.length;
-        console.log(`[sync] Page ${pageIndex} batch ${batchStart / 10}: upserted ${batch.length} rows (total imported: ${result.imported})`);
+        console.log(
+          `[sync] Page ${pageIndex} batch ${batchStart / 10}: upserted ${batch.length} rows (total imported: ${result.imported})`,
+        );
       } catch (error) {
         const cause = error instanceof Error ? error.cause : undefined;
         const msg = error instanceof Error ? error.message : String(error);
-        console.error(`[sync] Page ${pageIndex} batch ${batchStart / 10}: DB error:`, msg, cause ?? error);
+        console.error(
+          `[sync] Page ${pageIndex} batch ${batchStart / 10}: DB error:`,
+          msg,
+          cause ?? error,
+        );
         result.errors += batch.length;
         result.errorDetails?.push({
           error: msg,
@@ -127,9 +139,10 @@ export async function syncIntegration(
   }
 
   // 5. Update integration sync state
-  console.log(`[sync] Sync complete imported=${result.imported} errors=${result.errors}`);
+  console.log(
+    `[sync] Sync complete imported=${result.imported} errors=${result.errors}`,
+  );
   await updateIntegrationSyncState(db, integrationId, userId, nextSyncToken);
 
   return result;
 }
-
