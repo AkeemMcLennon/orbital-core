@@ -312,6 +312,62 @@ describe("Contact Tags", () => {
         spy.mockRestore();
       }
     });
+
+    it("should split comma-separated tags within a single array element", async () => {
+      const spy = spyOn(AxGen.prototype, "forward").mockResolvedValue({
+        tags: ["Cloudflare, Professional"],
+      });
+      try {
+        const createRes = await createContact({
+          name: "Alice",
+          notes: "Works at Cloudflare.",
+        });
+        if (createRes.status !== 200)
+          throw new Error("Expected 200 from createContact");
+
+        await new Promise((r) => setTimeout(r, 200));
+
+        const getRes = await getContactById(createRes.data.id);
+        if (getRes.status !== 200)
+          throw new Error("Expected 200 from getContactById");
+        const dynamicNames = (getRes.data.tags ?? [])
+          .filter((t) => t.isDynamic)
+          .map((t) => t.name);
+        expect(dynamicNames).toContain("Cloudflare");
+        expect(dynamicNames).toContain("Professional");
+        expect(dynamicNames).not.toContain("Cloudflare, Professional");
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it("should handle a bare string (non-array) LLM response", async () => {
+      const spy = spyOn(AxGen.prototype, "forward").mockResolvedValue({
+        tags: "Cloudflare, Professional",
+      });
+      try {
+        const createRes = await createContact({
+          name: "Bob",
+          notes: "Works at Cloudflare.",
+        });
+        if (createRes.status !== 200)
+          throw new Error("Expected 200 from createContact");
+
+        await new Promise((r) => setTimeout(r, 200));
+
+        const getRes = await getContactById(createRes.data.id);
+        if (getRes.status !== 200)
+          throw new Error("Expected 200 from getContactById");
+        const dynamicNames = (getRes.data.tags ?? [])
+          .filter((t) => t.isDynamic)
+          .map((t) => t.name);
+        expect(dynamicNames).toContain("Cloudflare");
+        expect(dynamicNames).toContain("Professional");
+        expect(dynamicNames).not.toContain("Cloudflare, Professional");
+      } finally {
+        spy.mockRestore();
+      }
+    });
   });
 
   // ─── Dynamic tags on updateContact ──────────────────────────────────────────

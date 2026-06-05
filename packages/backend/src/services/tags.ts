@@ -148,9 +148,17 @@ export async function generateDynamicTagsForContact(
       availableTagNames,
     });
 
-    const suggestedNames: string[] = Array.isArray(result.tags)
-      ? result.tags.filter((t): t is string => typeof t === "string")
-      : [];
+    const rawTags = Array.isArray(result.tags)
+      ? result.tags
+      : typeof result.tags === "string"
+        ? [result.tags]
+        : [];
+
+    const suggestedNames: string[] = rawTags
+      .filter((t): t is string => typeof t === "string")
+      .flatMap((t) => t.split(","))
+      .map((t) => t.trim())
+      .filter(Boolean);
 
     const tagIds = await resolveTagIds(db, userId, suggestedNames);
 
