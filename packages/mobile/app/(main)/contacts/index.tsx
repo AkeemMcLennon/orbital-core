@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DrawerActions } from "@react-navigation/native";
-import { useNavigation } from "expo-router";
+import { router, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import { FaceAvatar } from "../../../src/components/FaceAvatar";
@@ -41,6 +41,7 @@ type ActiveContact = {
   email?: string | null;
   jobTitle?: string | null;
   company?: string | null;
+  avatarUrl?: string | null;
 };
 type DirectoryContact = {
   id: string;
@@ -52,10 +53,12 @@ type DirectoryContact = {
 function ContactRow({
   name,
   subtitle,
+  avatar,
   onPress,
 }: {
   name: string;
   subtitle?: string | null;
+  avatar?: string | null;
   onPress?: () => void;
 }) {
   return (
@@ -70,7 +73,7 @@ function ContactRow({
         gap: spacing.md,
       }}
     >
-      <FaceAvatar name={name} size={40} showLabel={false} noMargin />
+      <FaceAvatar name={name} avatar={avatar ?? undefined} size={40} showLabel={false} noMargin />
       <View style={{ flex: 1 }}>
         <Text
           style={{ fontSize: 15, fontWeight: "500", color: colors.textMain }}
@@ -161,18 +164,20 @@ function AlphabetSidebar({
   );
 }
 
-function ContactList<T extends { id: string; name: string }>({
+function ContactList<T extends { id: string; name: string; avatarUrl?: string | null }>({
   items,
   isLoading,
   subtitle,
   query,
   showSidebar,
+  onPress,
 }: {
   items: T[];
   isLoading: boolean;
   subtitle: (item: T) => string | null | undefined;
   query: string;
   showSidebar: boolean;
+  onPress?: (id: string) => void;
 }) {
   const listRef = useRef<SectionList>(null);
   const sections = groupByLetter(items);
@@ -217,7 +222,12 @@ function ContactList<T extends { id: string; name: string }>({
         sections={sections}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <ContactRow name={item.name} subtitle={subtitle(item)} />
+          <ContactRow
+            name={item.name}
+            subtitle={subtitle(item)}
+            avatar={item.avatarUrl}
+            onPress={onPress ? () => onPress(item.id) : undefined}
+          />
         )}
         renderSectionHeader={({ section }) => (
           <SectionHeader title={section.title} />
@@ -390,6 +400,7 @@ export default function ContactsScreen() {
           }
           query={query}
           showSidebar={showSidebar}
+          onPress={(id) => router.push(`/contacts/${id}`)}
         />
       ) : (
         <ContactList
