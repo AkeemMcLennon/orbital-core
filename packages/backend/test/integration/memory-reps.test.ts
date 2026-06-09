@@ -19,6 +19,7 @@ import {
   spyOn,
 } from "bun:test";
 import { crypto } from "../../src/utils/crypto";
+import { parseNameParts } from "gender-name";
 
 // ─── Module-level mock for @ax-llm/ax ───────────────────────────────────────
 // Bun hoists mock.module() before all imports, so every require/import of
@@ -537,12 +538,12 @@ describe("Memory Reps API (unit)", () => {
           data.items.every((i) => i.question === "Who is this person?"),
         ).toBe(true);
         for (const item of data.items) {
-          // Correct answer is within options
-          expect(item.options[item.correctAnswer]).toBe(item.contactName);
+          // Correct answer option is the contact's first name
+          const expectedFirst =
+            parseNameParts(item.contactName).firstName ?? item.contactName;
+          expect(item.options[item.correctAnswer]).toBe(expectedFirst);
           // There are wrong answers that are NOT the correct answer
-          const wrongOptions = item.options.filter(
-            (o) => o !== item.contactName,
-          );
+          const wrongOptions = item.options.filter((o) => o !== expectedFirst);
           expect(wrongOptions.length).toBeGreaterThan(0);
         }
       } finally {
@@ -625,17 +626,17 @@ describe("Memory Reps API (unit)", () => {
 
         expect(data.items.length).toBeGreaterThan(0);
         for (const item of data.items) {
-          // The correct answer option must match the contact name
-          expect(item.options[item.correctAnswer]).toBe(item.contactName);
+          // Correct answer option is the contact's first name
+          const expectedFirst =
+            parseNameParts(item.contactName).firstName ?? item.contactName;
+          expect(item.options[item.correctAnswer]).toBe(expectedFirst);
           // All options should be non-empty strings
           for (const opt of item.options) {
             expect(typeof opt).toBe("string");
             expect(opt.length).toBeGreaterThan(0);
           }
           // There are wrong answers that are NOT the correct answer
-          const wrongOptions = item.options.filter(
-            (o) => o !== item.contactName,
-          );
+          const wrongOptions = item.options.filter((o) => o !== expectedFirst);
           expect(wrongOptions.length).toBeGreaterThan(0);
         }
       } finally {

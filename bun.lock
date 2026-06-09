@@ -8,7 +8,7 @@
         "expo": "~54.0.33",
         "expo-auth-session": "~7.0.10",
         "expo-crypto": "~15.0.8",
-        "gender-name": "^1.0.0",
+        "gender-name": "^1.1.0",
         "react": "19.1.0",
         "react-native": "0.81.5",
       },
@@ -63,7 +63,7 @@
         "drizzle-orm": "^0.45.1",
         "es-toolkit": "^1.45.1",
         "fernet": "^0.3.3",
-        "gender-name": "^1.0.0",
+        "gender-name": "^1.1.0",
         "googleapis": "^171.4.0",
         "hono": "^4.0.2",
         "uuid": "^13.0.0",
@@ -2324,7 +2324,7 @@
 
     "gcp-metadata": ["gcp-metadata@8.1.2", "", { "dependencies": { "gaxios": "^7.0.0", "google-logging-utils": "^1.0.0", "json-bigint": "^1.0.0" } }, "sha512-zV/5HKTfCeKWnxG0Dmrw51hEWFGfcF2xiXqcA3+J90WDuP0SvoiSO5ORvcBsifmx/FoIjgQN3oNOGaQ5PhLFkg=="],
 
-    "gender-name": ["gender-name@1.0.0", "", {}, "sha512-d3ZG3o0Vst2hqMsj2WtIf7ggnMCmNDoemu/GK82SJxNNxAi0uFLuW6NkQyI7gHucJ4PFchi8ozxlW7Bkl9OZ2Q=="],
+    "gender-name": ["gender-name@1.1.0", "", {}, "sha512-XXptg0z9Y41qsYHrxRhYVuiGWsWZxedsyIsSE8n92iVqhhoDWf/dpUtA0ddXWQW18afW6VpdjO6fErpHCG2TBg=="],
 
     "generate-function": ["generate-function@2.3.1", "", { "dependencies": { "is-property": "^1.0.2" } }, "sha512-eeB5GfMNeevm/GRYq20ShmsaGcmI81kIX2K9XQx5miC8KdHaC6Jm0qQ8ZNeGOi7wYB8OsdxKs+Y2oVuTFuVwKQ=="],
 

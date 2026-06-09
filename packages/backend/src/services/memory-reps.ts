@@ -4,7 +4,7 @@ import type { DatabaseClient } from "../database/client";
 import { contacts, memoryReps } from "../database/schema";
 import type { Contact } from "../database/schema/contacts";
 import { shuffle } from "es-toolkit";
-import { determineNameInfo, getNameByGender } from "gender-name";
+import { determineNameInfo, getNameByGender, parseNameParts } from "gender-name";
 import { getAI } from "./llm";
 import { settings } from "../config";
 import { crypto } from "../utils/crypto";
@@ -127,6 +127,9 @@ function generateIdentifyQuestions(
   if (withAvatar.length === 0) return [];
 
   return withAvatar.map((contact) => {
+    // Use first name only so all options look consistent (wrong options are also first names)
+    const firstName = parseNameParts(contact.name).firstName ?? contact.name;
+
     // Determine gender/language from contact's name for plausible distractors
     const nameInfo = determineNameInfo(contact.name);
     const gender = nameInfo?.gender;
@@ -145,14 +148,14 @@ function generateIdentifyQuestions(
     for (const [g, l] of strategies) {
       for (let i = 0; i < 30 && wrongNames.size < 3; i++) {
         const name = getNameByGender(g, l);
-        if (name && name !== contact.name) wrongNames.add(name);
+        if (name && name !== firstName) wrongNames.add(name);
       }
       if (wrongNames.size >= 3) break;
     }
 
     // Build options with correct answer at a random position
-    const options = shuffle([...wrongNames, contact.name]);
-    const correctAnswer = options.indexOf(contact.name);
+    const options = shuffle([...wrongNames, firstName]);
+    const correctAnswer = options.indexOf(firstName);
 
     return {
       userId,

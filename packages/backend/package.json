@@ -39,7 +39,7 @@
     "drizzle-orm": "^0.45.1",
     "es-toolkit": "^1.45.1",
     "fernet": "^0.3.3",
-    "gender-name": "^1.0.0",
+    "gender-name": "^1.1.0",
     "googleapis": "^171.4.0",
     "hono": "^4.0.2",
     "uuid": "^13.0.0",
