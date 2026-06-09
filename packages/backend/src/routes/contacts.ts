@@ -28,7 +28,9 @@ import {
   replaceStaticTags,
   fetchContactTags,
   generateDynamicTagsForContact,
+  deriveContactFields,
 } from "../services/tags";
+import { deriveContactRelationships } from "../services/relationships";
 import { waitUntil } from "../utils/wait-until";
 import { crypto } from "../utils/crypto";
 import { settings } from "../config";
@@ -280,7 +282,31 @@ export const createContact = authProc
     waitUntil(generateRepsForNewContact(db, user.id, contact.id));
 
     if (input.notes) {
-      await generateDynamicTagsForContact(db, user.id, contact.id, input.notes);
+      await generateDynamicTagsForContact(db, user.id, contact.id, input.notes, input.email ?? null);
+    }
+
+    const [derived] = await Promise.all([
+      input.notes || input.email
+        ? deriveContactFields(input.notes ?? "", input.email ?? null)
+        : Promise.resolve(null),
+      input.notes
+        ? deriveContactRelationships(db, user.id, contact.id, contact.name, input.notes)
+        : Promise.resolve(),
+    ]);
+
+    if (derived) {
+      const patch: Record<string, string> = {};
+      if (derived.jobTitle && !contact.jobTitle) patch.jobTitle = derived.jobTitle;
+      if (derived.company && !contact.company) patch.company = derived.company;
+      if (derived.birthday && !contact.birthday) patch.birthday = derived.birthday;
+      if (Object.keys(patch).length > 0) {
+        const [enriched] = await db
+          .update(contacts)
+          .set({ ...patch, updatedAt: new Date() })
+          .where(eq(contacts.id, contact.id))
+          .returning();
+        return decryptContact(enriched ?? contact, user.id);
+      }
     }
 
     return decryptContact(contact, user.id);
@@ -354,12 +380,35 @@ export const updateContact = authProc
     if (patch.notes !== undefined) {
       const plainNotes = input.notes ?? "";
       if (plainNotes) {
-        await generateDynamicTagsForContact(
-          db,
-          user.id,
-          contact.id,
-          plainNotes,
-        );
+        await generateDynamicTagsForContact(db, user.id, contact.id, plainNotes, contact.email ?? null);
+      }
+    }
+
+    if (patch.notes !== undefined || patch.email !== undefined) {
+      const plainNotes =
+        input.notes ??
+        (contact.notes && !contact.notesEncrypted ? contact.notes : null) ??
+        "";
+      const [derived] = await Promise.all([
+        deriveContactFields(plainNotes, contact.email ?? null),
+        plainNotes
+          ? deriveContactRelationships(db, user.id, contact.id, contact.name, plainNotes)
+          : Promise.resolve(),
+      ]);
+
+      if (derived) {
+        const enrichPatch: Record<string, string> = {};
+        if (derived.jobTitle && !contact.jobTitle) enrichPatch.jobTitle = derived.jobTitle;
+        if (derived.company && !contact.company) enrichPatch.company = derived.company;
+        if (derived.birthday && !contact.birthday) enrichPatch.birthday = derived.birthday;
+        if (Object.keys(enrichPatch).length > 0) {
+          const [enriched] = await db
+            .update(contacts)
+            .set({ ...enrichPatch, updatedAt: new Date() })
+            .where(eq(contacts.id, contact.id))
+            .returning();
+          return decryptContact(enriched ?? contact, user.id);
+        }
       }
     }
 

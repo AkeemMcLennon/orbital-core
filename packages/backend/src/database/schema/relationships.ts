@@ -25,6 +25,7 @@ export const contactRelationships = sqliteTable('contact_relationships', {
   type: text('type').notNull(),
   sentiment: integer('sentiment').notNull().default(0), // -2 strongly dislike, -1 dislike, 0 neutral, 1 like, 2 strongly like
   description: text('description'),
+  isDynamic: integer('is_dynamic', { mode: 'boolean' }).notNull().default(false),
   // Link to the mirror row for easy sync
   mirrorId: text('mirror_id'),
   createdAt: integer('created_at', { mode: 'timestamp' })

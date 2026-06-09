@@ -13,6 +13,10 @@ const tagSignature = f()
     f.string("Notes about the contact and your relationship with them"),
   )
   .input(
+    "email",
+    f.string("Contact's email address, or empty string if unknown"),
+  )
+  .input(
     "availableTagNames",
     f.string(
       "Comma-separated list of all available tag names to reuse when applicable",
@@ -126,6 +130,7 @@ export async function generateDynamicTagsForContact(
   userId: string,
   contactId: string,
   decryptedNotes: string,
+  email?: string | null,
 ): Promise<void> {
   if (!decryptedNotes) return;
   if (
@@ -145,6 +150,7 @@ export async function generateDynamicTagsForContact(
     const gen = new AxGen(tagSignature);
     const result = await gen.forward(getAI(), {
       notes: decryptedNotes,
+      email: email ?? "",
       availableTagNames,
     });
 
@@ -187,5 +193,66 @@ export async function generateDynamicTagsForContact(
     }
   } catch (err) {
     console.error("[tags] error:", err);
+  }
+}
+
+const fieldSignature = f()
+  .input("notes", f.string("Notes about the contact"))
+  .input("email", f.string("Contact's email address, or empty string if unknown"))
+  .output(
+    "jobTitle",
+    f.string("Job title or occupation, only if clearly stated in notes").optional(),
+  )
+  .output(
+    "company",
+    f
+      .string(
+        "Employer or company name — from notes if stated, or inferred from a recognizable email domain " +
+          "(e.g. @stripe.com → 'Stripe'); omit for generic providers like gmail.com or outlook.com",
+      )
+      .optional(),
+  )
+  .output(
+    "birthday",
+    f
+      .string("Birthday in YYYY-MM-DD or MM-DD format, only if explicitly mentioned")
+      .optional(),
+  )
+  .description(
+    "Extract structured contact fields from notes and email. " +
+      "Only populate a field if confident — omit any field you are uncertain about.",
+  )
+  .build();
+
+export async function deriveContactFields(
+  decryptedNotes: string,
+  email?: string | null,
+): Promise<{ jobTitle?: string; company?: string; birthday?: string } | null> {
+  if (!decryptedNotes && !email) return null;
+  if (!settings.LLM_BASE_URL || !settings.LLM_API_KEY || !settings.LLM_FAST_MODEL)
+    return null;
+
+  try {
+    const gen = new AxGen(fieldSignature);
+    const result = await gen.forward(getAI(), {
+      notes: decryptedNotes,
+      email: email ?? "",
+    });
+
+    const derived: { jobTitle?: string; company?: string; birthday?: string } = {};
+    if (typeof result.jobTitle === "string" && result.jobTitle.length > 0)
+      derived.jobTitle = result.jobTitle;
+    if (typeof result.company === "string" && result.company.length > 0)
+      derived.company = result.company;
+    if (
+      typeof result.birthday === "string" &&
+      /^(\d{4}-\d{2}-\d{2}|\d{2}-\d{2})$/.test(result.birthday)
+    )
+      derived.birthday = result.birthday;
+
+    return Object.keys(derived).length > 0 ? derived : null;
+  } catch (err) {
+    console.error("[fields] error:", err);
+    return null;
   }
 }
