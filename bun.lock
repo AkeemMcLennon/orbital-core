@@ -8,7 +8,7 @@
         "expo": "~54.0.33",
         "expo-auth-session": "~7.0.10",
         "expo-crypto": "~15.0.8",
-        "gender-name": "^1.1.0",
+        "gender-name": "^1.0.0",
         "react": "19.1.0",
         "react-native": "0.81.5",
       },

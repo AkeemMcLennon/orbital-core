@@ -12,10 +12,7 @@ const tagSignature = f()
     "notes",
     f.string("Notes about the contact and your relationship with them"),
   )
-  .input(
-    "email",
-    f.string("Contact's email address, or empty string if unknown"),
-  )
+  .input("email", f.string("Contact's email address, if known").optional())
   .input(
     "availableTagNames",
     f.string(
@@ -150,7 +147,7 @@ export async function generateDynamicTagsForContact(
     const gen = new AxGen(tagSignature);
     const result = await gen.forward(getAI(), {
       notes: decryptedNotes,
-      email: email ?? "",
+      ...(email ? { email } : {}),
       availableTagNames,
     });
 
@@ -198,10 +195,12 @@ export async function generateDynamicTagsForContact(
 
 const fieldSignature = f()
   .input("notes", f.string("Notes about the contact"))
-  .input("email", f.string("Contact's email address, or empty string if unknown"))
+  .input("email", f.string("Contact's email address, if known").optional())
   .output(
     "jobTitle",
-    f.string("Job title or occupation, only if clearly stated in notes").optional(),
+    f
+      .string("Job title or occupation, only if clearly stated in notes")
+      .optional(),
   )
   .output(
     "company",
@@ -215,7 +214,9 @@ const fieldSignature = f()
   .output(
     "birthday",
     f
-      .string("Birthday in YYYY-MM-DD or MM-DD format, only if explicitly mentioned")
+      .string(
+        "Birthday in YYYY-MM-DD or MM-DD format, only if explicitly mentioned",
+      )
       .optional(),
   )
   .description(
@@ -229,17 +230,22 @@ export async function deriveContactFields(
   email?: string | null,
 ): Promise<{ jobTitle?: string; company?: string; birthday?: string } | null> {
   if (!decryptedNotes && !email) return null;
-  if (!settings.LLM_BASE_URL || !settings.LLM_API_KEY || !settings.LLM_FAST_MODEL)
+  if (
+    !settings.LLM_BASE_URL ||
+    !settings.LLM_API_KEY ||
+    !settings.LLM_FAST_MODEL
+  )
     return null;
 
   try {
     const gen = new AxGen(fieldSignature);
     const result = await gen.forward(getAI(), {
       notes: decryptedNotes,
-      email: email ?? "",
+      ...(email ? { email } : {}),
     });
 
-    const derived: { jobTitle?: string; company?: string; birthday?: string } = {};
+    const derived: { jobTitle?: string; company?: string; birthday?: string } =
+      {};
     if (typeof result.jobTitle === "string" && result.jobTitle.length > 0)
       derived.jobTitle = result.jobTitle;
     if (typeof result.company === "string" && result.company.length > 0)

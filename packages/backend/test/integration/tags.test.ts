@@ -1,4 +1,3 @@
-import { AxGen } from "@ax-llm/ax";
 import {
   createContact,
   getContactById,
@@ -13,13 +12,17 @@ import {
 import { backend } from "@orbital/testing";
 import { createTestToken } from "@orbital/testing/backend/auth";
 import {
+  axFieldContent,
+  startMockLLMServer,
+  type MockLLMServer,
+} from "@orbital/testing/backend/llm";
+import {
   afterAll,
   beforeAll,
   beforeEach,
   describe,
   expect,
   it,
-  spyOn,
 } from "bun:test";
 import { loadSettings } from "../../src/config";
 import type { DatabaseClient } from "../../src/database/client";
@@ -32,6 +35,7 @@ type TestServer = backend.TestServer;
 describe("Contact Tags", () => {
   let server: TestServer;
   let db: DatabaseClient;
+  let mockLLM: MockLLMServer;
   let user1Token: string;
   let user2Token: string;
 
@@ -40,13 +44,14 @@ describe("Contact Tags", () => {
       schema,
       migrationsPath: "./src/database/migrations",
     });
-    // Fake LLM config so getAI() initialises — actual calls are
-    // intercepted per-test via spyOn(AxGen.prototype, "forward")
+    // LLM calls run through the real AxGen pipeline against a local
+    // mock OpenAI-compat server — only the network hop is faked.
+    mockLLM = await startMockLLMServer();
     server = await backend.startTestServer({
       startServer,
       loadSettings,
       envOverrides: {
-        LLM_BASE_URL: "https://fake.llm.test/v1",
+        LLM_BASE_URL: mockLLM.url,
         LLM_API_KEY: "fake-key",
         LLM_FAST_MODEL: "fake-model",
       },
@@ -69,10 +74,12 @@ describe("Contact Tags", () => {
 
   afterAll(() => {
     server.stop();
+    mockLLM.stop();
     resetLLMClient();
   });
 
   beforeEach(async () => {
+    mockLLM.reset();
     await backend.clearDatabase(db, { schema });
     await backend.seedTestUser(db, "user-1", { schema });
     await backend.seedTestUser(db, "user-2", { schema });
@@ -173,9 +180,7 @@ describe("Contact Tags", () => {
     });
 
     it("should preserve dynamic tags when only updating the static set", async () => {
-      const spy = spyOn(AxGen.prototype, "forward").mockResolvedValue({
-        tags: ["startup"],
-      });
+      mockLLM.setContent(axFieldContent({ tags: ["startup"] }));
       const createRes = await createContact({
         name: "Alice",
         notes: "Runs a startup.",
@@ -184,7 +189,7 @@ describe("Contact Tags", () => {
         throw new Error("Expected 200 from createContact");
       const contactId = createRes.data.id;
       await new Promise((r) => setTimeout(r, 200));
-      spy.mockRestore();
+      mockLLM.reset();
 
       await updateContact(contactId, { tags: ["investor"] });
 
@@ -203,170 +208,138 @@ describe("Contact Tags", () => {
 
   describe("Dynamic tags on createContact", () => {
     it("should generate dynamic tags from notes via mocked LLM", async () => {
-      const spy = spyOn(AxGen.prototype, "forward").mockResolvedValue({
-        tags: ["startup", "fintech"],
+      mockLLM.setContent(axFieldContent({ tags: ["startup", "fintech"] }));
+      const createRes = await createContact({
+        name: "Alice",
+        notes: "Runs a startup in fintech.",
       });
-      try {
-        const createRes = await createContact({
-          name: "Alice",
-          notes: "Runs a startup in fintech.",
-        });
-        if (createRes.status !== 200)
-          throw new Error("Expected 200 from createContact");
+      if (createRes.status !== 200)
+        throw new Error("Expected 200 from createContact");
 
-        // Wait for the background waitUntil to complete
-        await new Promise((r) => setTimeout(r, 200));
+      // Wait for the background waitUntil to complete
+      await new Promise((r) => setTimeout(r, 200));
 
-        const getRes = await getContactById(createRes.data.id);
-        if (getRes.status !== 200)
-          throw new Error("Expected 200 from getContactById");
-        const dynamicNames = (getRes.data.tags ?? [])
-          .filter((t) => t.isDynamic)
-          .map((t) => t.name);
-        expect(dynamicNames).toContain("startup");
-        expect(dynamicNames).toContain("fintech");
-      } finally {
-        spy.mockRestore();
-      }
+      const getRes = await getContactById(createRes.data.id);
+      if (getRes.status !== 200)
+        throw new Error("Expected 200 from getContactById");
+      const dynamicNames = (getRes.data.tags ?? [])
+        .filter((t) => t.isDynamic)
+        .map((t) => t.name);
+      expect(dynamicNames).toContain("startup");
+      expect(dynamicNames).toContain("fintech");
+      // The tag request went over the wire through the real AxGen pipeline
+      expect(mockLLM.requests.length).toBeGreaterThan(0);
     });
 
     it("should not add a dynamic entry for a tag that is already static", async () => {
-      const spy = spyOn(AxGen.prototype, "forward").mockResolvedValue({
-        tags: ["investor", "startup"],
+      mockLLM.setContent(axFieldContent({ tags: ["investor", "startup"] }));
+      const createRes = await createContact({
+        name: "Alice",
+        notes: "Investor in startups.",
+        tags: ["investor"],
       });
-      try {
-        const createRes = await createContact({
-          name: "Alice",
-          notes: "Investor in startups.",
-          tags: ["investor"],
-        });
-        if (createRes.status !== 200)
-          throw new Error("Expected 200 from createContact");
+      if (createRes.status !== 200)
+        throw new Error("Expected 200 from createContact");
 
-        await new Promise((r) => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, 200));
 
-        const getRes = await getContactById(createRes.data.id);
-        if (getRes.status !== 200)
-          throw new Error("Expected 200 from getContactById");
-        const tags = getRes.data.tags ?? [];
+      const getRes = await getContactById(createRes.data.id);
+      if (getRes.status !== 200)
+        throw new Error("Expected 200 from getContactById");
+      const tags = getRes.data.tags ?? [];
 
-        // "investor" must appear exactly once, as static
-        const investorEntries = tags.filter((t) => t.name === "investor");
-        expect(investorEntries).toHaveLength(1);
-        expect(investorEntries[0].isDynamic).toBe(false);
-        // "startup" added as dynamic
-        const dynamicNames = tags.filter((t) => t.isDynamic).map((t) => t.name);
-        expect(dynamicNames).toContain("startup");
-      } finally {
-        spy.mockRestore();
-      }
+      // "investor" must appear exactly once, as static
+      const investorEntries = tags.filter((t) => t.name === "investor");
+      expect(investorEntries).toHaveLength(1);
+      expect(investorEntries[0].isDynamic).toBe(false);
+      // "startup" added as dynamic
+      const dynamicNames = tags.filter((t) => t.isDynamic).map((t) => t.name);
+      expect(dynamicNames).toContain("startup");
     });
 
     it("should not invoke the LLM when no notes are present", async () => {
-      const spy = spyOn(AxGen.prototype, "forward").mockResolvedValue({
-        tags: ["startup"],
-      });
-      try {
-        const createRes = await createContact({ name: "Alice" });
-        if (createRes.status !== 200)
-          throw new Error("Expected 200 from createContact");
+      mockLLM.setContent(axFieldContent({ tags: ["startup"] }));
+      const createRes = await createContact({ name: "Alice" });
+      if (createRes.status !== 200)
+        throw new Error("Expected 200 from createContact");
 
-        await new Promise((r) => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, 200));
 
-        const getRes = await getContactById(createRes.data.id);
-        if (getRes.status !== 200)
-          throw new Error("Expected 200 from getContactById");
-        expect(
-          (getRes.data.tags ?? []).filter((t) => t.isDynamic),
-        ).toHaveLength(0);
-        // AxGen.forward must not have been called for dynamic-tag generation
-        // (may still be called zero times for memory-reps since there are no notes)
-        expect(spy).not.toHaveBeenCalled();
-      } finally {
-        spy.mockRestore();
-      }
+      const getRes = await getContactById(createRes.data.id);
+      if (getRes.status !== 200)
+        throw new Error("Expected 200 from getContactById");
+      expect((getRes.data.tags ?? []).filter((t) => t.isDynamic)).toHaveLength(
+        0,
+      );
+      // No LLM request may hit the wire — no notes, no email
+      expect(mockLLM.requests).toHaveLength(0);
     });
 
     it("should leave static tags intact and not throw when LLM errors", async () => {
-      const spy = spyOn(AxGen.prototype, "forward").mockRejectedValue(
-        new Error("LLM unavailable"),
-      );
-      try {
-        const createRes = await createContact({
-          name: "Alice",
-          notes: "Some notes.",
-          tags: ["investor"],
-        });
-        if (createRes.status !== 200)
-          throw new Error("Expected 200 from createContact");
+      mockLLM.setError();
+      const createRes = await createContact({
+        name: "Alice",
+        notes: "Some notes.",
+        tags: ["investor"],
+      });
+      if (createRes.status !== 200)
+        throw new Error("Expected 200 from createContact");
 
-        await new Promise((r) => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, 200));
 
-        const getRes = await getContactById(createRes.data.id);
-        if (getRes.status !== 200)
-          throw new Error("Expected 200 from getContactById");
-        const tags = getRes.data.tags ?? [];
-        expect(tags.some((t) => t.name === "investor")).toBe(true);
-        expect(tags.filter((t) => t.isDynamic)).toHaveLength(0);
-      } finally {
-        spy.mockRestore();
-      }
+      const getRes = await getContactById(createRes.data.id);
+      if (getRes.status !== 200)
+        throw new Error("Expected 200 from getContactById");
+      const tags = getRes.data.tags ?? [];
+      expect(tags.some((t) => t.name === "investor")).toBe(true);
+      expect(tags.filter((t) => t.isDynamic)).toHaveLength(0);
     });
 
     it("should split comma-separated tags within a single array element", async () => {
-      const spy = spyOn(AxGen.prototype, "forward").mockResolvedValue({
-        tags: ["Cloudflare, Professional"],
+      // Raw wire content: a JSON array whose single element holds two
+      // comma-joined names — the service must split it
+      mockLLM.setContent('Tags: ["Cloudflare, Professional"]');
+      const createRes = await createContact({
+        name: "Alice",
+        notes: "Works at Cloudflare.",
       });
-      try {
-        const createRes = await createContact({
-          name: "Alice",
-          notes: "Works at Cloudflare.",
-        });
-        if (createRes.status !== 200)
-          throw new Error("Expected 200 from createContact");
+      if (createRes.status !== 200)
+        throw new Error("Expected 200 from createContact");
 
-        await new Promise((r) => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, 200));
 
-        const getRes = await getContactById(createRes.data.id);
-        if (getRes.status !== 200)
-          throw new Error("Expected 200 from getContactById");
-        const dynamicNames = (getRes.data.tags ?? [])
-          .filter((t) => t.isDynamic)
-          .map((t) => t.name);
-        expect(dynamicNames).toContain("Cloudflare");
-        expect(dynamicNames).toContain("Professional");
-        expect(dynamicNames).not.toContain("Cloudflare, Professional");
-      } finally {
-        spy.mockRestore();
-      }
+      const getRes = await getContactById(createRes.data.id);
+      if (getRes.status !== 200)
+        throw new Error("Expected 200 from getContactById");
+      const dynamicNames = (getRes.data.tags ?? [])
+        .filter((t) => t.isDynamic)
+        .map((t) => t.name);
+      expect(dynamicNames).toContain("Cloudflare");
+      expect(dynamicNames).toContain("Professional");
+      expect(dynamicNames).not.toContain("Cloudflare, Professional");
     });
 
     it("should handle a bare string (non-array) LLM response", async () => {
-      const spy = spyOn(AxGen.prototype, "forward").mockResolvedValue({
-        tags: "Cloudflare, Professional",
+      // Raw wire content: no JSON array at all, just comma-joined names
+      mockLLM.setContent("Tags: Cloudflare, Professional");
+      const createRes = await createContact({
+        name: "Bob",
+        notes: "Works at Cloudflare.",
       });
-      try {
-        const createRes = await createContact({
-          name: "Bob",
-          notes: "Works at Cloudflare.",
-        });
-        if (createRes.status !== 200)
-          throw new Error("Expected 200 from createContact");
+      if (createRes.status !== 200)
+        throw new Error("Expected 200 from createContact");
 
-        await new Promise((r) => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, 200));
 
-        const getRes = await getContactById(createRes.data.id);
-        if (getRes.status !== 200)
-          throw new Error("Expected 200 from getContactById");
-        const dynamicNames = (getRes.data.tags ?? [])
-          .filter((t) => t.isDynamic)
-          .map((t) => t.name);
-        expect(dynamicNames).toContain("Cloudflare");
-        expect(dynamicNames).toContain("Professional");
-        expect(dynamicNames).not.toContain("Cloudflare, Professional");
-      } finally {
-        spy.mockRestore();
-      }
+      const getRes = await getContactById(createRes.data.id);
+      if (getRes.status !== 200)
+        throw new Error("Expected 200 from getContactById");
+      const dynamicNames = (getRes.data.tags ?? [])
+        .filter((t) => t.isDynamic)
+        .map((t) => t.name);
+      expect(dynamicNames).toContain("Cloudflare");
+      expect(dynamicNames).toContain("Professional");
+      expect(dynamicNames).not.toContain("Cloudflare, Professional");
     });
   });
 
@@ -374,9 +347,7 @@ describe("Contact Tags", () => {
 
   describe("Dynamic tags on updateContact", () => {
     it("should replace old dynamic tags when notes are updated", async () => {
-      const spy1 = spyOn(AxGen.prototype, "forward").mockResolvedValue({
-        tags: ["fintech"],
-      });
+      mockLLM.setContent(axFieldContent({ tags: ["fintech"] }));
       const createRes = await createContact({
         name: "Alice",
         notes: "Works in fintech.",
@@ -385,33 +356,24 @@ describe("Contact Tags", () => {
         throw new Error("Expected 200 from createContact");
       const contactId = createRes.data.id;
       await new Promise((r) => setTimeout(r, 200));
-      spy1.mockRestore();
 
-      // Set new mock before the update so the background task uses it
-      const spy2 = spyOn(AxGen.prototype, "forward").mockResolvedValue({
-        tags: ["healthtech"],
-      });
-      try {
-        await updateContact(contactId, { notes: "Switched to healthtech." });
-        await new Promise((r) => setTimeout(r, 200));
+      // Swap the mocked response before the update so it returns new tags
+      mockLLM.setContent(axFieldContent({ tags: ["healthtech"] }));
+      await updateContact(contactId, { notes: "Switched to healthtech." });
+      await new Promise((r) => setTimeout(r, 200));
 
-        const getRes = await getContactById(contactId);
-        if (getRes.status !== 200)
-          throw new Error("Expected 200 from getContactById");
-        const dynamicNames = (getRes.data.tags ?? [])
-          .filter((t) => t.isDynamic)
-          .map((t) => t.name);
-        expect(dynamicNames).toContain("healthtech");
-        expect(dynamicNames).not.toContain("fintech");
-      } finally {
-        spy2.mockRestore();
-      }
+      const getRes = await getContactById(contactId);
+      if (getRes.status !== 200)
+        throw new Error("Expected 200 from getContactById");
+      const dynamicNames = (getRes.data.tags ?? [])
+        .filter((t) => t.isDynamic)
+        .map((t) => t.name);
+      expect(dynamicNames).toContain("healthtech");
+      expect(dynamicNames).not.toContain("fintech");
     });
 
     it("should preserve static tags while replacing dynamic ones on notes update", async () => {
-      const spy1 = spyOn(AxGen.prototype, "forward").mockResolvedValue({
-        tags: ["startup"],
-      });
+      mockLLM.setContent(axFieldContent({ tags: ["startup"] }));
       const createRes = await createContact({
         name: "Alice",
         notes: "Startup founder.",
@@ -421,25 +383,18 @@ describe("Contact Tags", () => {
         throw new Error("Expected 200 from createContact");
       const contactId = createRes.data.id;
       await new Promise((r) => setTimeout(r, 200));
-      spy1.mockRestore();
 
-      const spy2 = spyOn(AxGen.prototype, "forward").mockResolvedValue({
-        tags: ["vc"],
-      });
-      try {
-        await updateContact(contactId, { notes: "Now at a VC firm." });
-        await new Promise((r) => setTimeout(r, 200));
+      mockLLM.setContent(axFieldContent({ tags: ["vc"] }));
+      await updateContact(contactId, { notes: "Now at a VC firm." });
+      await new Promise((r) => setTimeout(r, 200));
 
-        const getRes = await getContactById(contactId);
-        if (getRes.status !== 200)
-          throw new Error("Expected 200 from getContactById");
-        const tags = getRes.data.tags ?? [];
-        expect(tags.some((t) => t.name === "vip" && !t.isDynamic)).toBe(true);
-        expect(tags.some((t) => t.name === "vc" && t.isDynamic)).toBe(true);
-        expect(tags.some((t) => t.name === "startup")).toBe(false);
-      } finally {
-        spy2.mockRestore();
-      }
+      const getRes = await getContactById(contactId);
+      if (getRes.status !== 200)
+        throw new Error("Expected 200 from getContactById");
+      const tags = getRes.data.tags ?? [];
+      expect(tags.some((t) => t.name === "vip" && !t.isDynamic)).toBe(true);
+      expect(tags.some((t) => t.name === "vc" && t.isDynamic)).toBe(true);
+      expect(tags.some((t) => t.name === "startup")).toBe(false);
     });
   });
 

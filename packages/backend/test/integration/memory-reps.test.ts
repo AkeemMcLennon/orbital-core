@@ -9,44 +9,27 @@ import {
 import { backend } from "@orbital/testing";
 import { createTestToken } from "@orbital/testing/backend/auth";
 import {
+  axFieldContent,
+  startMockLLMServer,
+  type MockLLMServer,
+} from "@orbital/testing/backend/llm";
+import {
   afterAll,
   beforeAll,
   beforeEach,
   describe,
   expect,
   it,
-  mock,
   spyOn,
 } from "bun:test";
 import { crypto } from "../../src/utils/crypto";
 import { parseNameParts } from "gender-name";
-
-// ─── Module-level mock for @ax-llm/ax ───────────────────────────────────────
-// Bun hoists mock.module() before all imports, so every require/import of
-// @ax-llm/ax in this process — including inside memory-reps.ts — gets this
-// replacement. import.meta.require returns the REAL module, letting us
-// preserve f and all other exports while only replacing AxGen.
-
-let capturedLLMContacts: Array<{ contactId: string; name: string; notes: string }> = [];
-
-mock.module("@ax-llm/ax", () => {
-  const actual = import.meta.require("@ax-llm/ax");
-  return {
-    ...actual,
-    AxGen: class MockAxGen {
-      constructor(_sig: any) {}
-      async forward(_ai: any, input: { contacts?: Array<{ contactId: string; name: string; notes: string }> }) {
-        capturedLLMContacts = input.contacts ?? [];
-        return { questions: [] };
-      }
-    },
-  };
-});
 import { eq } from "drizzle-orm";
 import { loadSettings } from "../../src/config";
 import type { DatabaseClient } from "../../src/database/client";
 import * as schema from "../../src/database/schema";
 import { startServer } from "../../src/server";
+import { resetLLMClient } from "../../src/services/llm";
 
 type TestServer = backend.TestServer;
 
@@ -85,6 +68,12 @@ const HAS_LLM = !!(
   process.env.LLM_API_KEY &&
   process.env.LLM_FAST_MODEL
 );
+
+if (!HAS_LLM) {
+  console.warn(
+    "⚠ Memory Reps E2E skipped — set LLM_BASE_URL, LLM_API_KEY and LLM_FAST_MODEL to run against a real LLM",
+  );
+}
 
 describe.skipIf(!HAS_LLM)("Memory Reps E2E (real LLM)", () => {
   let server: TestServer;
@@ -717,7 +706,6 @@ describe("Memory Reps API (unit)", () => {
       expect(data.contactsUsed).toBe(0);
       expect(data.items).toEqual([]);
     });
-
   });
 
   describe("Auto-generated reps on contact creation", () => {
@@ -852,6 +840,7 @@ describe("Memory Reps API (unit)", () => {
 describe("Memory Reps: notes decrypted before LLM", () => {
   let server: TestServer;
   let db: DatabaseClient;
+  let mockLLM: MockLLMServer;
   let token: string;
 
   beforeAll(async () => {
@@ -859,29 +848,41 @@ describe("Memory Reps: notes decrypted before LLM", () => {
       schema,
       migrationsPath: "./src/database/migrations",
     });
-    // Start server with dummy LLM config so getAI() doesn't throw BAD_REQUEST.
+    // LLM calls run through the real AxGen pipeline against a local
+    // mock OpenAI-compat server — the captured request bodies let us
+    // assert what actually went over the wire.
     // DB_ENCRYPTION_KEY uses the standard test default so the shared crypto
     // singleton decrypts with the same key used to encrypt below.
+    mockLLM = await startMockLLMServer();
+    resetLLMClient(); // drop any AxAI client cached by earlier describe blocks
     server = await backend.startTestServer({
       startServer,
       loadSettings,
       envOverrides: {
-        LLM_BASE_URL: "http://localhost:9999",
+        LLM_BASE_URL: mockLLM.url,
         LLM_API_KEY: "test-key",
         LLM_FAST_MODEL: "test-model",
       },
     });
 
-    token = await createTestToken({ sub: "enc-user", email: "enc@example.com" });
-    initializeApiClient({ baseURL: `${server.url}/rpc`, getToken: () => token });
+    token = await createTestToken({
+      sub: "enc-user",
+      email: "enc@example.com",
+    });
+    initializeApiClient({
+      baseURL: `${server.url}/rpc`,
+      getToken: () => token,
+    });
   });
 
   afterAll(() => {
     server.stop();
+    mockLLM.stop();
+    resetLLMClient();
   });
 
   beforeEach(async () => {
-    capturedLLMContacts = [];
+    mockLLM.reset();
     await backend.clearDatabase(db, { schema });
     await backend.seedTestUser(db, "enc-user", { schema });
   });
@@ -906,16 +907,33 @@ describe("Memory Reps: notes decrypted before LLM", () => {
       notesEncrypted: true,
     });
 
+    // A parseable quiz response; the bogus contactId gets filtered out by
+    // the service, so no rep rows are created.
+    mockLLM.setContent(
+      axFieldContent({
+        questions: [
+          {
+            contactId: "not-a-real-contact",
+            question: "Where did you meet Alice?",
+            options: ["React Conf", "Work", "School", "Gym"],
+            correctAnswer: 0,
+            sourceField: "notes",
+          },
+        ],
+      }),
+    );
+
     // Force the contact into detailPool so generateDetailQuestions is reached.
     const randomSpy = spyOn(Math, "random").mockReturnValue(0.9999);
     try {
       const response = await generateMemoryReps({});
-      // MockAxGen.forward was called (AxGen mocked at module level above).
-      // The notes field must be the plaintext, not the raw ciphertext.
       expect(response.status).toBe(200);
-      expect(capturedLLMContacts).toHaveLength(1);
-      expect(capturedLLMContacts[0].notes).toBe(PLAINTEXT_NOTES);
-      expect(capturedLLMContacts[0].notes).not.toBe(encryptedNotes);
+      // The request that hit the wire must carry the plaintext notes,
+      // never the raw ciphertext.
+      expect(mockLLM.requests.length).toBeGreaterThan(0);
+      const wirePayload = JSON.stringify(mockLLM.requests);
+      expect(wirePayload).toContain(PLAINTEXT_NOTES);
+      expect(wirePayload).not.toContain(encryptedNotes);
     } finally {
       randomSpy.mockRestore();
     }

@@ -1,6 +1,10 @@
-import { AxGen } from "@ax-llm/ax";
 import { backend } from "@orbital/testing";
 import { createTestToken } from "@orbital/testing/backend/auth";
+import {
+  axFieldContent,
+  startMockLLMServer,
+  type MockLLMServer,
+} from "@orbital/testing/backend/llm";
 import {
   contactsExtractFromImage,
   initializeApiClient,
@@ -13,7 +17,6 @@ import {
   describe,
   expect,
   it,
-  spyOn,
 } from "bun:test";
 import { readFileSync } from "fs";
 import { loadSettings } from "../../src/config";
@@ -24,14 +27,19 @@ import { resetLLMClient } from "../../src/services/llm";
 
 type TestServer = backend.TestServer;
 
-const VISION_MODEL =
-  process.env.LLM_VISION_MODEL ?? process.env.LLM_FAST_MODEL;
+const VISION_MODEL = process.env.LLM_VISION_MODEL ?? process.env.LLM_FAST_MODEL;
 
 const HAS_VISION_LLM = !!(
   process.env.LLM_BASE_URL &&
   process.env.LLM_API_KEY &&
   VISION_MODEL
 );
+
+if (!HAS_VISION_LLM) {
+  console.warn(
+    "⚠ Contact extract E2E skipped — set LLM_BASE_URL, LLM_API_KEY and LLM_VISION_MODEL (or LLM_FAST_MODEL) to run against a real LLM",
+  );
+}
 
 // ─── E2E Tests (real LLM) ───────────────────────────────────────────────────
 
@@ -61,7 +69,10 @@ describe.skipIf(!HAS_VISION_LLM)("Contact Extract E2E (real LLM)", () => {
       email: "extract@example.com",
     });
 
-    initializeApiClient({ baseURL: `${server.url}/rpc`, getToken: async () => token });
+    initializeApiClient({
+      baseURL: `${server.url}/rpc`,
+      getToken: async () => token,
+    });
   });
 
   afterAll(() => {
@@ -121,6 +132,7 @@ describe.skipIf(!HAS_VISION_LLM)("Contact Extract E2E (real LLM)", () => {
 describe("Contact Extract API (unit)", () => {
   let server: TestServer;
   let db: DatabaseClient;
+  let mockLLM: MockLLMServer;
   let token: string;
 
   beforeAll(async () => {
@@ -128,13 +140,14 @@ describe("Contact Extract API (unit)", () => {
       schema,
       migrationsPath: "./src/database/migrations",
     });
-    // Fake LLM config so getVisionAI() initialises — actual calls are
-    // intercepted per-test by spyOn(AxGen.prototype, "forward")
+    // LLM calls run through the real AxGen pipeline against a local
+    // mock OpenAI-compat server — only the network hop is faked.
+    mockLLM = await startMockLLMServer();
     server = await backend.startTestServer({
       startServer,
       loadSettings,
       envOverrides: {
-        LLM_BASE_URL: "https://fake.llm.test/v1",
+        LLM_BASE_URL: mockLLM.url,
         LLM_API_KEY: "fake-key",
         LLM_VISION_MODEL: "fake-vision-model",
       },
@@ -145,15 +158,20 @@ describe("Contact Extract API (unit)", () => {
       email: "extract@example.com",
     });
 
-    initializeApiClient({ baseURL: `${server.url}/rpc`, getToken: async () => token });
+    initializeApiClient({
+      baseURL: `${server.url}/rpc`,
+      getToken: async () => token,
+    });
   });
 
   afterAll(() => {
     server.stop();
+    mockLLM.stop();
     resetLLMClient();
   });
 
   beforeEach(async () => {
+    mockLLM.reset();
     await backend.clearDatabase(db, { schema });
     await backend.seedTestUser(db, "extract-user", { schema });
   });
@@ -162,7 +180,24 @@ describe("Contact Extract API (unit)", () => {
 
   describe("extraction results", () => {
     it("should return all fields the LLM provides", async () => {
-      const spy = spyOn(AxGen.prototype, "forward").mockResolvedValue({
+      mockLLM.setContent(
+        axFieldContent({
+          name: "Jane Doe",
+          email: "jane@acme.com",
+          phone: "+1 555 123 4567",
+          jobTitle: "Software Engineer",
+          company: "Acme Corp",
+          linkedinUrl: "/in/janedoe",
+          notes: "Jane is a software engineer at Acme Corp.",
+        }),
+      );
+
+      const res = await contactsExtractFromImage({
+        image: FAKE_IMAGE,
+        mimeType: "image/png",
+      });
+      expect(res.status).toBe(200);
+      expect(res.data).toMatchObject({
         name: "Jane Doe",
         email: "jane@acme.com",
         phone: "+1 555 123 4567",
@@ -171,83 +206,54 @@ describe("Contact Extract API (unit)", () => {
         linkedinUrl: "/in/janedoe",
         notes: "Jane is a software engineer at Acme Corp.",
       });
-
-      try {
-        const res = await contactsExtractFromImage({
-          image: FAKE_IMAGE,
-          mimeType: "image/png",
-        });
-        expect(res.status).toBe(200);
-        expect(res.data).toMatchObject({
-          name: "Jane Doe",
-          email: "jane@acme.com",
-          phone: "+1 555 123 4567",
-          jobTitle: "Software Engineer",
-          company: "Acme Corp",
-          linkedinUrl: "/in/janedoe",
-          notes: "Jane is a software engineer at Acme Corp.",
-        });
-      } finally {
-        spy.mockRestore();
-      }
     });
 
     it("should return a sparse object when only some fields are found", async () => {
-      const spy = spyOn(AxGen.prototype, "forward").mockResolvedValue({
-        name: "John Smith",
-        company: "Startup Inc",
-      });
+      mockLLM.setContent(
+        axFieldContent({ name: "John Smith", company: "Startup Inc" }),
+      );
 
-      try {
-        const res = await contactsExtractFromImage({
-          image: FAKE_IMAGE,
-          mimeType: "image/jpeg",
-        });
-        expect(res.status).toBe(200);
-        const data = res.data as Record<string, unknown>;
-        expect(data).toEqual({ name: "John Smith", company: "Startup Inc" });
-        expect(Object.keys(data)).toHaveLength(2);
-      } finally {
-        spy.mockRestore();
-      }
+      const res = await contactsExtractFromImage({
+        image: FAKE_IMAGE,
+        mimeType: "image/jpeg",
+      });
+      expect(res.status).toBe(200);
+      const data = res.data as Record<string, unknown>;
+      expect(data).toEqual({ name: "John Smith", company: "Startup Inc" });
+      expect(Object.keys(data)).toHaveLength(2);
     });
 
     it("should strip empty strings returned by the LLM", async () => {
-      const spy = spyOn(AxGen.prototype, "forward").mockResolvedValue({
-        name: "Alice",
-        email: "",
-        jobTitle: "CEO",
-        company: "",
-      });
+      // Empty-valued sections on the wire — must not surface as ""
+      mockLLM.setContent(
+        axFieldContent({
+          name: "Alice",
+          email: "",
+          jobTitle: "CEO",
+          company: "",
+        }),
+      );
 
-      try {
-        const res = await contactsExtractFromImage({
-          image: FAKE_IMAGE,
-          mimeType: "image/png",
-        });
-        expect(res.status).toBe(200);
-        const data = res.data as Record<string, unknown>;
-        expect(data).toEqual({ name: "Alice", jobTitle: "CEO" });
-        expect("email" in data).toBe(false);
-        expect("company" in data).toBe(false);
-      } finally {
-        spy.mockRestore();
-      }
+      const res = await contactsExtractFromImage({
+        image: FAKE_IMAGE,
+        mimeType: "image/png",
+      });
+      expect(res.status).toBe(200);
+      const data = res.data as Record<string, unknown>;
+      expect(data).toEqual({ name: "Alice", jobTitle: "CEO" });
+      expect("email" in data).toBe(false);
+      expect("company" in data).toBe(false);
     });
 
     it("should return an empty object when the LLM finds nothing", async () => {
-      const spy = spyOn(AxGen.prototype, "forward").mockResolvedValue({});
+      mockLLM.setContent("");
 
-      try {
-        const res = await contactsExtractFromImage({
-          image: FAKE_IMAGE,
-          mimeType: "image/png",
-        });
-        expect(res.status).toBe(200);
-        expect(res.data).toEqual({});
-      } finally {
-        spy.mockRestore();
-      }
+      const res = await contactsExtractFromImage({
+        image: FAKE_IMAGE,
+        mimeType: "image/png",
+      });
+      expect(res.status).toBe(200);
+      expect(res.data).toEqual({});
     });
   });
 
@@ -259,7 +265,10 @@ describe("Contact Extract API (unit)", () => {
         mimeType: "image/png",
       });
       expect(res.status).toBe(401);
-      initializeApiClient({ baseURL: `${server.url}/rpc`, getToken: async () => token }); // restore
+      initializeApiClient({
+        baseURL: `${server.url}/rpc`,
+        getToken: async () => token,
+      }); // restore
     });
 
     it("should return 400 for an unsupported mime type", async () => {
@@ -271,7 +280,9 @@ describe("Contact Extract API (unit)", () => {
     });
 
     it("should return 400 when image field is missing", async () => {
-      const res = await contactsExtractFromImage({ mimeType: "image/png" } as any);
+      const res = await contactsExtractFromImage({
+        mimeType: "image/png",
+      } as any);
       expect(res.status).toBe(400);
     });
 

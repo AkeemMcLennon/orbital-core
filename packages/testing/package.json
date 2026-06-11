@@ -11,7 +11,8 @@
     "./backend/auth": "./src/backend/auth/index.ts",
     "./backend/errors": "./src/backend/errors.ts",
     "./backend/integrations": "./src/backend/integrations/index.ts",
-    "./backend/integrations/google": "./src/backend/integrations/google/index.ts"
+    "./backend/integrations/google": "./src/backend/integrations/google/index.ts",
+    "./backend/llm": "./src/backend/llm/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
