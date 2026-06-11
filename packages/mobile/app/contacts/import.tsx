@@ -1,11 +1,5 @@
 import React, { useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, Pressable, Alert, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -13,7 +7,7 @@ import * as Contacts from "expo-contacts";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { importContacts, integrationsGoogleConnect } from "@orbital/client";
+import { bulkCreateContacts, integrationsGoogleConnect } from "@orbital/client";
 import {
   colors,
   spacing,
@@ -28,6 +22,35 @@ import {
 
 type Screen = "sources" | "select-device";
 
+const CONTACT_FIELDS = [
+  Contacts.Fields.PhoneNumbers,
+  Contacts.Fields.Emails,
+  Contacts.Fields.Image,
+  Contacts.Fields.Company,
+];
+
+async function fetchDeviceContacts(): Promise<DeviceContact[]> {
+  const { data } = await Contacts.getContactsAsync({ fields: CONTACT_FIELDS });
+  return data
+    .filter((c) => c.name)
+    .map((c) => ({
+      id: c.id!,
+      name: c.name!,
+      email: c.emails?.[0]?.email,
+      phone: c.phoneNumbers?.[0]?.number,
+      imageUri: c.image?.uri,
+      company: c.company ?? undefined,
+    }));
+}
+
+const toContactInput = (c: DeviceContact) => ({
+  name: c.name,
+  email: c.email,
+  phone: c.phone,
+  avatarUrl: c.imageUri,
+  company: c.company,
+});
+
 export default function ImportContactsScreen() {
   const [screen, setScreen] = useState<Screen>("sources");
   const [deviceContacts, setDeviceContacts] = useState<DeviceContact[]>([]);
@@ -36,27 +59,23 @@ export default function ImportContactsScreen() {
   const queryClient = useQueryClient();
 
   const importMutation = useMutation({
-    mutationFn: (contacts: DeviceContact[]) =>
-      importContacts({
-        source: "device",
-        contacts: contacts.map((c) => ({
-          externalId: c.id,
-          name: c.name,
-          email: c.email,
-          phone: c.phone,
-          avatarUrl: c.imageUri,
-          company: c.company,
-        })),
-      }),
-    onSuccess: (response) => {
-      queryClient.invalidateQueries({ queryKey: ["available-contacts"] });
+    mutationFn: async (contacts: DeviceContact[]) => {
+      const created: { id: string }[] = [];
+      for (let i = 0; i < contacts.length; i += 500) {
+        const response = await bulkCreateContacts({
+          contacts: contacts.slice(i, i + 500).map(toContactInput),
+        });
+        if (response.status === 200) created.push(...response.data);
+      }
+      return created;
+    },
+    onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      const count = response.status === 200 ? response.data.imported : 0;
-      Alert.alert(
-        "Import Complete",
-        `${count} contact${count !== 1 ? "s" : ""} imported successfully.`,
-        [{ text: "OK", onPress: () => router.back() }],
-      );
+      if (created.length === 1) {
+        router.replace(`/contacts/${created[0].id}`);
+      } else {
+        router.replace("/(main)/contacts");
+      }
     },
     onError: (error) => {
       console.error("Import failed:", error);
@@ -84,26 +103,9 @@ export default function ImportContactsScreen() {
         return;
       }
 
-      const { data } = await Contacts.getContactsAsync({
-        fields: [
-          Contacts.Fields.PhoneNumbers,
-          Contacts.Fields.Emails,
-          Contacts.Fields.Image,
-          Contacts.Fields.Company,
-        ],
-      });
-
-      const mapped: DeviceContact[] = data
-        .filter((c) => c.name) // Skip contacts without names
-        .map((c) => ({
-          id: c.id!,
-          name: c.name!,
-          email: c.emails?.[0]?.email,
-          phone: c.phoneNumbers?.[0]?.number,
-          imageUri: c.image?.uri,
-          company: c.company ?? undefined,
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name));
+      const mapped = (await fetchDeviceContacts()).sort((a, b) =>
+        a.name.localeCompare(b.name),
+      );
 
       setDeviceContacts(mapped);
     } catch (error) {
@@ -126,69 +128,19 @@ export default function ImportContactsScreen() {
 
     setIsLoadingContacts(true);
     try {
-      const { data } = await Contacts.getContactsAsync({
-        fields: [
-          Contacts.Fields.PhoneNumbers,
-          Contacts.Fields.Emails,
-          Contacts.Fields.Image,
-          Contacts.Fields.Company,
-        ],
-      });
-
-      const mapped: DeviceContact[] = data
-        .filter((c) => c.name)
-        .map((c) => ({
-          id: c.id!,
-          name: c.name!,
-          email: c.emails?.[0]?.email,
-          phone: c.phoneNumbers?.[0]?.number,
-          imageUri: c.image?.uri,
-          company: c.company ?? undefined,
-        }));
-
-      if (mapped.length === 0) {
+      const contacts = await fetchDeviceContacts();
+      if (contacts.length === 0) {
         Alert.alert("No Contacts", "No contacts found on this device.");
         return;
       }
-
-      // Import in chunks of 500 (API max)
-      const chunks: DeviceContact[][] = [];
-      for (let i = 0; i < mapped.length; i += 500) {
-        chunks.push(mapped.slice(i, i + 500));
-      }
-
-      let totalImported = 0;
-      for (const chunk of chunks) {
-        const response = await importContacts({
-          source: "device",
-          contacts: chunk.map((c) => ({
-            externalId: c.id,
-            name: c.name,
-            email: c.email,
-            phone: c.phone,
-            avatarUrl: c.imageUri,
-            company: c.company,
-          })),
-        });
-        if (response.status === 200) {
-          totalImported += response.data.imported;
-        }
-      }
-
-      queryClient.invalidateQueries({ queryKey: ["available-contacts"] });
-      queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      Alert.alert(
-        "Sync Complete",
-        `${totalImported} contact${totalImported !== 1 ? "s" : ""} imported from your device.`,
-        [{ text: "OK", onPress: () => router.back() }],
-      );
+      importMutation.mutate(contacts);
     } catch (error) {
       console.error("Sync failed:", error);
       Alert.alert("Sync Failed", "Something went wrong. Please try again.");
     } finally {
       setIsLoadingContacts(false);
     }
-  }, [queryClient]);
+  }, [importMutation]);
 
   const handleSelectDeviceContacts = useCallback(async () => {
     setScreen("select-device");
@@ -208,7 +160,6 @@ export default function ImportContactsScreen() {
     try {
       const redirectUrl = Linking.createURL("google-connected");
       const response = await integrationsGoogleConnect({ next: redirectUrl });
-      debugger;
       if (response.status === 200 && response.data) {
         const data = response.data as { url: string; state: string };
         await WebBrowser.openAuthSessionAsync(data.url);
