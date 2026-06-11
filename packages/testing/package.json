@@ -18,6 +18,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "drizzle-orm": "^0.45.1",
     "jose": "^5.2.0"
   },
   "peerDependencies": {

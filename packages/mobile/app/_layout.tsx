@@ -12,9 +12,10 @@ import * as Linking from "expo-linking";
 import * as SplashScreen from "expo-splash-screen";
 import { router, Stack } from "expo-router";
 import { useEffect } from "react";
+import { Alert } from "react-native";
 import { useShareIntent } from "expo-share-intent";
 
-import { extractUrlFromText } from "../src/utils/metadata";
+import { extractUrlFromText, isUrl } from "../src/utils/metadata";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -95,15 +96,27 @@ function AuthGate() {
       return;
     }
 
-    // Text/URL share (existing behavior)
+    // Text/URL share: default to the WebView capture flow for any shared URL.
     const sharedText = shareIntent.text || shareIntent.webUrl || "";
-    const extracted = extractUrlFromText(sharedText) ?? sharedText.trim();
+    const trimmed = sharedText.trim();
+
+    // expo-share-intent emits a truthy (but empty) intent on normal launch.
+    // Only react when content was actually shared.
+    if (!imageFile && !trimmed) return;
+
+    const extracted =
+      extractUrlFromText(sharedText) ?? (isUrl(trimmed) ? trimmed : null);
+    resetShareIntent();
     if (extracted) {
-      resetShareIntent();
       const link = Linking.createURL("contact-add", {
         queryParams: { url: extracted },
       });
       handleDeepLink(link);
+    } else {
+      Alert.alert(
+        "Unsupported share",
+        "Only images and links can be added as contacts.",
+      );
     }
   }, [isAuthenticated, shareIntent]);
 

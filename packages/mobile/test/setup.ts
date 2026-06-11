@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 // ── Root layout → minimal Slot + QueryClientProvider ──
-jest.mock('../app/_layout', () => {
-  const React = require('react');
-  const { Slot } = require('expo-router');
-  const { QueryClient, QueryClientProvider } = require('@tanstack/react-query');
-  const { AuthProvider } = require('../src/contexts/AuthContext');
+jest.mock("../app/_layout", () => {
+  const React = require("react");
+  const { Slot } = require("expo-router");
+  const { QueryClient, QueryClientProvider } = require("@tanstack/react-query");
+  const { AuthProvider } = require("../src/contexts/AuthContext");
 
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: 0, gcTime: 0 } },
@@ -23,9 +23,9 @@ jest.mock('../app/_layout', () => {
 });
 
 // ── Main (Drawer) layout → minimal Slot ──
-jest.mock('../app/(main)/_layout', () => {
-  const React = require('react');
-  const { Slot } = require('expo-router');
+jest.mock("../app/(main)/_layout", () => {
+  const React = require("react");
+  const { Slot } = require("expo-router");
   return {
     __esModule: true,
     default: () => React.createElement(Slot),
@@ -33,38 +33,43 @@ jest.mock('../app/(main)/_layout', () => {
 });
 
 // ── Mobile API config (runs at import-time in _layout) ──
-jest.mock('../src/api/config', () => ({
+jest.mock("../src/api/config", () => ({
   configureMobileApi: jest.fn(() => Promise.resolve()),
-  getCurrentBaseUrl: jest.fn(() => Promise.resolve('http://localhost:8787/rpc')),
+  getCurrentBaseUrl: jest.fn(() =>
+    Promise.resolve("http://localhost:8787/rpc"),
+  ),
   refreshAccessToken: jest.fn(() => Promise.resolve(null)),
-  getToken: jest.fn(() => Promise.resolve('')),
+  getToken: jest.fn(() => Promise.resolve("")),
   DEFAULT_AUTH_CONFIG: {
-    issuerUrl: 'https://auth.example.com',
-    clientId: 'orbital-mobile',
-    scopes: ['openid', 'profile', 'email', 'offline_access'],
+    issuerUrl: "https://auth.example.com",
+    clientId: "orbital-mobile",
+    scopes: ["openid", "profile", "email", "offline_access"],
   },
   STORAGE_KEYS: {
-    accessToken: 'auth_token',
-    refreshToken: 'auth_refresh_token',
-    authIssuerUrl: 'auth_issuer_url',
-    authClientId: 'auth_client_id',
+    accessToken: "auth_token",
+    refreshToken: "auth_refresh_token",
+    authIssuerUrl: "auth_issuer_url",
+    authClientId: "auth_client_id",
   },
 }));
 
 // ── NativeSourceCode (getDevServer needs scriptURL) ──
-jest.mock('react-native/Libraries/NativeModules/specs/NativeSourceCode', () => ({
-  __esModule: true,
-  default: {
-    getConstants: () => ({
-      scriptURL: 'http://localhost:8081/index.bundle?platform=ios',
-    }),
-  },
-}));
+jest.mock(
+  "react-native/Libraries/NativeModules/specs/NativeSourceCode",
+  () => ({
+    __esModule: true,
+    default: {
+      getConstants: () => ({
+        scriptURL: "http://localhost:8081/index.bundle?platform=ios",
+      }),
+    },
+  }),
+);
 
 // ── react-native-safe-area-context ──
-jest.mock('react-native-safe-area-context', () => {
-  const React = require('react');
-  const { View } = require('react-native');
+jest.mock("react-native-safe-area-context", () => {
+  const React = require("react");
+  const { View } = require("react-native");
   return {
     SafeAreaView: (props: any) => React.createElement(View, props),
     SafeAreaProvider: ({ children }: any) =>
@@ -74,9 +79,9 @@ jest.mock('react-native-safe-area-context', () => {
 });
 
 // ── react-native-gesture-handler ──
-jest.mock('react-native-gesture-handler', () => {
-  const React = require('react');
-  const { View } = require('react-native');
+jest.mock("react-native-gesture-handler", () => {
+  const React = require("react");
+  const { View } = require("react-native");
   return {
     GestureHandlerRootView: (props: any) => React.createElement(View, props),
     Swipeable: View,
@@ -105,21 +110,20 @@ jest.mock('react-native-gesture-handler', () => {
 });
 
 // ── react-native-reanimated ──
-jest.mock('react-native-reanimated', () =>
-  require('react-native-reanimated/mock'),
+jest.mock("react-native-reanimated", () =>
+  require("react-native-reanimated/mock"),
 );
 
 // ── tamagui ──
-jest.mock('tamagui', () => {
-  const React = require('react');
-  const { View, Text, Image } = require('react-native');
+jest.mock("tamagui", () => {
+  const React = require("react");
+  const { View, Text, Image } = require("react-native");
 
   const AvatarImage = (props: any) => React.createElement(Image, props);
   const AvatarFallback = ({ children, ...props }: any) =>
     React.createElement(View, props, children);
   const Avatar = Object.assign(
-    ({ children, ...props }: any) =>
-      React.createElement(View, props, children),
+    ({ children, ...props }: any) => React.createElement(View, props, children),
     { Image: AvatarImage, Fallback: AvatarFallback },
   );
 
@@ -134,46 +138,45 @@ jest.mock('tamagui', () => {
 });
 
 // ── @expo/vector-icons ──
-jest.mock('@expo/vector-icons', () => {
-  const React = require('react');
-  const { Text } = require('react-native');
+jest.mock("@expo/vector-icons", () => {
+  const React = require("react");
+  const { Text } = require("react-native");
   return {
     Ionicons: (props: any) =>
-      React.createElement(Text, props, props.name || ''),
+      React.createElement(Text, props, props.name || ""),
   };
 });
 
 // ── @expo/vector-icons/MaterialIcons ──
-jest.mock('@expo/vector-icons/MaterialIcons', () => {
-  const React = require('react');
-  const { Text } = require('react-native');
+jest.mock("@expo/vector-icons/MaterialIcons", () => {
+  const React = require("react");
+  const { Text } = require("react-native");
   return {
     __esModule: true,
-    default: (props: any) =>
-      React.createElement(Text, props, props.name || ''),
+    default: (props: any) => React.createElement(Text, props, props.name || ""),
   };
 });
 
 // ── expo-constants ──
-jest.mock('expo-constants', () => ({
+jest.mock("expo-constants", () => ({
   __esModule: true,
   default: {
     expoConfig: {
-      hostUri: 'localhost:8081',
+      hostUri: "localhost:8081",
     },
   },
 }));
 
 // ── expo-status-bar ──
-jest.mock('expo-status-bar', () => ({
+jest.mock("expo-status-bar", () => ({
   StatusBar: () => null,
 }));
 
 // ── color-hash ──
-jest.mock('color-hash', () => {
+jest.mock("color-hash", () => {
   return class ColorHash {
     hex() {
-      return '#4F46E5';
+      return "#4F46E5";
     }
     hsl() {
       return [240, 50, 50];
@@ -185,26 +188,26 @@ jest.mock('color-hash', () => {
 });
 
 // ── expo-image ──
-jest.mock('expo-image', () => {
-  const React = require('react');
-  const { Image } = require('react-native');
+jest.mock("expo-image", () => {
+  const React = require("react");
+  const { Image } = require("react-native");
   return {
     Image: (props: any) => React.createElement(Image, props),
   };
 });
 
 // ── @/hooks/use-color-scheme ──
-jest.mock('@/hooks/use-color-scheme', () => ({
-  useColorScheme: () => 'light',
+jest.mock("@/hooks/use-color-scheme", () => ({
+  useColorScheme: () => "light",
 }));
 
 // ── tamagui config ──
-jest.mock('../tamagui.config', () => ({
+jest.mock("../tamagui.config", () => ({
   tamalogui: {},
 }));
 
 // ── expo-image-picker ──
-jest.mock('expo-image-picker', () => ({
+jest.mock("expo-image-picker", () => ({
   launchCameraAsync: jest.fn(),
   launchImageLibraryAsync: jest.fn(),
   requestCameraPermissionsAsync: jest.fn(() => ({ granted: true })),
@@ -212,50 +215,73 @@ jest.mock('expo-image-picker', () => ({
 }));
 
 // ── expo-haptics ──
-jest.mock('expo-haptics', () => ({
+jest.mock("expo-haptics", () => ({
   impactAsync: jest.fn(),
-  ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' },
+  ImpactFeedbackStyle: { Light: "light", Medium: "medium", Heavy: "heavy" },
 }));
 
 // ── expo-symbols ──
-jest.mock('expo-symbols', () => ({}));
+jest.mock("expo-symbols", () => ({}));
 
 // ── expo-contacts ──
-jest.mock('expo-contacts', () => ({
-  requestPermissionsAsync: jest.fn(() => ({ status: 'granted' })),
+jest.mock("expo-contacts", () => ({
+  requestPermissionsAsync: jest.fn(() => ({ status: "granted" })),
   getContactsAsync: jest.fn(() => ({ data: [] })),
   Fields: {},
 }));
 
 // ── expo-crypto ──
-jest.mock('expo-crypto', () => ({
+jest.mock("expo-crypto", () => ({
   digestStringAsync: jest.fn(),
-  CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
+  CryptoDigestAlgorithm: { SHA256: "SHA-256" },
   getRandomBytes: jest.fn(() => new Uint8Array(32)),
   getRandomValues: jest.fn((arr: any) => arr),
 }));
 
 // ── expo-auth-session ──
-jest.mock('expo-auth-session', () => ({
+jest.mock("expo-auth-session", () => ({
   useAutoDiscovery: jest.fn(() => null),
   useAuthRequest: jest.fn(() => [null, null, jest.fn()]),
-  makeRedirectUri: jest.fn(() => 'exp://localhost:8081/--/auth'),
+  makeRedirectUri: jest.fn(() => "exp://localhost:8081/--/auth"),
   AuthRequest: jest.fn(),
   fetchDiscoveryAsync: jest.fn(),
-  Prompt: { Login: 'login', Consent: 'consent' },
-  ResponseType: { Code: 'code' },
-  CodeChallengeMethod: { S256: 'S256' },
+  Prompt: { Login: "login", Consent: "consent" },
+  ResponseType: { Code: "code" },
+  CodeChallengeMethod: { S256: "S256" },
 }));
 
 // ── expo-web-browser ──
-jest.mock('expo-web-browser', () => ({
+jest.mock("expo-web-browser", () => ({
   openBrowserAsync: jest.fn(),
   openAuthSessionAsync: jest.fn(),
   maybeCompleteAuthSession: jest.fn(),
 }));
 
+// ── expo-file-system (File class API) ──
+jest.mock("expo-file-system", () => ({
+  File: class {
+    base64() {
+      return Promise.resolve("");
+    }
+  },
+  Directory: class {},
+}));
+
+// ── react-native-webview ──
+jest.mock("react-native-webview", () => {
+  const React = require("react");
+  const { View } = require("react-native");
+  const WebView = (props: any) => React.createElement(View, props);
+  return { __esModule: true, WebView, default: WebView };
+});
+
+// ── react-native-view-shot ──
+jest.mock("react-native-view-shot", () => ({
+  captureRef: jest.fn(() => Promise.resolve("file:///tmp/capture.jpg")),
+}));
+
 // ── expo-linking ──
-jest.mock('expo-linking', () => ({
+jest.mock("expo-linking", () => ({
   createURL: jest.fn((path: string) => `exp://localhost:8081/${path}`),
   openURL: jest.fn(),
   getInitialURL: jest.fn(() => Promise.resolve(null)),

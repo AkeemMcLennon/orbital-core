@@ -38,7 +38,9 @@ function getOAuthCallbackUri(
 /**
  * Create a configured Google OAuth2 client
  */
-export function createGoogleOAuth2Client(redirectUri: string) {
+export function createGoogleOAuth2Client(
+  redirectUri: string,
+): InstanceType<typeof google.auth.OAuth2> {
   const oauth2Client = new google.auth.OAuth2({
     clientId: settings.GOOGLE_CLIENT_ID,
     clientSecret: settings.GOOGLE_CLIENT_SECRET,

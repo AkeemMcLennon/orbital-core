@@ -26,17 +26,31 @@ import { contactKeys } from "../src/queries/contacts";
 import { createContactWithAvatar } from "../src/lib/createContactWithAvatar";
 import Constants from "expo-constants";
 import { colors, spacing, borderRadius, shadows } from "../src/theme";
-import { fetchMetadata, isUrl, detectSocialPlatform, type MetadataResult } from "../src/utils/metadata";
+import {
+  fetchMetadata,
+  isUrl,
+  type MetadataResult,
+} from "../src/utils/metadata";
+import { WebCaptureModal } from "../src/components/WebCaptureModal";
 
 export default function AddContactScreen() {
-  const { url: deepLinkUrl, sharedImageUri, sharedImageMimeType, croppedImageUri } =
-    useLocalSearchParams<{ url?: string; sharedImageUri?: string; sharedImageMimeType?: string; croppedImageUri?: string }>();
+  const {
+    url: deepLinkUrl,
+    sharedImageUri,
+    sharedImageMimeType,
+    croppedImageUri,
+  } = useLocalSearchParams<{
+    url?: string;
+    sharedImageUri?: string;
+    sharedImageMimeType?: string;
+    croppedImageUri?: string;
+  }>();
   const [isAiMode, setIsAiMode] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [debouncedSearchText] = useDebounceValue(searchText, 300);
   const [urlMetadata, setUrlMetadata] = useState<MetadataResult | null>(null);
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
-  
+
   // We'll trust the API return type, but define a partial shape for local state
   // to avoid complex generic imports.
   const [selectedContact, setSelectedContact] = useState<{
@@ -45,12 +59,14 @@ export default function AddContactScreen() {
     email?: string | null;
     avatarUrl?: string | null;
   } | null>(null);
-  
+
   const [showResults, setShowResults] = useState(false);
   const [notes, setNotes] = useState("");
   const [isExtractingImage, setIsExtractingImage] = useState(false);
   const [avatarMimeType, setAvatarMimeType] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showWebCapture, setShowWebCapture] = useState(false);
+  const [webCaptureUrl, setWebCaptureUrl] = useState("");
   const queryClient = useQueryClient();
   const extractionApplied = useRef(false);
 
@@ -61,18 +77,40 @@ export default function AddContactScreen() {
     isError: isExtractionError,
   } = useExtractImageQuery(sharedImageUri, sharedImageMimeType);
 
-  function applyExtractedContact(data: { name?: string; email?: string | null; phone?: string; company?: string; jobTitle?: string; linkedinUrl?: string }, avatarUri?: string, mimeType?: string) {
+  function applyExtractedContact(
+    data: {
+      name?: string;
+      email?: string | null;
+      phone?: string;
+      company?: string;
+      jobTitle?: string;
+      linkedinUrl?: string;
+    },
+    avatarUri?: string,
+    mimeType?: string,
+  ) {
     const name = data.name || "Unknown";
     setSearchText(name);
-    setSelectedContact({ id: `extracted:${Date.now()}`, name, email: data.email ?? null, avatarUrl: avatarUri ?? null });
-    setAvatarMimeType(avatarUri && !avatarUri.startsWith("http") ? (mimeType ?? "image/jpeg") : null);
+    setSelectedContact({
+      id: `extracted:${Date.now()}`,
+      name,
+      email: data.email ?? null,
+      avatarUrl: avatarUri ?? null,
+    });
+    setAvatarMimeType(
+      avatarUri && !avatarUri.startsWith("http")
+        ? (mimeType ?? "image/jpeg")
+        : null,
+    );
     setShowResults(false);
     const extra = [
-      data.phone       && `Phone: ${data.phone}`,
-      data.company     && `Company: ${data.company}`,
-      data.jobTitle    && `Title: ${data.jobTitle}`,
+      data.phone && `Phone: ${data.phone}`,
+      data.company && `Company: ${data.company}`,
+      data.jobTitle && `Title: ${data.jobTitle}`,
       data.linkedinUrl && `LinkedIn: ${data.linkedinUrl}`,
-    ].filter(Boolean).join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
     if (extra) setNotes(extra);
   }
 
@@ -82,7 +120,7 @@ export default function AddContactScreen() {
       setSearchText(deepLinkUrl);
       triggerMetadataFetch(deepLinkUrl, true);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Populate form when shared-image extraction completes (may be instant from cache)
@@ -90,7 +128,10 @@ export default function AddContactScreen() {
     if (isExtractionError) {
       if (extractionApplied.current) return;
       extractionApplied.current = true;
-      Alert.alert("Extraction failed", "Unable to read contact info from this image.");
+      Alert.alert(
+        "Extraction failed",
+        "Unable to read contact info from this image.",
+      );
       return;
     }
     if (!extractedData || extractionApplied.current) return;
@@ -105,7 +146,7 @@ export default function AddContactScreen() {
     } else if (!isUrl(debouncedSearchText)) {
       setUrlMetadata(null);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearchText]);
 
   function selectFromMetadata(metadata: MetadataResult) {
@@ -122,15 +163,19 @@ export default function AddContactScreen() {
   }
 
   async function triggerMetadataFetch(url: string, autoSelect = false) {
+    // Shared URLs default to the in-app WebView capture flow: the user opens
+    // the page (signing in if needed) and screenshots it into the
+    // image-extraction flow. Typed URLs still get an inline link preview.
+    if (autoSelect) {
+      setWebCaptureUrl(url);
+      setShowWebCapture(true);
+      return;
+    }
     setUrlMetadata(null);
     setIsFetchingMetadata(true);
     try {
       const result = await fetchMetadata(url, Constants.userAgent ?? undefined);
-      if (autoSelect && detectSocialPlatform(url) && result.title) {
-        selectFromMetadata(result);
-      } else {
-        setUrlMetadata(result);
-      }
+      setUrlMetadata(result);
     } catch (e) {
       console.warn("Metadata fetch failed:", e);
       Alert.alert(
@@ -162,7 +207,6 @@ export default function AddContactScreen() {
   const availableContacts =
     searchData?.status === 200 ? searchData.data.items : [];
 
-
   const handleContactSelect = (contact: (typeof availableContacts)[0]) => {
     setSelectedContact(contact);
     setAvatarMimeType(null);
@@ -192,7 +236,11 @@ export default function AddContactScreen() {
       });
       if (!isSuccess(res)) throw new Error("Extraction failed");
 
-      applyExtractedContact(res.data as Record<string, string>, asset.uri, asset.mimeType ?? "image/jpeg");
+      applyExtractedContact(
+        res.data as Record<string, string>,
+        asset.uri,
+        asset.mimeType ?? "image/jpeg",
+      );
     } catch {
       Alert.alert(
         "Extraction failed",
@@ -305,11 +353,7 @@ export default function AddContactScreen() {
           >
             Import from Phone or Google
           </Text>
-          <Ionicons
-            name="chevron-forward"
-            size={18}
-            color={colors.primary}
-          />
+          <Ionicons name="chevron-forward" size={18} color={colors.primary} />
         </Pressable>
         {/* Scan image button */}
         <Pressable
@@ -734,10 +778,7 @@ export default function AddContactScreen() {
         </Pressable>
         <Pressable
           onPress={handleAddContact}
-          disabled={
-            (!selectedContact && !searchText.trim()) ||
-            isSubmitting
-          }
+          disabled={(!selectedContact && !searchText.trim()) || isSubmitting}
           style={{
             flex: 1,
             paddingVertical: spacing.md,
@@ -770,6 +811,18 @@ export default function AddContactScreen() {
           </Text>
         </Pressable>
       </View>
+      <WebCaptureModal
+        visible={showWebCapture}
+        url={webCaptureUrl}
+        onCaptured={(imageUri, mimeType) => {
+          setShowWebCapture(false);
+          router.replace({
+            pathname: "/contact-screenshot-crop",
+            params: { sharedImageUri: imageUri, sharedImageMimeType: mimeType },
+          });
+        }}
+        onClose={() => setShowWebCapture(false)}
+      />
     </SafeAreaView>
   );
 }
