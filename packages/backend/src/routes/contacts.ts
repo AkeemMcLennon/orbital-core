@@ -82,6 +82,22 @@ const dateField = () =>
     .union([z.date(), z.string().datetime()])
     .transform((val) => (val instanceof Date ? val.toISOString() : val));
 
+const ContactInputSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  avatarUrl: z.string().url().optional(),
+  jobTitle: z.string().optional(),
+  company: z.string().optional(),
+  birthday: z
+    .string()
+    .regex(/^(\d{4}-\d{2}-\d{2}|\d{2}-\d{2})$/)
+    .optional(),
+  notes: z.string().optional(),
+  group: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+});
+
 // Shared output schemas
 const ContactOutputSchema = z.object({
   id: z.string(),
@@ -233,23 +249,7 @@ export const createContact = authProc
     summary: "Create contact",
     operationId: "createContact",
   })
-  .input(
-    z.object({
-      name: z.string().min(1),
-      email: z.string().email().optional(),
-      phone: z.string().optional(),
-      avatarUrl: z.string().url().optional(),
-      jobTitle: z.string().optional(),
-      company: z.string().optional(),
-      birthday: z
-        .string()
-        .regex(/^(\d{4}-\d{2}-\d{2}|\d{2}-\d{2})$/)
-        .optional(),
-      notes: z.string().optional(),
-      group: z.string().optional(),
-      tags: z.array(z.string()).optional(),
-    }),
-  )
+  .input(ContactInputSchema)
   .output(ContactOutputSchema)
   .handler(async ({ input, context }) => {
     const { db, user } = context;
@@ -282,7 +282,13 @@ export const createContact = authProc
     waitUntil(generateRepsForNewContact(db, user.id, contact.id));
 
     if (input.notes) {
-      await generateDynamicTagsForContact(db, user.id, contact.id, input.notes, input.email ?? null);
+      await generateDynamicTagsForContact(
+        db,
+        user.id,
+        contact.id,
+        input.notes,
+        input.email ?? null,
+      );
     }
 
     const [derived] = await Promise.all([
@@ -290,15 +296,23 @@ export const createContact = authProc
         ? deriveContactFields(input.notes ?? "", input.email ?? null)
         : Promise.resolve(null),
       input.notes
-        ? deriveContactRelationships(db, user.id, contact.id, contact.name, input.notes)
+        ? deriveContactRelationships(
+            db,
+            user.id,
+            contact.id,
+            contact.name,
+            input.notes,
+          )
         : Promise.resolve(),
     ]);
 
     if (derived) {
       const patch: Record<string, string> = {};
-      if (derived.jobTitle && !contact.jobTitle) patch.jobTitle = derived.jobTitle;
+      if (derived.jobTitle && !contact.jobTitle)
+        patch.jobTitle = derived.jobTitle;
       if (derived.company && !contact.company) patch.company = derived.company;
-      if (derived.birthday && !contact.birthday) patch.birthday = derived.birthday;
+      if (derived.birthday && !contact.birthday)
+        patch.birthday = derived.birthday;
       if (Object.keys(patch).length > 0) {
         const [enriched] = await db
           .update(contacts)
@@ -310,6 +324,50 @@ export const createContact = authProc
     }
 
     return decryptContact(contact, user.id);
+  });
+
+/**
+ * Bulk create contacts directly as active contacts
+ */
+export const bulkCreateContacts = authProc
+  .route({
+    method: "POST",
+    path: "/contacts/bulk",
+    summary: "Bulk create contacts",
+    operationId: "bulkCreateContacts",
+  })
+  .input(z.object({ contacts: z.array(ContactInputSchema).min(1).max(500) }))
+  .output(z.array(ContactOutputSchema))
+  .handler(async ({ input, context }) => {
+    const { db, user } = context;
+
+    const values = input.contacts.map((c) => {
+      const { notes: encNotes, notesEncrypted } = encryptNotes(
+        c.notes,
+        user.id,
+      );
+      return {
+        userId: user.id,
+        name: c.name,
+        email: c.email ?? null,
+        phone: c.phone ?? null,
+        avatarUrl: c.avatarUrl ?? null,
+        jobTitle: c.jobTitle ?? null,
+        company: c.company ?? null,
+        birthday: c.birthday ?? null,
+        notes: encNotes,
+        notesEncrypted,
+        group: (c.group as "work" | "personal" | undefined) ?? null,
+      };
+    });
+
+    const created = await db.insert(contacts).values(values).returning();
+
+    for (const contact of created) {
+      waitUntil(generateRepsForNewContact(db, user.id, contact.id));
+    }
+
+    return created;
   });
 
 /**
@@ -380,7 +438,13 @@ export const updateContact = authProc
     if (patch.notes !== undefined) {
       const plainNotes = input.notes ?? "";
       if (plainNotes) {
-        await generateDynamicTagsForContact(db, user.id, contact.id, plainNotes, contact.email ?? null);
+        await generateDynamicTagsForContact(
+          db,
+          user.id,
+          contact.id,
+          plainNotes,
+          contact.email ?? null,
+        );
       }
     }
 
@@ -392,15 +456,24 @@ export const updateContact = authProc
       const [derived] = await Promise.all([
         deriveContactFields(plainNotes, contact.email ?? null),
         plainNotes
-          ? deriveContactRelationships(db, user.id, contact.id, contact.name, plainNotes)
+          ? deriveContactRelationships(
+              db,
+              user.id,
+              contact.id,
+              contact.name,
+              plainNotes,
+            )
           : Promise.resolve(),
       ]);
 
       if (derived) {
         const enrichPatch: Record<string, string> = {};
-        if (derived.jobTitle && !contact.jobTitle) enrichPatch.jobTitle = derived.jobTitle;
-        if (derived.company && !contact.company) enrichPatch.company = derived.company;
-        if (derived.birthday && !contact.birthday) enrichPatch.birthday = derived.birthday;
+        if (derived.jobTitle && !contact.jobTitle)
+          enrichPatch.jobTitle = derived.jobTitle;
+        if (derived.company && !contact.company)
+          enrichPatch.company = derived.company;
+        if (derived.birthday && !contact.birthday)
+          enrichPatch.birthday = derived.birthday;
         if (Object.keys(enrichPatch).length > 0) {
           const [enriched] = await db
             .update(contacts)
@@ -749,6 +822,7 @@ export const router = {
   list: listContacts,
   get: getContact,
   create: createContact,
+  bulkCreate: bulkCreateContacts,
   update: updateContact,
   delete: deleteContact,
   search: searchContacts,
