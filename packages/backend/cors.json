@@ -2,7 +2,7 @@
   "rules": [
     {
       "allowed": {
-        "origins": ["*"],
+        "origins": ["https://example.com", "https://beta.example.com"],
         "methods": ["PUT"],
         "headers": ["Content-Type"]
       }

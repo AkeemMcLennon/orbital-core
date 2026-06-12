@@ -1,10 +1,10 @@
-import { eq, and, lt, desc, type SQL } from 'drizzle-orm';
-import * as z from 'zod';
-import { contacts, contactRelationships } from '../database/schema';
-import { authProc } from '../middleware/auth';
-import { ORPCError } from '@orpc/server';
-import { base58IdSchema } from '@orbital/utils';
-import { PaginationInputSchema, paginatedSchema } from '../utils/pagination';
+import { eq, and, lt, desc, type SQL } from "drizzle-orm";
+import * as z from "zod";
+import { contacts, contactRelationships } from "../database/schema";
+import { authProc } from "../middleware/auth";
+import { ORPCError } from "@orpc/server";
+import { base58IdSchema } from "@orbital/utils";
+import { PaginationInputSchema, paginatedSchema } from "../utils/pagination";
 
 // Helper for date fields that can be Date objects or ISO strings
 const dateField = () =>
@@ -28,14 +28,16 @@ const RelationshipOutputSchema = z.object({
 
 // Relationship with related contact info
 const RelationshipWithContactSchema = RelationshipOutputSchema.extend({
-  relatedContact: z.object({
-    id: z.string(),
-    name: z.string(),
-    email: z.string().nullable(),
-    avatarUrl: z.string().nullable(),
-    company: z.string().nullable(),
-    jobTitle: z.string().nullable(),
-  }).nullable(),
+  relatedContact: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+      email: z.string().nullable(),
+      avatarUrl: z.string().nullable(),
+      company: z.string().nullable(),
+      jobTitle: z.string().nullable(),
+    })
+    .nullable(),
 });
 
 /**
@@ -46,10 +48,10 @@ const RelationshipWithContactSchema = RelationshipOutputSchema.extend({
  */
 export const listContactRelationships = authProc
   .route({
-    method: 'GET',
-    path: '/contacts/{contactId}/relationships',
-    summary: 'List relationships for a contact',
-    operationId: 'listContactRelationships',
+    method: "GET",
+    path: "/contacts/{contactId}/relationships",
+    summary: "List relationships for a contact",
+    operationId: "listContactRelationships",
   })
   .input(
     PaginationInputSchema.extend({
@@ -64,11 +66,13 @@ export const listContactRelationships = authProc
     const [contact] = await db
       .select()
       .from(contacts)
-      .where(and(eq(contacts.id, input.contactId), eq(contacts.userId, user.id)))
+      .where(
+        and(eq(contacts.id, input.contactId), eq(contacts.userId, user.id)),
+      )
       .limit(1);
 
     if (!contact) {
-      throw new ORPCError('NOT_FOUND', { message: 'Contact not found' });
+      throw new ORPCError("NOT_FOUND", { message: "Contact not found" });
     }
 
     // Simple query - just filter by contactId, no OR needed
@@ -81,7 +85,10 @@ export const listContactRelationships = authProc
       db
         .select()
         .from(contactRelationships)
-        .leftJoin(contacts, eq(contactRelationships.relatedContactId, contacts.id))
+        .leftJoin(
+          contacts,
+          eq(contactRelationships.relatedContactId, contacts.id),
+        )
         .where(whereClause)
         .orderBy(desc(contactRelationships.createdAt))
         .limit(input.limit)
@@ -94,14 +101,16 @@ export const listContactRelationships = authProc
     return {
       items: results.map((r) => ({
         ...r.contact_relationships,
-        relatedContact: r.contacts ? {
-          id: r.contacts.id,
-          name: r.contacts.name,
-          email: r.contacts.email,
-          avatarUrl: r.contacts.avatarUrl,
-          company: r.contacts.company,
-          jobTitle: r.contacts.jobTitle,
-        } : null,
+        relatedContact: r.contacts
+          ? {
+              id: r.contacts.id,
+              name: r.contacts.name,
+              email: r.contacts.email,
+              avatarUrl: r.contacts.avatarUrl,
+              company: r.contacts.company,
+              jobTitle: r.contacts.jobTitle,
+            }
+          : null,
       })),
       pagination: {
         total,
@@ -118,10 +127,10 @@ export const listContactRelationships = authProc
  */
 export const createRelationship = authProc
   .route({
-    method: 'POST',
-    path: '/contacts/relationships',
-    summary: 'Create a relationship between two contacts',
-    operationId: 'createRelationship',
+    method: "POST",
+    path: "/contacts/relationships",
+    summary: "Create a relationship between two contacts",
+    operationId: "createRelationship",
   })
   .input(
     z.object({
@@ -138,8 +147,8 @@ export const createRelationship = authProc
 
     // Prevent self-relationships
     if (input.contactId === input.relatedContactId) {
-      throw new ORPCError('BAD_REQUEST', {
-        message: 'A contact cannot have a relationship with itself',
+      throw new ORPCError("BAD_REQUEST", {
+        message: "A contact cannot have a relationship with itself",
       });
     }
 
@@ -148,20 +157,29 @@ export const createRelationship = authProc
       db
         .select()
         .from(contacts)
-        .where(and(eq(contacts.id, input.contactId), eq(contacts.userId, user.id)))
+        .where(
+          and(eq(contacts.id, input.contactId), eq(contacts.userId, user.id)),
+        )
         .limit(1),
       db
         .select()
         .from(contacts)
-        .where(and(eq(contacts.id, input.relatedContactId), eq(contacts.userId, user.id)))
+        .where(
+          and(
+            eq(contacts.id, input.relatedContactId),
+            eq(contacts.userId, user.id),
+          ),
+        )
         .limit(1),
     ]);
 
     if (!contactA[0]) {
-      throw new ORPCError('NOT_FOUND', { message: 'Contact not found' });
+      throw new ORPCError("NOT_FOUND", { message: "Contact not found" });
     }
     if (!contactB[0]) {
-      throw new ORPCError('NOT_FOUND', { message: 'Related contact not found' });
+      throw new ORPCError("NOT_FOUND", {
+        message: "Related contact not found",
+      });
     }
 
     // Check for existing relationship (only need to check one direction since we maintain both)
@@ -178,8 +196,8 @@ export const createRelationship = authProc
       .limit(1);
 
     if (existing) {
-      throw new ORPCError('CONFLICT', {
-        message: 'A relationship already exists between these contacts',
+      throw new ORPCError("CONFLICT", {
+        message: "A relationship already exists between these contacts",
       });
     }
 
@@ -227,10 +245,10 @@ export const createRelationship = authProc
  */
 export const updateRelationship = authProc
   .route({
-    method: 'PUT',
-    path: '/contacts/relationships/{id}',
-    summary: 'Update a relationship',
-    operationId: 'updateRelationship',
+    method: "PUT",
+    path: "/contacts/relationships/{id}",
+    summary: "Update a relationship",
+    operationId: "updateRelationship",
   })
   .input(
     z.object({
@@ -258,19 +276,25 @@ export const updateRelationship = authProc
       .limit(1);
 
     if (!relationship) {
-      throw new ORPCError('NOT_FOUND', { message: 'Relationship not found' });
+      throw new ORPCError("NOT_FOUND", { message: "Relationship not found" });
     }
 
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
     if (patch.type !== undefined) updateData.type = patch.type;
     if (patch.sentiment !== undefined) updateData.sentiment = patch.sentiment;
-    if (patch.description !== undefined) updateData.description = patch.description;
+    if (patch.description !== undefined)
+      updateData.description = patch.description;
 
     // Update the target row
     const [updated] = await db
       .update(contactRelationships)
       .set(updateData)
-      .where(eq(contactRelationships.id, id))
+      .where(
+        and(
+          eq(contactRelationships.id, id),
+          eq(contactRelationships.userId, user.id),
+        ),
+      )
       .returning();
 
     // Update the mirror row if it exists
@@ -296,10 +320,10 @@ export const updateRelationship = authProc
  */
 export const deleteRelationship = authProc
   .route({
-    method: 'DELETE',
-    path: '/contacts/relationships/{id}',
-    summary: 'Delete a relationship',
-    operationId: 'deleteRelationship',
+    method: "DELETE",
+    path: "/contacts/relationships/{id}",
+    summary: "Delete a relationship",
+    operationId: "deleteRelationship",
   })
   .input(z.object({ id: base58IdSchema }))
   .output(z.object({ success: z.boolean() }))
@@ -319,7 +343,7 @@ export const deleteRelationship = authProc
       .limit(1);
 
     if (!relationship) {
-      throw new ORPCError('NOT_FOUND', { message: 'Relationship not found' });
+      throw new ORPCError("NOT_FOUND", { message: "Relationship not found" });
     }
 
     // Delete the mirror row first if it exists
@@ -337,7 +361,12 @@ export const deleteRelationship = authProc
     // Delete the target row
     await db
       .delete(contactRelationships)
-      .where(eq(contactRelationships.id, input.id));
+      .where(
+        and(
+          eq(contactRelationships.id, input.id),
+          eq(contactRelationships.userId, user.id),
+        ),
+      );
 
     return { success: true };
   });
@@ -350,10 +379,10 @@ export const deleteRelationship = authProc
  */
 export const listAllRelationships = authProc
   .route({
-    method: 'GET',
-    path: '/contacts/relationships',
-    summary: 'List all relationships (network view)',
-    operationId: 'listAllRelationships',
+    method: "GET",
+    path: "/contacts/relationships",
+    summary: "List all relationships (network view)",
+    operationId: "listAllRelationships",
   })
   .input(
     PaginationInputSchema.extend({
@@ -368,14 +397,19 @@ export const listAllRelationships = authProc
     // Build conditions: filter by user and deduplicate (contactId < relatedContactId)
     const conditions: SQL[] = [
       eq(contactRelationships.userId, user.id) as SQL,
-      lt(contactRelationships.contactId, contactRelationships.relatedContactId) as SQL,
+      lt(
+        contactRelationships.contactId,
+        contactRelationships.relatedContactId,
+      ) as SQL,
     ];
 
     if (input.type) {
       conditions.push(eq(contactRelationships.type, input.type) as SQL);
     }
     if (input.sentiment !== undefined) {
-      conditions.push(eq(contactRelationships.sentiment, input.sentiment) as SQL);
+      conditions.push(
+        eq(contactRelationships.sentiment, input.sentiment) as SQL,
+      );
     }
 
     const whereClause = and(...conditions);
@@ -384,7 +418,10 @@ export const listAllRelationships = authProc
       db
         .select()
         .from(contactRelationships)
-        .leftJoin(contacts, eq(contactRelationships.relatedContactId, contacts.id))
+        .leftJoin(
+          contacts,
+          eq(contactRelationships.relatedContactId, contacts.id),
+        )
         .where(whereClause)
         .orderBy(desc(contactRelationships.createdAt))
         .limit(input.limit)
@@ -397,14 +434,16 @@ export const listAllRelationships = authProc
     return {
       items: results.map((r) => ({
         ...r.contact_relationships,
-        relatedContact: r.contacts ? {
-          id: r.contacts.id,
-          name: r.contacts.name,
-          email: r.contacts.email,
-          avatarUrl: r.contacts.avatarUrl,
-          company: r.contacts.company,
-          jobTitle: r.contacts.jobTitle,
-        } : null,
+        relatedContact: r.contacts
+          ? {
+              id: r.contacts.id,
+              name: r.contacts.name,
+              email: r.contacts.email,
+              avatarUrl: r.contacts.avatarUrl,
+              company: r.contacts.company,
+              jobTitle: r.contacts.jobTitle,
+            }
+          : null,
       })),
       pagination: {
         total,

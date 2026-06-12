@@ -48,10 +48,14 @@ export const listMemoryReps = authProc
     }
     // Exclude future-scheduled reps
     conditions.push(
-      or(isNull(memoryReps.scheduledFor), lte(memoryReps.scheduledFor, sql`(unixepoch())`))!,
+      or(
+        isNull(memoryReps.scheduledFor),
+        lte(memoryReps.scheduledFor, sql`(unixepoch())`),
+      )!,
     );
 
-    const whereClause = conditions.length === 1 ? conditions[0]! : and(...conditions)!;
+    const whereClause =
+      conditions.length === 1 ? conditions[0]! : and(...conditions)!;
 
     const [results, countResult] = await Promise.all([
       db
@@ -102,7 +106,13 @@ export const generateReps = authProc
   })
   .input(
     z.object({
-      contactLimit: z.coerce.number().int().positive().max(20).optional().default(10),
+      contactLimit: z.coerce
+        .number()
+        .int()
+        .positive()
+        .max(20)
+        .optional()
+        .default(10),
     }),
   )
   .output(
@@ -146,12 +156,7 @@ export const answerRep = authProc
     const [rep] = await db
       .select()
       .from(memoryReps)
-      .where(
-        and(
-          eq(memoryReps.id, input.id),
-          eq(memoryReps.userId, user.id),
-        ),
-      )
+      .where(and(eq(memoryReps.id, input.id), eq(memoryReps.userId, user.id)))
       .limit(1);
 
     if (!rep) {
@@ -159,7 +164,9 @@ export const answerRep = authProc
     }
 
     if (rep.answeredAt !== null) {
-      throw new ORPCError("CONFLICT", { message: "Memory rep already answered" });
+      throw new ORPCError("CONFLICT", {
+        message: "Memory rep already answered",
+      });
     }
 
     const correct = input.selectedAnswer === rep.correctAnswer;
@@ -170,7 +177,7 @@ export const answerRep = authProc
         answeredAt: new Date(),
         wasCorrect: correct,
       })
-      .where(eq(memoryReps.id, input.id));
+      .where(and(eq(memoryReps.id, input.id), eq(memoryReps.userId, user.id)));
 
     return {
       correct,

@@ -1,8 +1,8 @@
-import { eq } from 'drizzle-orm';
-import { randomUUID } from 'crypto';
-import { users } from '../database/schema';
-import type { DatabaseClient } from '../database/client';
-import type { User } from '../database/schema/users';
+import { eq } from "drizzle-orm";
+import { randomUUID } from "crypto";
+import { users } from "../database/schema";
+import type { DatabaseClient } from "../database/client";
+import type { User } from "../database/schema/users";
 
 export interface JWTUserPayload {
   sub: string;
@@ -22,7 +22,7 @@ export interface JWTUserPayload {
  */
 export async function getOrCreateUserByExternalId(
   db: DatabaseClient,
-  payload: JWTUserPayload
+  payload: JWTUserPayload,
 ): Promise<User> {
   // Note: payload is already validated by Zod schema in middleware
 
@@ -37,34 +37,28 @@ export async function getOrCreateUserByExternalId(
     return existingUser;
   }
 
-  // Create new user on first authentication
-  try {
-    const [newUser] = await db
-      .insert(users)
-      .values({
-        id: randomUUID(),
-        externalId: payload.sub,
-        email: payload.email,
-        name: payload.name ?? null,
-      })
-      .returning();
+  // Create new user on first authentication, handling concurrent inserts atomically
+  await db
+    .insert(users)
+    .values({
+      id: randomUUID(),
+      externalId: payload.sub,
+      email: payload.email,
+      name: payload.name ?? null,
+    })
+    .onConflictDoNothing();
 
-    return newUser;
-  } catch (error) {
-    // Handle race condition: another request might have created the user
-    if (error instanceof Error && error.message.includes('UNIQUE constraint')) {
-      // Retry the query to get the newly created user
-      const [existingUser] = await db
-        .select()
-        .from(users)
-        .where(eq(users.externalId, payload.sub))
-        .limit(1);
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.externalId, payload.sub))
+    .limit(1);
 
-      if (existingUser) {
-        return existingUser;
-      }
-    }
-    // Re-throw if it's not a duplicate key error or retry failed
-    throw error;
+  if (!user) {
+    throw new Error(
+      `Failed to create or retrieve user for sub: ${payload.sub}`,
+    );
   }
+
+  return user;
 }

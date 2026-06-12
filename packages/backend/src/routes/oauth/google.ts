@@ -15,6 +15,19 @@ import { waitUntil } from "../../utils/wait-until";
 
 const app = new Hono<{ Bindings: Env }>();
 
+const TRUSTED_REDIRECT_PREFIXES = [
+  "https://example.com",
+  "https://beta.example.com",
+  "https://api.example.com",
+  "orbital://", // mobile deep link scheme
+  "mobile://", // Expo app custom scheme (app.json "scheme": "mobile")
+  "exp://localhost:8081", // Expo Go dev server
+];
+
+function isTrustedRedirectUrl(url: string): boolean {
+  return TRUSTED_REDIRECT_PREFIXES.some((prefix) => url.startsWith(prefix));
+}
+
 /**
  * Decode a Google id_token to extract the email claim
  * We trust the token since it came directly from Google's OAuth server
@@ -154,14 +167,15 @@ app.get("/callback/google", async (context) => {
     waitUntil(syncIntegration(db, integration.id, session.userId));
 
     // Get client redirect URL from session metadata
-    const clientRedirectUrl = (session.metadata as any)?.clientRedirectUrl;
+    const rawClientRedirectUrl = (session.metadata as any)?.clientRedirectUrl;
 
     // Delete the OAuth session (cleanup)
     await db.delete(oauthSessions).where(eq(oauthSessions.id, state));
 
-    // Handle custom client redirect (e.g., mobile deep link)
-    if (clientRedirectUrl) {
-      return context.redirect(clientRedirectUrl);
+    // Handle custom client redirect (e.g., mobile deep link).
+    // Only allow trusted origins to prevent open redirect attacks.
+    if (rawClientRedirectUrl && isTrustedRedirectUrl(rawClientRedirectUrl)) {
+      return context.redirect(rawClientRedirectUrl);
     }
 
     // Redirect back to settings with success and integration ID

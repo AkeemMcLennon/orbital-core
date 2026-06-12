@@ -1,9 +1,8 @@
 import { SignJWT, generateKeyPair, exportJWK } from "jose";
-import type { KeyLike } from "jose";
 
 interface TestKeyPair {
-  publicKey: KeyLike;
-  privateKey: KeyLike;
+  publicKey: CryptoKey;
+  privateKey: CryptoKey;
   kid: string;
 }
 

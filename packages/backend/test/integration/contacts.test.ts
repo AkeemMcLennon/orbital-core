@@ -734,7 +734,7 @@ describe("Contacts API", () => {
         string,
         number,
       ];
-      expect(key).toMatch(/^avatars\/.+\/.+-\d+\.jpg$/);
+      expect(key).toMatch(/^avatars\/.+\/.+-[0-9a-f-]{36}\.jpg$/);
       expect(contentType).toBe("image/jpeg");
       expect(contentLength).toBe(512_000);
     });

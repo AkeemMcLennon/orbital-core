@@ -15,18 +15,27 @@ export const GOOGLE_OAUTH_SCOPES = [
 ];
 
 /**
- * Derive the OAuth callback URL from request headers
+ * Derive the OAuth callback URL.
+ *
+ * Prefers the OAUTH_CALLBACK_BASE_URL config value so the Host header is never
+ * trusted to construct a redirect URI (Host spoofing → OAuth token hijack).
+ * Falls back to deriving from headers only in non-production environments.
  */
 function getOAuthCallbackUri(
   headers: Record<string, string | string[]>,
 ): string {
-  // Extract Host header
-  const host = Array.isArray(headers.host) ? headers.host[0] : headers.host;
-  if (!host) {
-    throw new Error("Unable to determine callback URI: missing Host header");
+  if (settings.OAUTH_CALLBACK_BASE_URL) {
+    return `${settings.OAUTH_CALLBACK_BASE_URL}/auth/callback/google`;
   }
 
-  // Extract protocol from x-forwarded-proto (set by Cloudflare, proxies) or default to https
+  // Fall back to Host header (development only)
+  const host = Array.isArray(headers.host) ? headers.host[0] : headers.host;
+  if (!host) {
+    throw new Error(
+      "Unable to determine callback URI: set OAUTH_CALLBACK_BASE_URL or provide a Host header",
+    );
+  }
+
   const protocol =
     (Array.isArray(headers["x-forwarded-proto"])
       ? headers["x-forwarded-proto"][0]

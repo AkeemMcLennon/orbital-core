@@ -10,13 +10,11 @@ import type { User } from "../database/schema/users";
 import { z } from "zod";
 
 // Zod schema for JWT payload validation
-const JWTPayloadSchema = z
-  .object({
-    sub: z.string().min(1, "JWT 'sub' claim is required"),
-    email: z.string().email("JWT 'email' claim must be a valid email"),
-    name: z.string().optional(),
-  })
-  .passthrough(); // Allow additional claims
+const JWTPayloadSchema = z.object({
+  sub: z.string().min(1, "JWT 'sub' claim is required"),
+  email: z.string().email("JWT 'email' claim must be a valid email"),
+  name: z.string().optional(),
+});
 
 export type JWTPayload = z.infer<typeof JWTPayloadSchema>;
 
@@ -72,6 +70,11 @@ export const authProc = os
       let rawPayload: unknown;
 
       if (settings.DISABLE_JWT_VERIFICATION === "true") {
+        if (settings.NODE_ENV === "production") {
+          throw new Error(
+            "DISABLE_JWT_VERIFICATION must not be enabled in production",
+          );
+        }
         // Test mode: parse token without verification
         const parts = token.split(".");
         if (parts.length !== 3) {
@@ -83,6 +86,7 @@ export const authProc = os
         const JWKS = createRemoteJWKSet(new URL(settings.JWKS_URL));
         const result = await jwtVerify(token, JWKS, {
           issuer: settings.JWT_ISSUER,
+          ...(settings.JWT_AUDIENCE ? { audience: settings.JWT_AUDIENCE } : {}),
         });
         rawPayload = result.payload;
       }

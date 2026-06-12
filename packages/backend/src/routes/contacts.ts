@@ -795,7 +795,7 @@ export const getAvatarUploadUrl = authProc
 
     const storage = new StorageService();
     const ext = IMAGE_EXT[input.contentType];
-    const key = `avatars/${user.id}/${input.contactId}-${Date.now()}.${ext}`;
+    const key = `avatars/${user.id}/${input.contactId}-${globalThis.crypto.randomUUID()}.${ext}`;
     return storage.getPresignedUploadUrl(
       key,
       input.contentType,

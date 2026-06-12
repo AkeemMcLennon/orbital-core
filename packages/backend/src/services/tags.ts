@@ -1,7 +1,7 @@
 import { eq, and } from "drizzle-orm";
 import { AxGen, f } from "@ax-llm/ax";
 import type { DatabaseClient } from "../database/client";
-import { tags, contactTags } from "../database/schema";
+import { tags, contactTags, contacts } from "../database/schema";
 import { getAI } from "./llm";
 import { settings } from "../config";
 
@@ -85,6 +85,14 @@ export async function replaceStaticTags(
   contactId: string,
   tagNames: string[],
 ): Promise<void> {
+  // Verify the contact belongs to this user before mutating
+  const [owned] = await db
+    .select()
+    .from(contacts)
+    .where(and(eq(contacts.id, contactId), eq(contacts.userId, userId)))
+    .limit(1);
+  if (!owned) return;
+
   const tagIds = await resolveTagIds(db, userId, tagNames);
   await db
     .delete(contactTags)
@@ -164,6 +172,14 @@ export async function generateDynamicTagsForContact(
       .filter(Boolean);
 
     const tagIds = await resolveTagIds(db, userId, suggestedNames);
+
+    // Verify contact ownership before mutating
+    const [owned] = await db
+      .select()
+      .from(contacts)
+      .where(and(eq(contacts.id, contactId), eq(contacts.userId, userId)))
+      .limit(1);
+    if (!owned) return;
 
     await db
       .delete(contactTags)

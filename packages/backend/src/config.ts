@@ -18,6 +18,9 @@ const envSchema = {
   // Google OAuth (required for Google Contacts integration)
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
+  // Explicit base URL for OAuth callback (e.g. "https://api.example.com").
+  // When set, avoids trusting the Host header to construct redirect URIs.
+  OAUTH_CALLBACK_BASE_URL: z.string().url().optional(),
 
   // Server (optional with defaults)
   PORT: z.coerce.number().int().positive().default(8787),
