@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { jwt } from "better-auth/plugins";
 import { oauthProvider } from "@better-auth/oauth-provider";
+import { expo } from "@better-auth/expo";
 import { drizzle } from "drizzle-orm/d1";
 import { importPKCS8, SignJWT } from "jose";
 import type { Env } from "./types/env";
@@ -99,10 +100,8 @@ export async function createAuth(env: Env) {
       "https://appleid.apple.com",
     ],
 
-    // Disable the default /token endpoint — OAuth provider plugin handles it
-    disabledPaths: ["/token"],
-
     plugins: [
+      expo(),
       jwt({
         jwt: {
           issuer: env.BETTER_AUTH_URL,
