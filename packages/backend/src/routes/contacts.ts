@@ -10,9 +10,11 @@ import {
   sql,
   type SQL,
 } from "drizzle-orm";
+import type { DatabaseClient } from "../database/client";
 import * as z from "zod";
 import {
   contacts,
+  contactChannels,
   directory,
   contactTags,
   type NewContact,
@@ -82,6 +84,92 @@ const dateField = () =>
     .union([z.date(), z.string().datetime()])
     .transform((val) => (val instanceof Date ? val.toISOString() : val));
 
+const SOCIAL_LINK_TYPES = [
+  "linkedin",
+  "twitter",
+  "instagram",
+  "facebook",
+  "github",
+  "youtube",
+  "tiktok",
+  "website",
+  "other",
+] as const;
+
+const ContactLinkInputSchema = z.object({
+  type: z.enum(SOCIAL_LINK_TYPES),
+  value: z.string().min(1).max(2048),
+  label: z.string().optional(),
+});
+
+const ContactLinkOutputSchema = z.object({
+  id: z.string(),
+  type: z.enum(SOCIAL_LINK_TYPES),
+  value: z.string(),
+  label: z.string().nullable(),
+  createdAt: dateField(),
+});
+
+async function fetchContactLinks(db: DatabaseClient, contactId: string) {
+  const rows = await db
+    .select()
+    .from(contactChannels)
+    .where(
+      and(
+        eq(contactChannels.contactId, contactId) as SQL,
+        inArray(contactChannels.type, [...SOCIAL_LINK_TYPES]) as SQL,
+      ),
+    )
+    .orderBy(asc(contactChannels.createdAt));
+  return rows.map(({ id, type, value, label, createdAt }) => ({
+    id,
+    type: type as (typeof SOCIAL_LINK_TYPES)[number],
+    value,
+    label,
+    createdAt,
+  }));
+}
+
+/**
+ * Replace all social-typed channels for a contact with the given set.
+ * Input is deduped first: the (contactId, type, value) unique constraint
+ * would otherwise abort the insert after existing rows were deleted.
+ */
+async function replaceContactLinks(
+  db: DatabaseClient,
+  contactId: string,
+  links: Array<z.infer<typeof ContactLinkInputSchema>>,
+) {
+  await db
+    .delete(contactChannels)
+    .where(
+      and(
+        eq(contactChannels.contactId, contactId) as SQL,
+        inArray(contactChannels.type, [...SOCIAL_LINK_TYPES]) as SQL,
+      ),
+    );
+  const seen = new Set<string>();
+  const deduped = links.filter((l) => {
+    const key = `${l.type} ${l.value}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  if (deduped.length) {
+    await db
+      .insert(contactChannels)
+      .values(
+        deduped.map((l) => ({
+          contactId,
+          type: l.type,
+          value: l.value,
+          label: l.label ?? null,
+        })),
+      )
+      .onConflictDoNothing();
+  }
+}
+
 const ContactInputSchema = z.object({
   name: z.string().min(1),
   email: z.string().email().optional(),
@@ -96,6 +184,7 @@ const ContactInputSchema = z.object({
   notes: z.string().optional(),
   group: z.string().optional(),
   tags: z.array(z.string()).optional(),
+  links: z.array(ContactLinkInputSchema).optional(),
 });
 
 // Shared output schemas
@@ -124,6 +213,7 @@ const ContactOutputSchema = z.object({
       }),
     )
     .optional(),
+  links: z.array(ContactLinkOutputSchema).optional(),
 });
 
 const DirectoryEntryOutputSchema = z.object({
@@ -235,8 +325,11 @@ export const getContact = authProc
       throw new ORPCError("NOT_FOUND", { message: "Contact not found" });
     }
 
-    const tagList = await fetchContactTags(db, user.id, contact.id);
-    return { ...decryptContact(contact, user.id), tags: tagList };
+    const [tagList, links] = await Promise.all([
+      fetchContactTags(db, user.id, contact.id),
+      fetchContactLinks(db, contact.id),
+    ]);
+    return { ...decryptContact(contact, user.id), tags: tagList, links };
   });
 
 /**
@@ -279,6 +372,10 @@ export const createContact = authProc
       await assignStaticTags(db, user.id, contact.id, input.tags);
     }
 
+    if (input.links?.length) {
+      await replaceContactLinks(db, contact.id, input.links);
+    }
+
     waitUntil(generateRepsForNewContact(db, user.id, contact.id));
 
     if (input.notes) {
@@ -306,6 +403,11 @@ export const createContact = authProc
         : Promise.resolve(),
     ]);
 
+    const [tagList, links] = await Promise.all([
+      fetchContactTags(db, user.id, contact.id),
+      fetchContactLinks(db, contact.id),
+    ]);
+
     if (derived) {
       const patch: Record<string, string> = {};
       if (derived.jobTitle && !contact.jobTitle)
@@ -319,11 +421,15 @@ export const createContact = authProc
           .set({ ...patch, updatedAt: new Date() })
           .where(eq(contacts.id, contact.id))
           .returning();
-        return decryptContact(enriched ?? contact, user.id);
+        return {
+          ...decryptContact(enriched ?? contact, user.id),
+          tags: tagList,
+          links,
+        };
       }
     }
 
-    return decryptContact(contact, user.id);
+    return { ...decryptContact(contact, user.id), tags: tagList, links };
   });
 
 /**
@@ -396,12 +502,13 @@ export const updateContact = authProc
       notes: z.string().optional(),
       group: z.string().optional(),
       tags: z.array(z.string()).optional(),
+      links: z.array(ContactLinkInputSchema).optional(),
     }),
   )
   .output(ContactOutputSchema)
   .handler(async ({ input, context }) => {
     const { db, user } = context;
-    const { id, tags: inputTags, ...patch } = input;
+    const { id, tags: inputTags, links: inputLinks, ...patch } = input;
     const updateData: typeof patch & {
       updatedAt: Date;
       notesEncrypted?: boolean;
@@ -435,6 +542,10 @@ export const updateContact = authProc
       await replaceStaticTags(db, user.id, contact.id, inputTags);
     }
 
+    if (inputLinks !== undefined) {
+      await replaceContactLinks(db, contact.id, inputLinks);
+    }
+
     if (patch.notes !== undefined) {
       const plainNotes = input.notes ?? "";
       if (plainNotes) {
@@ -447,6 +558,11 @@ export const updateContact = authProc
         );
       }
     }
+
+    const [tagList, links] = await Promise.all([
+      fetchContactTags(db, user.id, contact.id),
+      fetchContactLinks(db, contact.id),
+    ]);
 
     if (patch.notes !== undefined || patch.email !== undefined) {
       const plainNotes =
@@ -480,12 +596,16 @@ export const updateContact = authProc
             .set({ ...enrichPatch, updatedAt: new Date() })
             .where(eq(contacts.id, contact.id))
             .returning();
-          return decryptContact(enriched ?? contact, user.id);
+          return {
+            ...decryptContact(enriched ?? contact, user.id),
+            tags: tagList,
+            links,
+          };
         }
       }
     }
 
-    return decryptContact(contact, user.id);
+    return { ...decryptContact(contact, user.id), tags: tagList, links };
   });
 
 /**

@@ -86,6 +86,10 @@ describe("Contacts API", () => {
         jobTitle: "CEO",
         group: "work",
         birthday: "1990-05-15",
+        links: [
+          { type: "linkedin" as const, value: "johndoe" },
+          { type: "github" as const, value: "johndoe-dev" },
+        ],
       };
 
       const response = await createContact(newContact);
@@ -93,6 +97,9 @@ describe("Contacts API", () => {
       if (response.status !== 200) {
         throw new Error("Expected 200 response from contacts");
       }
+
+      // Links are returned on the create response
+      expect(response.data.links).toHaveLength(2);
 
       const response2 = await getContactById(response?.data.id);
       if (response2.status !== 200) {
@@ -112,6 +119,13 @@ describe("Contacts API", () => {
       expect(contact.id).toBeDefined();
       expect(contact.createdAt).toBeDefined();
       expect(contact.updatedAt).toBeDefined();
+      // Links are persisted and returned when fetching by id
+      expect(contact.links).toHaveLength(2);
+      const linkTypes = contact.links!.map((l) => l.type);
+      expect(linkTypes).toContain("linkedin");
+      expect(linkTypes).toContain("github");
+      const linkedin = contact.links!.find((l) => l.type === "linkedin");
+      expect(linkedin!.value).toBe("johndoe");
     });
 
     it("should create contact with minimal fields", async () => {
@@ -125,6 +139,9 @@ describe("Contacts API", () => {
 
       const contact = response.data;
       expect(contact.name).toBe("Jane Doe");
+      // A contact created without links comes back with an empty links array
+      expect(contact.links).toBeDefined();
+      expect(contact.links).toHaveLength(0);
     });
 
     it("should reject missing name field", async () => {
@@ -312,6 +329,7 @@ describe("Contacts API", () => {
       const response = await createContact({
         name: "Original Name",
         email: "original@example.com",
+        links: [{ type: "twitter" as const, value: "oldhandle" }],
       });
 
       if (response.status === 200) {
@@ -324,6 +342,7 @@ describe("Contacts API", () => {
       let response = await updateContact(contactId, {
         name: "Updated Name",
         birthday: "1985-12-25",
+        links: [{ type: "instagram" as const, value: "newhandle" }],
       });
 
       expect(response.status).toBe(200);
@@ -337,6 +356,10 @@ describe("Contacts API", () => {
       expect(updated.name).toBe("Updated Name");
       expect(updated.email).toBe("original@example.com"); // Unchanged
       expect(updated.birthday).toBe("1985-12-25");
+      // Links are replaced wholesale: the original twitter link is gone
+      expect(updated.links).toHaveLength(1);
+      expect(updated.links![0].type).toBe("instagram");
+      expect(updated.links![0].value).toBe("newhandle");
     });
 
     it("should return 404 when updating non-existent contact", async () => {
@@ -829,6 +852,80 @@ describe("Contacts API", () => {
         const [key] = storageSpy.mock.calls[0] as [string];
         expect(key).toMatch(new RegExp(`\\.${ext}$`));
       }
+    });
+  });
+
+  describe("Social links", () => {
+    it("should clear all links when updated with empty array", async () => {
+      const created = await createContact({
+        name: "Clear Links Test",
+        links: [{ type: "github" as const, value: "someuser" }],
+      });
+      if (created.status !== 200) throw new Error("Contact creation failed");
+
+      const updated = await updateContact(created.data.id, {
+        name: "Clear Links Test",
+        links: [],
+      });
+      if (updated.status !== 200) throw new Error("Contact update failed");
+
+      expect(updated.data.links).toHaveLength(0);
+    });
+
+    it("should dedupe duplicate links on create", async () => {
+      const response = await createContact({
+        name: "Dupe Create Test",
+        links: [
+          { type: "linkedin" as const, value: "dupehandle" },
+          { type: "linkedin" as const, value: "dupehandle" },
+        ],
+      });
+
+      expect(response.status).toBe(200);
+      if (response.status !== 200) throw new Error("Contact creation failed");
+      expect(response.data.links).toHaveLength(1);
+    });
+
+    it("should dedupe duplicate links on update without losing data", async () => {
+      const created = await createContact({
+        name: "Dupe Update Test",
+        links: [{ type: "github" as const, value: "keepme" }],
+      });
+      if (created.status !== 200) throw new Error("Contact creation failed");
+
+      const updated = await updateContact(created.data.id, {
+        name: "Dupe Update Test",
+        links: [
+          { type: "github" as const, value: "keepme" },
+          { type: "github" as const, value: "keepme" },
+          { type: "twitter" as const, value: "newone" },
+        ],
+      });
+
+      expect(updated.status).toBe(200);
+      if (updated.status !== 200) throw new Error("Contact update failed");
+      expect(updated.data.links).toHaveLength(2);
+      const types = updated.data.links!.map((l) => l.type);
+      expect(types).toContain("github");
+      expect(types).toContain("twitter");
+    });
+
+    it("should include tags in create and update responses", async () => {
+      const created = await createContact({
+        name: "Tags Shape Test",
+        tags: ["reviewer"],
+      });
+      if (created.status !== 200) throw new Error("Contact creation failed");
+      expect(created.data.tags).toBeDefined();
+      expect(created.data.tags!.map((t) => t.name)).toContain("reviewer");
+
+      const updated = await updateContact(created.data.id, {
+        name: "Tags Shape Test",
+        tags: ["approver"],
+      });
+      if (updated.status !== 200) throw new Error("Contact update failed");
+      expect(updated.data.tags).toBeDefined();
+      expect(updated.data.tags!.map((t) => t.name)).toContain("approver");
     });
   });
 });

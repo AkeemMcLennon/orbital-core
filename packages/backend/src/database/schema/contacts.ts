@@ -71,7 +71,19 @@ export const contactChannels = sqliteTable(
 
     // Channel type (email, phone, or social)
     type: text("type", {
-      enum: ["email", "phone", "linkedin", "twitter", "other"],
+      enum: [
+        "email",
+        "phone",
+        "linkedin",
+        "twitter",
+        "instagram",
+        "facebook",
+        "github",
+        "youtube",
+        "tiktok",
+        "website",
+        "other",
+      ],
     }).notNull(),
 
     // The actual value (email address, phone number, or social URL)
