@@ -7,7 +7,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 import { users } from "./users";
-import { pk } from "../custom-types";
+import { pk, uuidV7 } from "../custom-types";
 
 /**
  * Contacts table - managed relationships only
@@ -65,7 +65,7 @@ export const contactChannels = sqliteTable(
   "contact_channels",
   {
     id: pk(), // Base58 String (Stored as BLOB)
-    contactId: text("contact_id")
+    contactId: uuidV7("contact_id")
       .notNull()
       .references(() => contacts.id, { onDelete: "cascade" }),
 
