@@ -1,31 +1,17 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { AppState, type AppStateStatus } from "react-native";
-import { useAutoDiscovery, type DiscoveryDocument } from "expo-auth-session";
+import React, { createContext, useContext, useEffect } from "react";
 import { useAuth, type AuthState } from "../hooks/useAuth";
-
-import { refreshAccessToken } from "../api/config";
+import { setLogoutHandler } from "../utils/auth-ref";
 
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [issuerUrl] = useState("https://auth.orbital.diy");
   const auth = useAuth();
 
-  // Load configured issuer URL
-
-  const discovery = useAutoDiscovery(issuerUrl);
-
-  // Auto-refresh token when app comes to foreground
+  // Register signOut as the global logout handler so API 401 responses
+  // can trigger a sign-out from outside React's component tree.
   useEffect(() => {
-    const handleAppState = (nextState: AppStateStatus) => {
-      if (nextState === "active" && auth.isAuthenticated) {
-        refreshAccessToken(discovery as DiscoveryDocument | null);
-      }
-    };
-
-    const subscription = AppState.addEventListener("change", handleAppState);
-    return () => subscription.remove();
-  }, [auth.isAuthenticated, discovery]);
+    setLogoutHandler(auth.signOut);
+  }, [auth.signOut]);
 
   return <AuthContext.Provider value={auth}>{children}</AuthContext.Provider>;
 }

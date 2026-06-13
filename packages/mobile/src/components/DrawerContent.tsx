@@ -40,7 +40,7 @@ export function DrawerContent({
   navigation,
   ...props
 }: DrawerContentComponentProps) {
-  const { logout, user } = useAuthContext();
+  const { signOut, user } = useAuthContext();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
@@ -162,7 +162,7 @@ export function DrawerContent({
           </Pressable>
 
           <Pressable
-            onPress={() => logout()}
+            onPress={() => signOut()}
             style={{
               flexDirection: "row",
               alignItems: "center",

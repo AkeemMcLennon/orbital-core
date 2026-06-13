@@ -53,6 +53,23 @@ jest.mock("../src/api/config", () => ({
   },
 }));
 
+// ── Better Auth client (avoid loading ESM better-auth in tests) ──
+jest.mock("../src/lib/auth-client", () => ({
+  __esModule: true,
+  authClient: {
+    useSession: () => ({ data: null, isPending: false }),
+    signIn: {
+      email: jest.fn(() => Promise.resolve({ error: null })),
+      social: jest.fn(() => Promise.resolve({ error: null })),
+    },
+    signUp: {
+      email: jest.fn(() => Promise.resolve({ error: null })),
+    },
+    signOut: jest.fn(() => Promise.resolve()),
+  },
+  getBearerToken: jest.fn(() => Promise.resolve(null)),
+}));
+
 // ── NativeSourceCode (getDevServer needs scriptURL) ──
 jest.mock(
   "react-native/Libraries/NativeModules/specs/NativeSourceCode",
@@ -127,8 +144,19 @@ jest.mock("tamagui", () => {
     { Image: AvatarImage, Fallback: AvatarFallback },
   );
 
+  const TabsTab = ({ children, onInteraction, value, ...props }: any) =>
+    React.createElement(View, props, children);
+  const TabsList = ({ children, ...props }: any) =>
+    React.createElement(View, props, children);
+  const Tabs = Object.assign(
+    ({ children, onValueChange, ...props }: any) =>
+      React.createElement(View, props, children),
+    { List: TabsList, Tab: TabsTab, Content: View },
+  );
+
   return {
     Avatar,
+    Tabs,
     TamaguiProvider: ({ children }: any) => children,
     useMedia: () => ({ gtMd: false }),
     styled: (component: any) => component,
