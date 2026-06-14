@@ -1,5 +1,6 @@
 import { createContact, isSuccess } from "@orbital/client";
 import { uploadAvatar } from "./uploadAvatar";
+import type { SocialLinkType } from "../utils/socialLinks";
 
 export async function createContactWithAvatar(params: {
   name: string;
@@ -7,6 +8,7 @@ export async function createContactWithAvatar(params: {
   notes?: string;
   avatarUrl?: string;
   avatarMimeType?: string;
+  links?: Array<{ type: SocialLinkType; value: string }>;
 }): Promise<{ id: string; avatarUploadFailed?: true }> {
   const isLocal = !!params.avatarUrl && !params.avatarUrl.startsWith("http");
 
@@ -15,6 +17,7 @@ export async function createContactWithAvatar(params: {
     email: params.email,
     notes: params.notes,
     avatarUrl: isLocal ? undefined : params.avatarUrl,
+    links: params.links,
   });
   if (!isSuccess(result)) throw new Error("Failed to create contact");
 

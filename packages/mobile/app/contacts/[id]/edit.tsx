@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -14,7 +14,15 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateContact } from "@orbital/client";
 import { useContact, contactKeys } from "../../../src/queries/contacts";
 import { colors, spacing, borderRadius, inputStyle } from "../../../src/theme";
-import { FaceAvatar, TagEditor, FormField, type TagItem } from "../../../src/components";
+import {
+  FaceAvatar,
+  TagEditor,
+  FormField,
+  SocialLinksEditor,
+  type TagItem,
+  type SocialLink,
+} from "../../../src/components";
+import { type SocialLinkType } from "../../../src/utils/socialLinks";
 import { useAvatarUpload } from "../../../src/hooks/useAvatarUpload";
 
 export default function EditContactScreen() {
@@ -32,11 +40,26 @@ export default function EditContactScreen() {
   const [notes, setNotes] = useState(contact?.notes || "");
   const [group, setGroup] = useState(contact?.group || "");
   const [tags, setTags] = useState<TagItem[]>(
-    contact?.tags?.map((t) => ({ name: t.name, isDynamic: t.isDynamic, color: t.color })) ?? [],
+    contact?.tags?.map((t) => ({
+      name: t.name,
+      isDynamic: t.isDynamic,
+      color: t.color,
+    })) ?? [],
+  );
+  const [links, setLinks] = useState<SocialLink[]>(
+    contact?.links?.map((l) => ({
+      type: l.type as SocialLinkType,
+      value: l.value,
+    })) ?? [],
   );
 
+  // Seed the form once per contact. A background refetch produces a new
+  // `contact` object; re-running the setters then would discard in-progress
+  // edits, so gate on the id rather than the object identity.
+  const initializedId = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (contact) {
+    if (contact && initializedId.current !== contact.id) {
+      initializedId.current = contact.id;
       setName(contact.name || "");
       setEmail(contact.email || "");
       setPhone(contact.phone || "");
@@ -45,7 +68,17 @@ export default function EditContactScreen() {
       setNotes(contact.notes || "");
       setGroup(contact.group || "");
       setTags(
-        contact.tags?.map((t) => ({ name: t.name, isDynamic: t.isDynamic, color: t.color })) ?? [],
+        contact.tags?.map((t) => ({
+          name: t.name,
+          isDynamic: t.isDynamic,
+          color: t.color,
+        })) ?? [],
+      );
+      setLinks(
+        contact.links?.map((l) => ({
+          type: l.type as SocialLinkType,
+          value: l.value,
+        })) ?? [],
       );
     }
   }, [contact]);
@@ -79,15 +112,26 @@ export default function EditContactScreen() {
       notes: notes.trim() || undefined,
       group: group.trim() || undefined,
       tags: tags.map((t) => t.name),
+      links: links
+        .filter((l) => l.value.trim())
+        .map((l) => ({ type: l.type, value: l.value.trim() })),
     });
   };
 
   if (isLoading || !contact) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <View
+          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+        >
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={{ marginTop: spacing.lg, color: colors.textSecondary, fontSize: 14 }}>
+          <Text
+            style={{
+              marginTop: spacing.lg,
+              color: colors.textSecondary,
+              fontSize: 14,
+            }}
+          >
             Loading contact...
           </Text>
         </View>
@@ -112,7 +156,9 @@ export default function EditContactScreen() {
         <Pressable onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color={colors.textMain} />
         </Pressable>
-        <Text style={{ fontSize: 18, fontWeight: "700", color: colors.textMain }}>
+        <Text
+          style={{ fontSize: 18, fontWeight: "700", color: colors.textMain }}
+        >
           Edit Contact
         </Text>
         <View style={{ width: 24 }} />
@@ -144,7 +190,9 @@ export default function EditContactScreen() {
             showLabel={false}
             noMargin
           />
-          <Text style={{ fontSize: 18, fontWeight: "700", color: colors.textMain }}>
+          <Text
+            style={{ fontSize: 18, fontWeight: "700", color: colors.textMain }}
+          >
             {name || "Unnamed"}
           </Text>
         </View>
@@ -215,6 +263,10 @@ export default function EditContactScreen() {
           <TagEditor tags={tags} onChange={setTags} />
         </FormField>
 
+        <FormField label="Social Links">
+          <SocialLinksEditor links={links} onChange={setLinks} />
+        </FormField>
+
         <FormField label="Notes">
           <View style={{ ...inputStyle, minHeight: 100, paddingVertical: 0 }}>
             <TextInput
@@ -224,7 +276,11 @@ export default function EditContactScreen() {
               onChangeText={setNotes}
               multiline
               numberOfLines={4}
-              style={{ paddingVertical: spacing.md, color: colors.textMain, fontSize: 14 }}
+              style={{
+                paddingVertical: spacing.md,
+                color: colors.textMain,
+                fontSize: 14,
+              }}
             />
           </View>
         </FormField>
@@ -252,7 +308,13 @@ export default function EditContactScreen() {
             opacity: updateMutation.isPending ? 0.5 : 1,
           }}
         >
-          <Text style={{ textAlign: "center", color: colors.textMain, fontWeight: "600" }}>
+          <Text
+            style={{
+              textAlign: "center",
+              color: colors.textMain,
+              fontWeight: "600",
+            }}
+          >
             Cancel
           </Text>
         </Pressable>
@@ -264,7 +326,9 @@ export default function EditContactScreen() {
             paddingVertical: spacing.md,
             borderRadius: borderRadius.lg,
             backgroundColor:
-              name.trim() && !updateMutation.isPending ? colors.primary : colors.border,
+              name.trim() && !updateMutation.isPending
+                ? colors.primary
+                : colors.border,
             opacity: !name.trim() ? 0.5 : 1,
             justifyContent: "center",
             alignItems: "center",
@@ -278,7 +342,13 @@ export default function EditContactScreen() {
               style={{ marginRight: spacing.sm }}
             />
           )}
-          <Text style={{ textAlign: "center", color: colors.card, fontWeight: "600" }}>
+          <Text
+            style={{
+              textAlign: "center",
+              color: colors.card,
+              fontWeight: "600",
+            }}
+          >
             {updateMutation.isPending ? "Saving..." : "Save Changes"}
           </Text>
         </Pressable>

@@ -31,6 +31,12 @@ import {
   isUrl,
   type MetadataResult,
 } from "../src/utils/metadata";
+import {
+  detectChannelFromUrl,
+  SOCIAL_LINK_META,
+  type SocialLinkType,
+} from "../src/utils/socialLinks";
+import { SocialLinkIcon } from "../src/components/SocialLinkIcon";
 import { WebCaptureModal } from "../src/components/WebCaptureModal";
 
 export default function AddContactScreen() {
@@ -67,6 +73,10 @@ export default function AddContactScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showWebCapture, setShowWebCapture] = useState(false);
   const [webCaptureUrl, setWebCaptureUrl] = useState("");
+  const [detectedLink, setDetectedLink] = useState<{
+    type: SocialLinkType;
+    value: string;
+  } | null>(null);
   const queryClient = useQueryClient();
   const extractionApplied = useRef(false);
 
@@ -107,18 +117,42 @@ export default function AddContactScreen() {
       data.phone && `Phone: ${data.phone}`,
       data.company && `Company: ${data.company}`,
       data.jobTitle && `Title: ${data.jobTitle}`,
-      data.linkedinUrl && `LinkedIn: ${data.linkedinUrl}`,
     ]
       .filter(Boolean)
       .join("\n");
     if (extra) setNotes(extra);
+
+    if (data.linkedinUrl) {
+      // Screenshot extraction sometimes yields a bare path ("/in/johndoe")
+      // rather than a full URL; give it a host so detection can resolve it.
+      const raw = data.linkedinUrl.startsWith("/")
+        ? `linkedin.com${data.linkedinUrl}`
+        : data.linkedinUrl;
+      const channel = detectChannelFromUrl(raw);
+      if (channel) setDetectedLink(channel);
+    }
   }
 
-  // Pre-fill from deep link url param on mount
+  // Pre-fill from deep link url param on mount. When arriving back from the
+  // capture → crop round-trip the url is accompanied by sharedImageUri; only
+  // re-detect the link then, without re-opening the capture flow.
   useEffect(() => {
     if (deepLinkUrl) {
-      setSearchText(deepLinkUrl);
-      triggerMetadataFetch(deepLinkUrl, true);
+      const channel = detectChannelFromUrl(deepLinkUrl);
+      if (channel) setDetectedLink(channel);
+      if (!sharedImageUri) {
+        // Don't fill the name field with a social URL — the channel handle is
+        // in detectedLink; typing a URL as the contact name query makes no sense
+        // and causes the debounce effect to loop on the metadata fetch.
+        if (
+          !channel ||
+          channel.type === "website" ||
+          channel.type === "other"
+        ) {
+          setSearchText(deepLinkUrl);
+        }
+        triggerMetadataFetch(deepLinkUrl, true);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -271,6 +305,10 @@ export default function AddContactScreen() {
         notes: notes || undefined,
         avatarUrl: selectedContact?.avatarUrl ?? undefined,
         avatarMimeType: avatarMimeType ?? undefined,
+        links:
+          detectedLink && detectedLink.value.trim()
+            ? [{ type: detectedLink.type, value: detectedLink.value.trim() }]
+            : undefined,
       });
       if (sharedImageUri) {
         // Eager background fetch so cache is populated when home screen mounts
@@ -690,6 +728,27 @@ export default function AddContactScreen() {
                     {selectedContact.email}
                   </Text>
                 )}
+                {detectedLink && (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: spacing.xs,
+                      marginTop: spacing.xs,
+                    }}
+                  >
+                    <SocialLinkIcon
+                      type={detectedLink.type}
+                      size={14}
+                      color="rgba(255,255,255,0.8)"
+                    />
+                    <Text
+                      style={{ fontSize: 11, color: "rgba(255,255,255,0.8)" }}
+                    >
+                      {SOCIAL_LINK_META[detectedLink.type].label}
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
             <Pressable
@@ -697,6 +756,7 @@ export default function AddContactScreen() {
                 setSelectedContact(null);
                 setAvatarMimeType(null);
                 setSearchText("");
+                setDetectedLink(null);
               }}
             >
               <Ionicons name="close" size={20} color={colors.card} />
@@ -818,7 +878,13 @@ export default function AddContactScreen() {
           setShowWebCapture(false);
           router.replace({
             pathname: "/contact-screenshot-crop",
-            params: { sharedImageUri: imageUri, sharedImageMimeType: mimeType },
+            params: {
+              sharedImageUri: imageUri,
+              sharedImageMimeType: mimeType,
+              // Keep the original shared URL so the detected social link
+              // survives the crop round-trip back to this screen.
+              url: webCaptureUrl,
+            },
           });
         }}
         onClose={() => setShowWebCapture(false)}

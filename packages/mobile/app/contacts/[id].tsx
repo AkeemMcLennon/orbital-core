@@ -72,6 +72,7 @@ export default function ContactDetailsScreen() {
       // interactions={contact?.interactions || []}
       interactions={[]}
       tags={contact?.tags || []}
+      links={contact?.links || []}
     />
   );
 }

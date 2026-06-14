@@ -5,9 +5,10 @@ import { useFaceCropFlow } from "../src/hooks/useFaceCropFlow";
 import { colors } from "../src/theme";
 
 export default function ContactScreenshotCropScreen() {
-  const { sharedImageUri, sharedImageMimeType } = useLocalSearchParams<{
+  const { sharedImageUri, sharedImageMimeType, url } = useLocalSearchParams<{
     sharedImageUri: string;
     sharedImageMimeType?: string;
+    url?: string;
   }>();
 
   return (
@@ -15,6 +16,7 @@ export default function ContactScreenshotCropScreen() {
       <CropFlow
         sharedImageUri={sharedImageUri}
         sharedImageMimeType={sharedImageMimeType}
+        sourceUrl={url}
       />
     </RNMLKitFaceDetectionContextProvider>
   );
@@ -23,11 +25,13 @@ export default function ContactScreenshotCropScreen() {
 function CropFlow({
   sharedImageUri,
   sharedImageMimeType,
+  sourceUrl,
 }: {
   sharedImageUri: string;
   sharedImageMimeType?: string;
+  sourceUrl?: string;
 }) {
-  useFaceCropFlow(sharedImageUri, sharedImageMimeType);
+  useFaceCropFlow(sharedImageUri, sharedImageMimeType, sourceUrl);
 
   return (
     <View

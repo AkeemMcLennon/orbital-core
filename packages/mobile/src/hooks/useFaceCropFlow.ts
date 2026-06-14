@@ -93,6 +93,7 @@ async function cropToFace(
 export function useFaceCropFlow(
   sharedImageUri: string,
   sharedImageMimeType?: string,
+  sourceUrl?: string,
 ) {
   // Kick off background extraction immediately while we detect the face.
   // Result is cached in React Query — contact-add reads it on arrival.
@@ -115,6 +116,7 @@ export function useFaceCropFlow(
           sharedImageUri,
           sharedImageMimeType: mimeType,
           ...(croppedImageUri ? { croppedImageUri } : {}),
+          ...(sourceUrl ? { url: sourceUrl } : {}),
         },
       });
 

@@ -1,11 +1,5 @@
 import React from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  Pressable,
-  Linking,
-} from "react-native";
+import { View, Text, ScrollView, Pressable, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
@@ -14,6 +8,8 @@ import { TimelineItem } from "./TimelineItem";
 import { RelationshipsSection } from "./RelationshipsSection";
 import { Tag } from "./Tag";
 import { colors, spacing, borderRadius, shadows } from "../theme";
+import { getSocialLinkMeta } from "../utils/socialLinks";
+import { SocialLinkIcon } from "./SocialLinkIcon";
 import { useAvatarUpload } from "../hooks/useAvatarUpload";
 
 interface ContactDetailsProps {
@@ -29,7 +25,13 @@ interface ContactDetailsProps {
   }>;
   email?: string;
   phone?: string;
-  tags?: Array<{ id: string; name: string; color: string | null; isDynamic: boolean }>;
+  tags?: Array<{
+    id: string;
+    name: string;
+    color: string | null;
+    isDynamic: boolean;
+  }>;
+  links?: Array<{ id: string; type: string; value: string }>;
 }
 
 export function ContactDetails({
@@ -42,6 +44,7 @@ export function ContactDetails({
   email,
   phone,
   tags = [],
+  links = [],
 }: ContactDetailsProps) {
   const router = useRouter();
   const { onEdit, isUploading } = useAvatarUpload(id);
@@ -203,11 +206,59 @@ export function ContactDetails({
               <Ionicons name="mail" size={24} color={colors.card} />
             </Pressable>
           </View>
+
+          {/* Social Links */}
+          {links.length > 0 && (
+            <View
+              style={{
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: spacing.md,
+                marginTop: spacing.lg,
+                justifyContent: "center",
+              }}
+            >
+              {links.map((link) => {
+                const meta = getSocialLinkMeta(link.type);
+                return (
+                  <Pressable
+                    key={link.id}
+                    onPress={() => {
+                      const target = meta.getUrl(link.value);
+                      // A bare "website" handle ("acme.com") has no scheme;
+                      // openURL needs one or it silently no-ops.
+                      const withScheme = /^[a-z][\w+.-]*:\/\//i.test(target)
+                        ? target
+                        : `https://${target}`;
+                      Linking.openURL(withScheme).catch(() =>
+                        alert("Couldn't open this link"),
+                      );
+                    }}
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: borderRadius.full,
+                      backgroundColor: colors.card,
+                      justifyContent: "center",
+                      alignItems: "center",
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      ...shadows.sm,
+                    }}
+                  >
+                    <SocialLinkIcon type={link.type} size={22} />
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         {/* Tags Section */}
         {tags.length > 0 && (
-          <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.xl }}>
+          <View
+            style={{ paddingHorizontal: spacing.lg, marginTop: spacing.xl }}
+          >
             <Text
               style={{
                 fontSize: 12,
@@ -220,7 +271,13 @@ export function ContactDetails({
             >
               Tags
             </Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
+            <View
+              style={{
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: spacing.xs,
+              }}
+            >
               {tags.map((tag) => (
                 <Tag
                   key={tag.id}

@@ -26,7 +26,7 @@ export default function SettingsScreen() {
   const [confirmed, setConfirmed] = useState(false);
 
   const { mutate: requestDeletion, isPending } = useMutation({
-    mutationFn: requestAccountDeletion,
+    mutationFn: () => requestAccountDeletion(),
     onSuccess: () => {
       setConfirmed(true);
       setTimeout(() => {
