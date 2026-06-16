@@ -18,7 +18,9 @@ import {
   directory,
   contactTags,
   type NewContact,
+  type Contact,
 } from "../database/schema";
+import type { User } from "../database/schema/users";
 import { authProc } from "../middleware/auth";
 import { ORPCError } from "@orpc/server";
 import { base58IdSchema } from "@orbital/utils";
@@ -37,6 +39,7 @@ import { waitUntil } from "../utils/wait-until";
 import { crypto } from "../utils/crypto";
 import { settings } from "../config";
 import { extractContactFromImage } from "../services/contact-extract";
+import { meilisearchService } from "../services/meilisearch";
 
 function shouldEncryptNotes(): boolean {
   return (
@@ -216,6 +219,83 @@ const ContactOutputSchema = z.object({
   links: z.array(ContactLinkOutputSchema).optional(),
 });
 
+/**
+ * Shared tail for createContact and updateContact: regenerate dynamic tags,
+ * derive fields + relationships from notes/email, enrich empty fields, then
+ * fetch tags/links, index into Meilisearch, and shape the response.
+ *
+ * The two callers differ only in which notes string drives each step:
+ * - `notesForDynamicTags` — notes written *this request* (regen dynamic tags when truthy)
+ * - `deriveInput` — notes to derive fields/relationships from (may be existing notes on update)
+ */
+async function finalizeContactWrite(
+  db: DatabaseClient,
+  user: User,
+  contact: Contact,
+  opts: {
+    notesForDynamicTags: string | null;
+    deriveInput: { notes: string; email: string | null } | null;
+  },
+): Promise<z.input<typeof ContactOutputSchema>> {
+  if (opts.notesForDynamicTags) {
+    await generateDynamicTagsForContact(
+      db,
+      user.id,
+      contact.id,
+      opts.notesForDynamicTags,
+      contact.email ?? null,
+    );
+  }
+
+  let derived: Awaited<ReturnType<typeof deriveContactFields>> = null;
+  if (opts.deriveInput) {
+    [derived] = await Promise.all([
+      deriveContactFields(opts.deriveInput.notes, opts.deriveInput.email),
+      opts.deriveInput.notes
+        ? deriveContactRelationships(
+            db,
+            user.id,
+            contact.id,
+            contact.name,
+            opts.deriveInput.notes,
+          )
+        : Promise.resolve(),
+    ]);
+  }
+
+  const [tagList, links] = await Promise.all([
+    fetchContactTags(db, user.id, contact.id),
+    fetchContactLinks(db, contact.id),
+  ]);
+
+  let finalContact = contact;
+  if (derived) {
+    const patch: Record<string, string> = {};
+    if (derived.jobTitle && !contact.jobTitle)
+      patch.jobTitle = derived.jobTitle;
+    if (derived.company && !contact.company) patch.company = derived.company;
+    if (derived.birthday && !contact.birthday)
+      patch.birthday = derived.birthday;
+    if (Object.keys(patch).length > 0) {
+      const [enriched] = await db
+        .update(contacts)
+        .set({ ...patch, updatedAt: new Date() })
+        .where(eq(contacts.id, contact.id))
+        .returning();
+      finalContact = enriched ?? contact;
+    }
+  }
+
+  waitUntil(
+    meilisearchService.indexContact(
+      finalContact,
+      tagList.map((t) => t.name),
+    ),
+  );
+
+  return { ...decryptContact(finalContact, user.id), tags: tagList, links };
+}
+
 const DirectoryEntryOutputSchema = z.object({
   id: z.string(),
   userId: z.string(),
@@ -378,58 +458,13 @@ export const createContact = authProc
 
     waitUntil(generateRepsForNewContact(db, user.id, contact.id));
 
-    if (input.notes) {
-      await generateDynamicTagsForContact(
-        db,
-        user.id,
-        contact.id,
-        input.notes,
-        input.email ?? null,
-      );
-    }
-
-    const [derived] = await Promise.all([
-      input.notes || input.email
-        ? deriveContactFields(input.notes ?? "", input.email ?? null)
-        : Promise.resolve(null),
-      input.notes
-        ? deriveContactRelationships(
-            db,
-            user.id,
-            contact.id,
-            contact.name,
-            input.notes,
-          )
-        : Promise.resolve(),
-    ]);
-
-    const [tagList, links] = await Promise.all([
-      fetchContactTags(db, user.id, contact.id),
-      fetchContactLinks(db, contact.id),
-    ]);
-
-    if (derived) {
-      const patch: Record<string, string> = {};
-      if (derived.jobTitle && !contact.jobTitle)
-        patch.jobTitle = derived.jobTitle;
-      if (derived.company && !contact.company) patch.company = derived.company;
-      if (derived.birthday && !contact.birthday)
-        patch.birthday = derived.birthday;
-      if (Object.keys(patch).length > 0) {
-        const [enriched] = await db
-          .update(contacts)
-          .set({ ...patch, updatedAt: new Date() })
-          .where(eq(contacts.id, contact.id))
-          .returning();
-        return {
-          ...decryptContact(enriched ?? contact, user.id),
-          tags: tagList,
-          links,
-        };
-      }
-    }
-
-    return { ...decryptContact(contact, user.id), tags: tagList, links };
+    return finalizeContactWrite(db, user, contact, {
+      notesForDynamicTags: input.notes ?? null,
+      deriveInput:
+        input.notes || input.email
+          ? { notes: input.notes ?? "", email: input.email ?? null }
+          : null,
+    });
   });
 
 /**
@@ -472,6 +507,7 @@ export const bulkCreateContacts = authProc
     for (const contact of created) {
       waitUntil(generateRepsForNewContact(db, user.id, contact.id));
     }
+    waitUntil(meilisearchService.indexContacts(created));
 
     return created;
   });
@@ -546,66 +582,20 @@ export const updateContact = authProc
       await replaceContactLinks(db, contact.id, inputLinks);
     }
 
-    if (patch.notes !== undefined) {
-      const plainNotes = input.notes ?? "";
-      if (plainNotes) {
-        await generateDynamicTagsForContact(
-          db,
-          user.id,
-          contact.id,
-          plainNotes,
-          contact.email ?? null,
-        );
-      }
-    }
+    const existingPlainNotes =
+      contact.notes && !contact.notesEncrypted ? contact.notes : null;
 
-    const [tagList, links] = await Promise.all([
-      fetchContactTags(db, user.id, contact.id),
-      fetchContactLinks(db, contact.id),
-    ]);
-
-    if (patch.notes !== undefined || patch.email !== undefined) {
-      const plainNotes =
-        input.notes ??
-        (contact.notes && !contact.notesEncrypted ? contact.notes : null) ??
-        "";
-      const [derived] = await Promise.all([
-        deriveContactFields(plainNotes, contact.email ?? null),
-        plainNotes
-          ? deriveContactRelationships(
-              db,
-              user.id,
-              contact.id,
-              contact.name,
-              plainNotes,
-            )
-          : Promise.resolve(),
-      ]);
-
-      if (derived) {
-        const enrichPatch: Record<string, string> = {};
-        if (derived.jobTitle && !contact.jobTitle)
-          enrichPatch.jobTitle = derived.jobTitle;
-        if (derived.company && !contact.company)
-          enrichPatch.company = derived.company;
-        if (derived.birthday && !contact.birthday)
-          enrichPatch.birthday = derived.birthday;
-        if (Object.keys(enrichPatch).length > 0) {
-          const [enriched] = await db
-            .update(contacts)
-            .set({ ...enrichPatch, updatedAt: new Date() })
-            .where(eq(contacts.id, contact.id))
-            .returning();
-          return {
-            ...decryptContact(enriched ?? contact, user.id),
-            tags: tagList,
-            links,
-          };
-        }
-      }
-    }
-
-    return { ...decryptContact(contact, user.id), tags: tagList, links };
+    return finalizeContactWrite(db, user, contact, {
+      notesForDynamicTags:
+        patch.notes !== undefined ? (input.notes ?? "") : null,
+      deriveInput:
+        patch.notes !== undefined || patch.email !== undefined
+          ? {
+              notes: input.notes ?? existingPlainNotes ?? "",
+              email: contact.email ?? null,
+            }
+          : null,
+    });
   });
 
 /**
@@ -632,6 +622,7 @@ export const deleteContact = authProc
       throw new ORPCError("NOT_FOUND", { message: "Contact not found" });
     }
 
+    waitUntil(meilisearchService.deleteContact(input.id));
     return { success: true };
   });
 

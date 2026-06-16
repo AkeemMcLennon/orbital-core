@@ -17,6 +17,13 @@ GOOGLE_REDIRECT_URI=http://localhost:8787/api/integrations/google/callback
 APOLLO_API_KEY=your-apollo-api-key
 CLEARBIT_API_KEY=your-clearbit-api-key
 
+# Meilisearch (optional — enables fuzzy contact search for mobile clients)
+# The document namespace ("instance hash") is derived from DB_ENCRYPTION_KEY +
+# MEILISEARCH_API_KEY_UID at runtime, so there is no INSTANCE_HASH var to set.
+# MEILISEARCH_URL=http://localhost:7700
+# MEILISEARCH_API_KEY=your-meilisearch-api-key-value
+# MEILISEARCH_API_KEY_UID=your-meilisearch-api-key-uid
+
 # S3/R2 Storage (Cloudflare R2 — for contact avatars and other assets)
 # Create R2 API credentials: Cloudflare Dashboard → R2 → Manage R2 API Tokens
 S3_ENDPOINT=https://<account_id>.r2.cloudflarestorage.com

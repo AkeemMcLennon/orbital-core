@@ -19,4 +19,7 @@ export interface Env {
   LLM_BASE_URL?: string;
   LLM_API_KEY?: string;
   LLM_FAST_MODEL?: string;
+  MEILISEARCH_URL?: string;
+  MEILISEARCH_API_KEY?: string;
+  MEILISEARCH_API_KEY_UID?: string;
 }

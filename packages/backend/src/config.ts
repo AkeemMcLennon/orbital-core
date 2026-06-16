@@ -47,6 +47,14 @@ const envSchema = {
   LLM_API_KEY: z.string().optional(),
   LLM_FAST_MODEL: z.string().optional(),
   LLM_VISION_MODEL: z.string().optional(),
+
+  // Meilisearch (optional — required only for fuzzy contact search)
+  MEILISEARCH_URL: z.string().url().optional(),
+  MEILISEARCH_API_KEY: z.string().optional(), // API key value used to sign tenant tokens
+  MEILISEARCH_API_KEY_UID: z.string().optional(), // UID of the API key, embedded in tenant JWTs
+  // Note: the per-instance document namespace ("instance hash") is derived at runtime
+  // from DB_ENCRYPTION_KEY + MEILISEARCH_API_KEY_UID (see services/meilisearch.ts),
+  // so it is not configured here.
 };
 const envObject = z.object(envSchema);
 // Type for settings
