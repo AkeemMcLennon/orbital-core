@@ -17,6 +17,7 @@ import {
   contactChannels,
   directory,
   contactTags,
+  tags as tagsTable,
   type NewContact,
   type Contact,
 } from "../database/schema";
@@ -35,11 +36,14 @@ import {
   deriveContactFields,
 } from "../services/tags";
 import { deriveContactRelationships } from "../services/relationships";
-import { waitUntil } from "../utils/wait-until";
+import type { WaitUntil } from "../utils/wait-until";
 import { crypto } from "../utils/crypto";
 import { settings } from "../config";
 import { extractContactFromImage } from "../services/contact-extract";
-import { meilisearchService } from "../services/meilisearch";
+import {
+  meilisearchService,
+  isMeilisearchConfigured,
+} from "../services/meilisearch";
 
 function shouldEncryptNotes(): boolean {
   return (
@@ -232,6 +236,7 @@ async function finalizeContactWrite(
   db: DatabaseClient,
   user: User,
   contact: Contact,
+  waitUntil: WaitUntil,
   opts: {
     notesForDynamicTags: string | null;
     deriveInput: { notes: string; email: string | null } | null;
@@ -456,9 +461,9 @@ export const createContact = authProc
       await replaceContactLinks(db, contact.id, input.links);
     }
 
-    waitUntil(generateRepsForNewContact(db, user.id, contact.id));
+    context.waitUntil(generateRepsForNewContact(db, user.id, contact.id));
 
-    return finalizeContactWrite(db, user, contact, {
+    return finalizeContactWrite(db, user, contact, context.waitUntil, {
       notesForDynamicTags: input.notes ?? null,
       deriveInput:
         input.notes || input.email
@@ -505,9 +510,9 @@ export const bulkCreateContacts = authProc
     const created = await db.insert(contacts).values(values).returning();
 
     for (const contact of created) {
-      waitUntil(generateRepsForNewContact(db, user.id, contact.id));
+      context.waitUntil(generateRepsForNewContact(db, user.id, contact.id));
     }
-    waitUntil(meilisearchService.indexContacts(created));
+    context.waitUntil(meilisearchService.indexContacts(created));
 
     return created;
   });
@@ -585,7 +590,7 @@ export const updateContact = authProc
     const existingPlainNotes =
       contact.notes && !contact.notesEncrypted ? contact.notes : null;
 
-    return finalizeContactWrite(db, user, contact, {
+    return finalizeContactWrite(db, user, contact, context.waitUntil, {
       notesForDynamicTags:
         patch.notes !== undefined ? (input.notes ?? "") : null,
       deriveInput:
@@ -622,7 +627,7 @@ export const deleteContact = authProc
       throw new ORPCError("NOT_FOUND", { message: "Contact not found" });
     }
 
-    waitUntil(meilisearchService.deleteContact(input.id));
+    context.waitUntil(meilisearchService.deleteContact(input.id));
     return { success: true };
   });
 
@@ -927,6 +932,54 @@ export const extractFromImage = authProc
   });
 
 /**
+ * Reindex the current user's active contacts into Meilisearch. Backfills contacts
+ * created while indexing was unavailable. No-op when search isn't configured.
+ */
+export const reindexContacts = authProc
+  .route({
+    method: "POST",
+    path: "/contacts/reindex",
+    summary: "Reindex the current user's contacts into search",
+    operationId: "reindexContacts",
+  })
+  .output(z.object({ reindexed: z.number() }))
+  .handler(async ({ context }) => {
+    const { db, user } = context;
+    if (!isMeilisearchConfigured()) {
+      return { reindexed: 0 };
+    }
+
+    const rows = await db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.userId, user.id));
+    if (rows.length === 0) return { reindexed: 0 };
+
+    // Tag names for all of the user's contacts in a single query.
+    const tagRows = await db
+      .select()
+      .from(contactTags)
+      .innerJoin(tagsTable, eq(tagsTable.id, contactTags.tagId))
+      .where(eq(tagsTable.userId, user.id));
+    const tagsByContact = new Map<string, string[]>();
+    for (const row of tagRows) {
+      const contactId = row.contact_tags.contactId;
+      const list = tagsByContact.get(contactId) ?? [];
+      list.push(row.tags.name);
+      tagsByContact.set(contactId, list);
+    }
+
+    const items = rows.map((contact) => ({
+      contact,
+      tags: tagsByContact.get(contact.id) ?? [],
+    }));
+
+    // Awaited (not fire-and-forget) so the caller learns if indexing failed.
+    await meilisearchService.indexContactBatch(items);
+    return { reindexed: items.length };
+  });
+
+/**
  * Export router with all contact procedures
  */
 export const router = {
@@ -937,6 +990,7 @@ export const router = {
   update: updateContact,
   delete: deleteContact,
   search: searchContacts,
+  reindex: reindexContacts,
   listAvailable,
   searchAvailable,
   import: importContacts,

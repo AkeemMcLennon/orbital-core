@@ -9,6 +9,7 @@ import { loadSettings } from "./config";
 import router from "./routes";
 import googleOAuth from "./routes/oauth/google";
 import { Env } from "./types/env";
+import { createWaitUntil, type WaitUntil } from "./utils/wait-until";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -76,11 +77,24 @@ app.use("/rpc/*", async (c, next) => {
     headers[key] = value;
   });
 
+  // Bind background work to THIS request's execution context. On Cloudflare
+  // Workers c.executionCtx provides waitUntil; on Node/Bun it throws (no ctx),
+  // so we fall back to fire-and-forget. Capturing it per-request avoids the
+  // module-global clobbering that silently dropped background tasks.
+  let ctxWaitUntil: WaitUntil | undefined;
+  try {
+    ctxWaitUntil = c.executionCtx.waitUntil.bind(c.executionCtx);
+  } catch {
+    ctxWaitUntil = undefined;
+  }
+  const waitUntil = createWaitUntil(ctxWaitUntil);
+
   const { matched, response } = await handler.handle(c.req.raw, {
     prefix: "/rpc",
     context: {
       headers,
       env: c.env,
+      waitUntil,
     },
   });
 

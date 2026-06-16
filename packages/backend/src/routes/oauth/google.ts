@@ -10,7 +10,7 @@ import {
 } from "../../services/integrations";
 
 import { type Env } from "../../types/env";
-import { waitUntil } from "../../utils/wait-until";
+import { createWaitUntil, type WaitUntil } from "../../utils/wait-until";
 // Cloudflare Workers environment types
 
 const app = new Hono<{ Bindings: Env }>();
@@ -164,7 +164,17 @@ app.get("/callback/google", async (context) => {
         expiresAt: tokenExpiresAt,
       },
     );
-    waitUntil(syncIntegration(db, integration.id, session.userId));
+    // Bind background work to this request's execution context (Workers);
+    // falls back to fire-and-forget on Node/Bun.
+    let ctxWaitUntil: WaitUntil | undefined;
+    try {
+      ctxWaitUntil = context.executionCtx.waitUntil.bind(context.executionCtx);
+    } catch {
+      ctxWaitUntil = undefined;
+    }
+    createWaitUntil(ctxWaitUntil)(
+      syncIntegration(db, integration.id, session.userId),
+    );
 
     // Get client redirect URL from session metadata
     const rawClientRedirectUrl = (session.metadata as any)?.clientRedirectUrl;

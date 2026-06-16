@@ -1,12 +1,12 @@
 import app from "./app";
 import { type Env } from "./types/env";
-import { setWaitUntil } from "./utils/wait-until";
 import { getDbClient } from "./database/client";
 import { processAccountDeletions } from "./services/account-deletion";
 
 export default {
   fetch(req: Request, env: Env, ctx: ExecutionContext) {
-    setWaitUntil(ctx.waitUntil.bind(ctx));
+    // The per-request waitUntil is derived from c.executionCtx in app.ts and
+    // threaded through the handler context — see utils/wait-until.ts.
     return app.fetch(req, env, ctx);
   },
 

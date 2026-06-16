@@ -152,6 +152,24 @@ class MeilisearchService {
       );
   }
 
+  // Index many contacts with their tag names — used to backfill/reindex existing
+  // contacts. Sent in one request per chunk; Meilisearch upserts by primary key.
+  async indexContactBatch(
+    items: { contact: IndexableContact; tags: string[] }[],
+  ): Promise<void> {
+    if (!isConfigured() || items.length === 0) return;
+
+    await this.ensureIndexConfigured();
+    const index = this.client().index(INDEX_NAME);
+    const CHUNK = 1000;
+    for (let i = 0; i < items.length; i += CHUNK) {
+      const docs = items
+        .slice(i, i + CHUNK)
+        .map(({ contact, tags }) => this.toDocument(contact, tags));
+      await index.addDocuments(docs, { primaryKey: "id" });
+    }
+  }
+
   async deleteContact(contactId: string): Promise<void> {
     if (!isConfigured()) return;
 

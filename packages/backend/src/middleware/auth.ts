@@ -7,6 +7,7 @@ import { settings } from "../config";
 import { getOrCreateUserByExternalId } from "../services/auth";
 import { cancelPendingDeletion } from "../services/account-deletion";
 import type { User } from "../database/schema/users";
+import type { WaitUntil } from "../utils/wait-until";
 import { z } from "zod";
 
 // Zod schema for JWT payload validation
@@ -26,12 +27,14 @@ export interface CloudflareEnv {
 export interface BaseContext {
   headers: IncomingHttpHeaders;
   env: CloudflareEnv;
+  waitUntil: WaitUntil; // Request-scoped background-task runner (see utils/wait-until.ts)
 }
 
 export interface AuthContext {
   user: User; // Full database user record
   db: DatabaseClient;
   headers: IncomingHttpHeaders; // Request headers for deriving URLs, etc.
+  waitUntil: WaitUntil; // Request-scoped background-task runner
 }
 
 /**
@@ -129,6 +132,7 @@ export const authProc = os
           user, // Full database user object
           db,
           headers: context.headers,
+          waitUntil: context.waitUntil,
         },
       });
     } catch (error) {

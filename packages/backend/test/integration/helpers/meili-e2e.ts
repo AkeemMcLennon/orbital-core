@@ -16,13 +16,13 @@ import {
   meilisearchService,
   resetInstanceHashCache,
 } from "../../../src/services/meilisearch";
-import { setWaitUntil } from "../../../src/utils/wait-until";
+import { setBackgroundTaskObserver } from "../../../src/utils/wait-until";
 
 export const MEILI_MASTER_KEY = "test-master-key-for-e2e";
 
-// Track background tasks fired via waitUntil so tests can explicitly flush them.
+// Observe background tasks fired via waitUntil so tests can explicitly flush them.
 const pendingTasks: Promise<unknown>[] = [];
-setWaitUntil((promise) => {
+setBackgroundTaskObserver((promise) => {
   pendingTasks.push(promise);
 });
 
