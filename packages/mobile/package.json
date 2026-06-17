@@ -17,7 +17,7 @@
     "@better-auth/expo": "^1.6.16",
     "@bsky.app/expo-image-crop-tool": "^0.5.1",
     "@expo/vector-icons": "^15.0.3",
-    "@infinitered/react-native-mlkit-face-detection": "^1.0.0",
+    "@infinitered/react-native-mlkit-face-detection": "^5.0.0",
     "@orbital/client": "workspace:*",
     "@orbital/types": "workspace:*",
     "@react-native-picker/picker": "^2.11.4",

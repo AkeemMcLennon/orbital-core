@@ -1,6 +1,6 @@
 import { View, ActivityIndicator } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { RNMLKitFaceDetectionContextProvider } from "@infinitered/react-native-mlkit-face-detection";
+import { FaceDetectionProvider } from "@infinitered/react-native-mlkit-face-detection";
 import { useFaceCropFlow } from "../src/hooks/useFaceCropFlow";
 import { colors } from "../src/theme";
 
@@ -12,13 +12,13 @@ export default function ContactScreenshotCropScreen() {
   }>();
 
   return (
-    <RNMLKitFaceDetectionContextProvider>
+    <FaceDetectionProvider>
       <CropFlow
         sharedImageUri={sharedImageUri}
         sharedImageMimeType={sharedImageMimeType}
         sourceUrl={url}
       />
-    </RNMLKitFaceDetectionContextProvider>
+    </FaceDetectionProvider>
   );
 }
 
