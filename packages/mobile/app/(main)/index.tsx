@@ -9,11 +9,15 @@ import {
   RefreshControl,
   ScrollView,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { FaceAvatar, QuizCard, TimelineItem } from "../../src/components";
+import {
+  FaceAvatar,
+  QuizCard,
+  SearchDialog,
+  TimelineItem,
+} from "../../src/components";
 import { useAuthContext } from "../../src/contexts/AuthContext";
 import { contactKeys, useContactsList } from "../../src/queries/contacts";
 import {
@@ -25,7 +29,7 @@ import {
 import { borderRadius, colors, shadows, spacing } from "../../src/theme";
 
 export default function DailyOrbitScreen() {
-  const [searchText, setSearchText] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const navigation = useNavigation();
@@ -132,7 +136,10 @@ export default function DailyOrbitScreen() {
             marginBottom: spacing.lg,
           }}
         >
-          <View
+          <Pressable
+            onPress={() => setSearchOpen(true)}
+            // Hidden while the search dialog is open so it can't peek out behind it.
+            pointerEvents={searchOpen ? "none" : "auto"}
             style={{
               flexDirection: "row",
               alignItems: "center",
@@ -141,24 +148,23 @@ export default function DailyOrbitScreen() {
               paddingHorizontal: spacing.md,
               borderColor: colors.border,
               borderWidth: 1,
+              opacity: searchOpen ? 0 : 1,
               ...shadows.sm,
             }}
           >
             <Ionicons name="search" size={18} color={colors.textTertiary} />
-            <TextInput
-              placeholder="Search contacts..."
-              placeholderTextColor={colors.textTertiary}
-              value={searchText}
-              onChangeText={setSearchText}
+            <Text
               style={{
                 flex: 1,
                 paddingLeft: spacing.sm,
-                paddingVertical: spacing.sm,
-                color: colors.textMain,
+                paddingVertical: spacing.sm + 2,
+                color: colors.textTertiary,
                 fontSize: 14,
               }}
-            />
-          </View>
+            >
+              Search contacts...
+            </Text>
+          </Pressable>
         </View>
 
         {/* Face Stream (Horizontal Scroll) */}
@@ -387,6 +393,8 @@ export default function DailyOrbitScreen() {
           Ask Orbital
         </Text>
       </Pressable>
+
+      <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
     </SafeAreaView>
   );
 }

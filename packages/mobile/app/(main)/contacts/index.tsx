@@ -12,7 +12,7 @@ import { DrawerActions } from "@react-navigation/native";
 import { router, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
-import { FaceAvatar } from "../../../src/components/FaceAvatar";
+import { ContactRow } from "../../../src/components/ContactRow";
 import { useAllContactsList } from "../../../src/queries/contacts";
 import { useAllAvailableContactsList } from "../../../src/queries/available-contacts";
 import { colors, spacing, borderRadius } from "../../../src/theme";
@@ -49,50 +49,6 @@ type DirectoryContact = {
   email?: string | null;
   company?: string | null;
 };
-
-function ContactRow({
-  name,
-  subtitle,
-  avatar,
-  onPress,
-}: {
-  name: string;
-  subtitle?: string | null;
-  avatar?: string | null;
-  onPress?: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        paddingVertical: spacing.sm,
-        paddingHorizontal: spacing.md,
-        backgroundColor: colors.card,
-        gap: spacing.md,
-      }}
-    >
-      <FaceAvatar name={name} avatar={avatar ?? undefined} size={40} showLabel={false} noMargin />
-      <View style={{ flex: 1 }}>
-        <Text
-          style={{ fontSize: 15, fontWeight: "500", color: colors.textMain }}
-          numberOfLines={1}
-        >
-          {name}
-        </Text>
-        {!!subtitle && (
-          <Text
-            style={{ fontSize: 12, color: colors.textTertiary, marginTop: 1 }}
-            numberOfLines={1}
-          >
-            {subtitle}
-          </Text>
-        )}
-      </View>
-    </Pressable>
-  );
-}
 
 function SectionHeader({ title }: { title: string }) {
   return (
@@ -164,7 +120,9 @@ function AlphabetSidebar({
   );
 }
 
-function ContactList<T extends { id: string; name: string; avatarUrl?: string | null }>({
+function ContactList<
+  T extends { id: string; name: string; avatarUrl?: string | null },
+>({
   items,
   isLoading,
   subtitle,

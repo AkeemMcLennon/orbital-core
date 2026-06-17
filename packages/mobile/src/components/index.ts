@@ -1,4 +1,6 @@
 export { FaceAvatar } from "./FaceAvatar";
+export { ContactRow } from "./ContactRow";
+export { SearchDialog } from "./SearchDialog";
 export { TimelineItem } from "./TimelineItem";
 export { QuizCard } from "./QuizCard";
 export { DrawerContent } from "./DrawerContent";

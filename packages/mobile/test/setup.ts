@@ -154,9 +154,46 @@ jest.mock("tamagui", () => {
     { List: TabsList, Tab: TabsTab, Content: View },
   );
 
+  // Generic passthrough used for the Dialog/Sheet compound members below.
+  const Passthrough = ({ children, ...props }: any) =>
+    React.createElement(View, props, children);
+
+  const Sheet = Object.assign(
+    ({ children, ...props }: any) => React.createElement(View, props, children),
+    {
+      Overlay: Passthrough,
+      Handle: Passthrough,
+      Frame: Passthrough,
+      ScrollView: Passthrough,
+    },
+  );
+  const Adapt = Object.assign(
+    ({ children, ...props }: any) => React.createElement(View, props, children),
+    { Contents: Passthrough },
+  );
+  // Mirror the real Dialog: render content only when `open`, so a closed dialog
+  // (the default on screens that mount it) contributes nothing to the test tree.
+  const Dialog = Object.assign(
+    ({ open, children, ...props }: any) =>
+      open ? React.createElement(View, props, children) : null,
+    {
+      Portal: Passthrough,
+      Overlay: Passthrough,
+      Content: Passthrough,
+      Trigger: Passthrough,
+      Title: Passthrough,
+      Description: Passthrough,
+      Close: Passthrough,
+    },
+  );
+
   return {
     Avatar,
     Tabs,
+    Sheet,
+    Adapt,
+    Dialog,
+    Input: Passthrough,
     TamaguiProvider: ({ children }: any) => children,
     useMedia: () => ({ gtMd: false }),
     styled: (component: any) => component,
