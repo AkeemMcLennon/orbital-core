@@ -22,14 +22,16 @@ export const uuidV7 = customType<{ data: string; driverData: Buffer }>({
 });
 
 /**
+ * Generate a new UUIDv7 encoded as a Base58 string (the app-layer ID format).
+ * Exported so services can pre-generate IDs (e.g. to cross-link rows in a single
+ * atomic insert) using the exact same scheme as the `pk()` column default.
+ */
+export const generateId = (): string => {
+  const bytes = parse(uuidv7());
+  return bs58.encode(Buffer.from(bytes));
+};
+
+/**
  * Primary key helper that generates a new UUIDv7 and encodes it as Base58
  */
-export const pk = () =>
-  uuidV7("id")
-    .primaryKey()
-    .$defaultFn(() => {
-      // Generate UUIDv7, parse to bytes, encode as Base58
-      const uuid = uuidv7();
-      const bytes = parse(uuid);
-      return bs58.encode(Buffer.from(bytes));
-    });
+export const pk = () => uuidV7("id").primaryKey().$defaultFn(generateId);
