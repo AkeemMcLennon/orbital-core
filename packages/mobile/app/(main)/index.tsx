@@ -108,7 +108,11 @@ export default function DailyOrbitScreen() {
             alignItems: "center",
           }}
         >
-          <Pressable onPress={() => (navigation as any).openDrawer()}>
+          <Pressable
+            onPress={() => (navigation as any).openDrawer()}
+            accessibilityRole="button"
+            accessibilityLabel="Open menu"
+          >
             <Ionicons name="menu" size={24} color={colors.textMain} />
           </Pressable>
           <Text

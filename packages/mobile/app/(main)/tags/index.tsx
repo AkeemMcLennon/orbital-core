@@ -57,6 +57,8 @@ export default function TagsScreen() {
       >
         <Pressable
           onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
+          accessibilityRole="button"
+          accessibilityLabel="Open menu"
           style={{ marginRight: spacing.md }}
           hitSlop={8}
         >
@@ -87,7 +89,12 @@ export default function TagsScreen() {
             </Text>
           </Pressable>
         ) : (
-          <Pressable onPress={() => setIsEditing(true)} hitSlop={8}>
+          <Pressable
+            onPress={() => setIsEditing(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Edit tags"
+            hitSlop={8}
+          >
             <Ionicons name="pencil" size={20} color={colors.primary} />
           </Pressable>
         )}

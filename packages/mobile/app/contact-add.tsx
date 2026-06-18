@@ -464,6 +464,7 @@ export default function AddContactScreen() {
               color={isAiMode ? colors.primary : colors.textTertiary}
             />
             <TextInput
+              accessibilityLabel="Search or enter a contact name"
               placeholder={
                 isAiMode ? "Ask AI to find..." : "Search contacts..."
               }
@@ -839,6 +840,8 @@ export default function AddContactScreen() {
         <Pressable
           onPress={handleAddContact}
           disabled={(!selectedContact && !searchText.trim()) || isSubmitting}
+          accessibilityRole="button"
+          accessibilityLabel="Add Contact"
           style={{
             flex: 1,
             paddingVertical: spacing.md,

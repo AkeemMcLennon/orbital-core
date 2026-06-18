@@ -105,7 +105,10 @@ export function ContactDetails({
             Contact Details
           </Text>
           <Link href={`/contacts/${id}/edit`} asChild>
-            <Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Edit contact"
+            >
               <Ionicons name="pencil" size={20} color={colors.textMain} />
             </Pressable>
           </Link>
@@ -223,6 +226,8 @@ export function ContactDetails({
                 return (
                   <Pressable
                     key={link.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open ${link.type} profile`}
                     onPress={() => {
                       const target = meta.getUrl(link.value);
                       // A bare "website" handle ("acme.com") has no scheme;

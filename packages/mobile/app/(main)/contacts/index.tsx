@@ -250,6 +250,8 @@ export default function ContactsScreen() {
       >
         <Pressable
           onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
+          accessibilityRole="button"
+          accessibilityLabel="Open menu"
           style={{ marginRight: spacing.md }}
           hitSlop={8}
         >

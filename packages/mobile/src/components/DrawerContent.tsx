@@ -94,6 +94,8 @@ export function DrawerContent({
           {DRAWER_ITEMS.map((item) => (
             <Pressable
               key={item.id}
+              accessibilityRole="button"
+              accessibilityLabel={item.label}
               onPress={() => {
                 router.push(item.route as any);
                 navigation.dispatch(DrawerActions.closeDrawer());
@@ -163,6 +165,8 @@ export function DrawerContent({
 
           <Pressable
             onPress={() => signOut()}
+            accessibilityRole="button"
+            accessibilityLabel="Sign Out"
             style={{
               flexDirection: "row",
               alignItems: "center",

@@ -10,6 +10,9 @@ export interface Env {
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
 
+  // Comma-separated list of additional trusted origins (e.g. web deployments)
+  TRUSTED_ORIGINS?: string;
+
   // Apple Sign-In (optional)
   APPLE_CLIENT_ID?: string;
   APPLE_TEAM_ID?: string;

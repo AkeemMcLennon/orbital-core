@@ -68,6 +68,8 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
   const addButtonContent = (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Add contact"
       style={{
         alignItems: "center",
         marginHorizontal: noMargin ? 0 : spacing.sm,

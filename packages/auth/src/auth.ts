@@ -96,9 +96,27 @@ export async function createAuth(env: Env) {
       "mobile://",
       "diy.orbital.mobile://",
       "mobile://auth-callback",
+      // app.json `scheme` — social sign-in builds its callback with
+      // Linking.createURL("/auth-callback") => "orbital:///auth-callback", which
+      // Better Auth matches via `url.startsWith(pattern)` for custom schemes.
+      // Without this, Google/Apple sign-in fails with 403 INVALID_CALLBACK_URL.
+      "orbital://",
       "exp://",
       "https://appleid.apple.com",
+      ...(env.TRUSTED_ORIGINS?.split(",")
+        .map((o) => o.trim())
+        .filter(Boolean) ?? []),
     ],
+
+    advanced: {
+      // SameSite=None is required for cross-origin web clients (e.g. the Cloudflare
+      // Workers web app on a different domain). The trustedOrigins check and the
+      // CORS credentials policy are the real security gates.
+      defaultCookieAttributes: {
+        sameSite: "none",
+        secure: true,
+      },
+    },
 
     plugins: [
       expo(),
