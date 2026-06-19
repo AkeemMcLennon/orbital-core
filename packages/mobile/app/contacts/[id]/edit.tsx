@@ -4,6 +4,8 @@ import {
   Text,
   TextInput,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ActivityIndicator,
 } from "react-native";
@@ -164,7 +166,12 @@ export default function EditContactScreen() {
         <View style={{ width: 24 }} />
       </View>
 
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
       <ScrollView
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={{
           paddingHorizontal: spacing.lg,
           paddingVertical: spacing.lg,
@@ -353,6 +360,7 @@ export default function EditContactScreen() {
           </Text>
         </Pressable>
       </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

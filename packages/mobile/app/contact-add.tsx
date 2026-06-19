@@ -5,6 +5,8 @@ import {
   Text,
   TextInput,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   Image,
   ActivityIndicator,
@@ -357,7 +359,12 @@ export default function AddContactScreen() {
         <View style={{ width: 24 }} />
       </View>
 
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
       <ScrollView
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={{
           paddingHorizontal: spacing.lg,
           paddingVertical: spacing.lg,
@@ -874,6 +881,7 @@ export default function AddContactScreen() {
           </Text>
         </Pressable>
       </View>
+      </KeyboardAvoidingView>
       <WebCaptureModal
         visible={showWebCapture}
         url={webCaptureUrl}
