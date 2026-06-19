@@ -3,6 +3,7 @@ import {
   generateMemoryReps,
   answerMemoryRep,
   createContact,
+  updatePreferences,
   initializeApiClient,
   getSuccessData,
 } from "@orbital/client";
@@ -748,13 +749,37 @@ describe("Memory Reps API (unit)", () => {
       const scheduledReps = dbReps.filter((r) => r.scheduledFor !== null);
       expect(scheduledReps.length).toBeGreaterThan(0);
 
-      // All scheduled reps should be ~3 days in the future
-      const threeDaysMs = 3 * 86400000;
+      // All scheduled reps should be ~72 hours (3 days) in the future (default delay)
+      const seventyTwoHoursMs = 72 * 3600000;
       for (const rep of scheduledReps) {
         const diff = rep.scheduledFor!.getTime() - Date.now();
-        expect(diff).toBeGreaterThan(threeDaysMs - 5000);
-        expect(diff).toBeLessThan(threeDaysMs + 5000);
+        expect(diff).toBeGreaterThan(seventyTwoHoursMs - 5000);
+        expect(diff).toBeLessThan(seventyTwoHoursMs + 5000);
       }
+    });
+
+    it("should respect memRepInitialDelayHours preference when scheduling reps for a new contact", async () => {
+      // Set preference to 0 hours so reps are immediately visible
+      const prefRes = await updatePreferences({ memRepInitialDelayHours: 0 });
+      expect(prefRes.status).toBe(200);
+
+      // Create a contact with an avatar (triggers auto-generation of an identify question)
+      const createRes = await createContact({
+        name: "PrefTest Person",
+        avatarUrl: "https://example.com/preftest.jpg",
+      });
+      expect(createRes.status).toBe(200);
+
+      // Wait briefly for the background task to complete
+      await new Promise((r) => setTimeout(r, 200));
+
+      // With 0-hour delay, scheduledFor is now-or-past so reps should appear in the listing
+      const listRes = await getMemoryReps();
+      const listData = getSuccessData(listRes) as any;
+      const prefTestReps = listData.items.filter(
+        (i: any) => i.contactName === "PrefTest Person",
+      );
+      expect(prefTestReps.length).toBeGreaterThan(0);
     });
 
     it("should show past-scheduled reps in listing", async () => {

@@ -4,15 +4,18 @@ import type { DatabaseClient } from "../database/client";
 import { contacts, memoryReps } from "../database/schema";
 import type { Contact } from "../database/schema/contacts";
 import { shuffle } from "es-toolkit";
-import { determineNameInfo, getNameByGender, parseNameParts } from "gender-name";
+import {
+  determineNameInfo,
+  getNameByGender,
+  parseNameParts,
+} from "gender-name";
 import { getAI } from "./llm";
 import { settings } from "../config";
 import { crypto } from "../utils/crypto";
 
-function decryptNotes<T extends { notes: string | null; notesEncrypted: boolean }>(
-  contact: T,
-  userId: string,
-): T {
+function decryptNotes<
+  T extends { notes: string | null; notesEncrypted: boolean },
+>(contact: T, userId: string): T {
   if (!contact.notesEncrypted || !contact.notes) return contact;
   return { ...contact, notes: crypto.decrypt(contact.notes, userId) };
 }
@@ -92,7 +95,10 @@ async function selectEligibleContacts(
     .from(contacts)
     .leftJoin(
       memoryReps,
-      and(eq(memoryReps.contactId, contacts.id), gte(memoryReps.createdAt, sixMonthsAgo)),
+      and(
+        eq(memoryReps.contactId, contacts.id),
+        gte(memoryReps.createdAt, sixMonthsAgo),
+      ),
     )
     .where(
       and(
@@ -309,9 +315,9 @@ export async function generateRepsForNewContact(
   db: DatabaseClient,
   userId: string,
   contactId: string,
-  scheduledFor?: Date,
+  initialDelayHours: number = 72,
 ): Promise<void> {
-  const schedule = scheduledFor ?? new Date(Date.now() + 3 * 86400000); // 3 days from now
+  const schedule = new Date(Date.now() + initialDelayHours * 3600000);
 
   // Fetch the newly created contact
   const [newContact] = await db
@@ -334,7 +340,10 @@ export async function generateRepsForNewContact(
     settings.LLM_FAST_MODEL
   ) {
     try {
-      detailInserts = await generateDetailQuestions([decryptNotes(newContact, userId)], userId);
+      detailInserts = await generateDetailQuestions(
+        [decryptNotes(newContact, userId)],
+        userId,
+      );
     } catch (err) {
       // Silently skip LLM failures — identify question still gets inserted
       console.error("Failed to generate detail question for new contact:", err);

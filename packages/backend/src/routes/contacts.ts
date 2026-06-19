@@ -21,6 +21,7 @@ import {
   type NewContact,
   type Contact,
 } from "../database/schema";
+import { getPreferenceValue, PrefKey } from "../services/preferences";
 import type { User } from "../database/schema/users";
 import { authProc } from "../middleware/auth";
 import { ORPCError } from "@orpc/server";
@@ -461,7 +462,15 @@ export const createContact = authProc
       await replaceContactLinks(db, contact.id, input.links);
     }
 
-    context.waitUntil(generateRepsForNewContact(db, user.id, contact.id));
+    const initialDelayHours = await getPreferenceValue(
+      db,
+      user.id,
+      PrefKey.MemRepInitialDelayHours,
+    );
+
+    context.waitUntil(
+      generateRepsForNewContact(db, user.id, contact.id, initialDelayHours),
+    );
 
     return finalizeContactWrite(db, user, contact, context.waitUntil, {
       notesForDynamicTags: input.notes ?? null,
@@ -509,8 +518,16 @@ export const bulkCreateContacts = authProc
 
     const created = await db.insert(contacts).values(values).returning();
 
+    const initialDelayHours = await getPreferenceValue(
+      db,
+      user.id,
+      PrefKey.MemRepInitialDelayHours,
+    );
+
     for (const contact of created) {
-      context.waitUntil(generateRepsForNewContact(db, user.id, contact.id));
+      context.waitUntil(
+        generateRepsForNewContact(db, user.id, contact.id, initialDelayHours),
+      );
     }
     context.waitUntil(meilisearchService.indexContacts(created));
 

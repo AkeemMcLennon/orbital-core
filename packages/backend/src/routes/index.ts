@@ -6,6 +6,7 @@ import memoryReps from "./memory-reps";
 import account from "./account";
 import tags from "./tags";
 import settings from "./settings";
+import preferences from "./preferences";
 
 export const router = {
   contacts,
@@ -16,6 +17,7 @@ export const router = {
   account,
   tags,
   settings,
+  preferences,
 };
 
 export default router;
