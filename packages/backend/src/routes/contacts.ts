@@ -980,6 +980,200 @@ export const reindexContacts = authProc
   });
 
 /**
+ * Merge source contact into destination contact.
+ * Destination inherits each scalar field from source only where destination's
+ * own value is null/empty. Tags and links are merged additively. Source is
+ * deleted after the merge; directory entries pointing to source are re-pointed
+ * to destination so they remain promoted.
+ */
+export const mergeContact = authProc
+  .route({
+    method: "POST",
+    path: "/contacts/{destinationId}/merge",
+    summary: "Merge source contact into destination contact",
+    operationId: "mergeContact",
+  })
+  .input(
+    z.object({
+      destinationId: base58IdSchema,
+      sourceId: base58IdSchema,
+    }),
+  )
+  .output(ContactOutputSchema)
+  .handler(async ({ input, context }) => {
+    const { db, user } = context;
+
+    if (input.destinationId === input.sourceId) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "Cannot merge a contact with itself",
+      });
+    }
+
+    // All reads upfront in parallel so no reads are needed inside the transaction.
+    const [destination, source, destTags, srcTags, destLinks, srcLinks] =
+      await Promise.all([
+        db
+          .select()
+          .from(contacts)
+          .where(
+            and(
+              eq(contacts.id, input.destinationId) as SQL,
+              eq(contacts.userId, user.id) as SQL,
+            ),
+          )
+          .then((r) => r[0]),
+        db
+          .select()
+          .from(contacts)
+          .where(
+            and(
+              eq(contacts.id, input.sourceId) as SQL,
+              eq(contacts.userId, user.id) as SQL,
+            ),
+          )
+          .then((r) => r[0]),
+        fetchContactTags(db, user.id, input.destinationId),
+        fetchContactTags(db, user.id, input.sourceId),
+        fetchContactLinks(db, input.destinationId),
+        fetchContactLinks(db, input.sourceId),
+      ]);
+
+    if (!destination) {
+      throw new ORPCError("NOT_FOUND", {
+        message: "Destination contact not found",
+      });
+    }
+    if (!source) {
+      throw new ORPCError("NOT_FOUND", { message: "Source contact not found" });
+    }
+
+    const destDecrypted = decryptContact(destination, user.id);
+    const srcDecrypted = decryptContact(source, user.id);
+
+    // Build patch: copy source fields only where destination is empty.
+    const patch: Partial<NewContact> & { notesEncrypted?: boolean } = {};
+
+    for (const field of [
+      "email",
+      "phone",
+      "avatarUrl",
+      "jobTitle",
+      "company",
+      "birthday",
+    ] as const) {
+      if (!destDecrypted[field] && srcDecrypted[field]) {
+        (patch as any)[field] = srcDecrypted[field];
+      }
+    }
+    // group handled separately to preserve its enum type
+    if (!destDecrypted.group && srcDecrypted.group) {
+      patch.group = srcDecrypted.group;
+    }
+
+    if (!destDecrypted.notes && srcDecrypted.notes) {
+      const { notes: encNotes, notesEncrypted } = encryptNotes(
+        srcDecrypted.notes,
+        user.id,
+      );
+      patch.notes = encNotes ?? null;
+      patch.notesEncrypted = notesEncrypted;
+    }
+
+    if (
+      source.lastInteractionAt &&
+      (!destination.lastInteractionAt ||
+        source.lastInteractionAt > destination.lastInteractionAt)
+    ) {
+      patch.lastInteractionAt = source.lastInteractionAt;
+    }
+
+    // Compute tag/link changes from the pre-fetched data.
+    const destTagNames = new Set(destTags.map((t) => t.name));
+    const newTagNames = srcTags
+      .filter((t) => !t.isDynamic && !destTagNames.has(t.name))
+      .map((t) => t.name);
+    const mergedStaticTagNames =
+      newTagNames.length > 0
+        ? [
+            ...destTags.filter((t) => !t.isDynamic).map((t) => t.name),
+            ...newTagNames,
+          ]
+        : null;
+
+    const destLinkKeys = new Set(destLinks.map((l) => `${l.type}:${l.value}`));
+    const newLinks = srcLinks.filter(
+      (l) => !destLinkKeys.has(`${l.type}:${l.value}`),
+    );
+
+    // All writes in a single transaction so the merge is atomic.
+    // Note: D1's transaction implementation uses batch mode — no reads inside.
+    let updatedDest = destination;
+    await db.transaction(async (tx) => {
+      if (Object.keys(patch).length > 0) {
+        const [updated] = await tx
+          .update(contacts)
+          .set({ ...patch, updatedAt: new Date() } as Partial<NewContact>)
+          .where(
+            and(
+              eq(contacts.id, destination.id) as SQL,
+              eq(contacts.userId, user.id) as SQL,
+            ),
+          )
+          .returning();
+        updatedDest = updated ?? destination;
+      }
+
+      if (mergedStaticTagNames) {
+        await replaceStaticTags(
+          tx as unknown as DatabaseClient,
+          user.id,
+          destination.id,
+          mergedStaticTagNames,
+        );
+      }
+
+      if (newLinks.length > 0) {
+        await tx
+          .insert(contactChannels)
+          .values(
+            newLinks.map((l) => ({
+              contactId: destination.id,
+              type: l.type,
+              value: l.value,
+              label: l.label,
+            })),
+          )
+          .onConflictDoNothing();
+      }
+
+      // Re-point directory promoted-pointer entries and delete source in parallel.
+      await Promise.all([
+        tx
+          .update(directory)
+          .set({ activeContactId: destination.id })
+          .where(eq(directory.activeContactId, source.id) as SQL),
+        tx
+          .delete(contacts)
+          .where(
+            and(
+              eq(contacts.id, source.id) as SQL,
+              eq(contacts.userId, user.id) as SQL,
+            ),
+          ),
+      ]);
+    });
+
+    context.waitUntil(meilisearchService.deleteContact(source.id));
+
+    // Skip field derivation and relationship extraction — we're not writing new
+    // notes, so re-processing them as if they were fresh would be incorrect.
+    return finalizeContactWrite(db, user, updatedDest, context.waitUntil, {
+      notesForDynamicTags: null,
+      deriveInput: null,
+    });
+  });
+
+/**
  * Export router with all contact procedures
  */
 export const router = {
@@ -989,6 +1183,7 @@ export const router = {
   bulkCreate: bulkCreateContacts,
   update: updateContact,
   delete: deleteContact,
+  merge: mergeContact,
   search: searchContacts,
   reindex: reindexContacts,
   listAvailable,
