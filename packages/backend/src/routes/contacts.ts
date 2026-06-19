@@ -1163,21 +1163,21 @@ export const mergeContact = authProc
           .onConflictDoNothing();
       }
 
-      // Re-point directory promoted-pointer entries and delete source in parallel.
-      await Promise.all([
-        tx
-          .update(directory)
-          .set({ activeContactId: destination.id })
-          .where(eq(directory.activeContactId, source.id) as SQL),
-        tx
-          .delete(contacts)
-          .where(
-            and(
-              eq(contacts.id, source.id) as SQL,
-              eq(contacts.userId, user.id) as SQL,
-            ),
+      // Re-point directory promoted-pointer entries, then delete source.
+      // Sequential rather than parallel: D1 transactions don't support
+      // concurrent queries on the same session.
+      await tx
+        .update(directory)
+        .set({ activeContactId: destination.id })
+        .where(eq(directory.activeContactId, source.id) as SQL);
+      await tx
+        .delete(contacts)
+        .where(
+          and(
+            eq(contacts.id, source.id) as SQL,
+            eq(contacts.userId, user.id) as SQL,
           ),
-      ]);
+        );
     });
 
     context.waitUntil(meilisearchService.deleteContact(source.id));
