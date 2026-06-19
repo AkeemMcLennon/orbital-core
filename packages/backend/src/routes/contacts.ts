@@ -1122,63 +1122,66 @@ export const mergeContact = authProc
       (l) => !destLinkKeys.has(`${l.type}:${l.value}`),
     );
 
-    // All writes in a single transaction so the merge is atomic.
-    // Note: D1's transaction implementation uses batch mode — no reads inside.
+    // Writes are sequential rather than wrapped in a transaction: Cloudflare
+    // D1 rejects Drizzle's interactive `db.transaction()` (it emits a raw SQL
+    // `BEGIN`, which D1 refuses — D1's only atomic primitive is `db.batch()`,
+    // which can't accommodate the tag-merge helper's reads). The destination is
+    // fully populated before the source is deleted, so a mid-merge failure
+    // leaves both contacts intact and the operation is safe to retry.
     let updatedDest = destination;
-    await db.transaction(async (tx) => {
-      if (Object.keys(patch).length > 0) {
-        const [updated] = await tx
-          .update(contacts)
-          .set({ ...patch, updatedAt: new Date() } as Partial<NewContact>)
-          .where(
-            and(
-              eq(contacts.id, destination.id) as SQL,
-              eq(contacts.userId, user.id) as SQL,
-            ),
-          )
-          .returning();
-        updatedDest = updated ?? destination;
-      }
-
-      if (mergedStaticTagNames) {
-        await replaceStaticTags(
-          tx as unknown as DatabaseClient,
-          user.id,
-          destination.id,
-          mergedStaticTagNames,
-        );
-      }
-
-      if (newLinks.length > 0) {
-        await tx
-          .insert(contactChannels)
-          .values(
-            newLinks.map((l) => ({
-              contactId: destination.id,
-              type: l.type,
-              value: l.value,
-              label: l.label,
-            })),
-          )
-          .onConflictDoNothing();
-      }
-
-      // Re-point directory promoted-pointer entries, then delete source.
-      // Sequential rather than parallel: D1 transactions don't support
-      // concurrent queries on the same session.
-      await tx
-        .update(directory)
-        .set({ activeContactId: destination.id })
-        .where(eq(directory.activeContactId, source.id) as SQL);
-      await tx
-        .delete(contacts)
+    if (Object.keys(patch).length > 0) {
+      const [updated] = await db
+        .update(contacts)
+        .set({ ...patch, updatedAt: new Date() } as Partial<NewContact>)
         .where(
           and(
-            eq(contacts.id, source.id) as SQL,
+            eq(contacts.id, destination.id) as SQL,
             eq(contacts.userId, user.id) as SQL,
           ),
-        );
-    });
+        )
+        .returning();
+      updatedDest = updated ?? destination;
+    }
+
+    if (mergedStaticTagNames) {
+      await replaceStaticTags(
+        db,
+        user.id,
+        destination.id,
+        mergedStaticTagNames,
+      );
+    }
+
+    if (newLinks.length > 0) {
+      await db
+        .insert(contactChannels)
+        .values(
+          newLinks.map((l) => ({
+            contactId: destination.id,
+            type: l.type,
+            value: l.value,
+            label: l.label,
+          })),
+        )
+        .onConflictDoNothing();
+    }
+
+    // Re-point directory promoted-pointer entries to the destination so
+    // contacts promoted from the directory stay promoted after the merge.
+    await db
+      .update(directory)
+      .set({ activeContactId: destination.id })
+      .where(eq(directory.activeContactId, source.id) as SQL);
+
+    // Delete source last (cascade removes its tags/channels rows).
+    await db
+      .delete(contacts)
+      .where(
+        and(
+          eq(contacts.id, source.id) as SQL,
+          eq(contacts.userId, user.id) as SQL,
+        ),
+      );
 
     context.waitUntil(meilisearchService.deleteContact(source.id));
 
