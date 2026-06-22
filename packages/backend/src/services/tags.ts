@@ -1,9 +1,10 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { AxGen, f } from "@ax-llm/ax";
 import type { DatabaseClient } from "../database/client";
 import { tags, contactTags, contacts } from "../database/schema";
 import { getAI } from "./llm";
 import { settings } from "../config";
+import { crypto } from "../utils/crypto";
 
 export const CONSTANT_TAGS = ["Personal", "Professional", "Family"];
 
@@ -276,5 +277,268 @@ export async function deriveContactFields(
   } catch (err) {
     console.error("[fields] error:", err);
     return null;
+  }
+}
+
+export type NotedContact = { id: string; notes: string };
+
+// Cloudflare D1 caps bound parameters per query (~100). Keep batches under it:
+// inArray binds one param per id; contact_tags inserts bind three columns/row.
+const ID_BATCH = 90;
+const ROW_BATCH = 30;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size)
+    out.push(items.slice(i, i + size));
+  return out;
+}
+
+/**
+ * Decrypt a contact's notes, tolerating a single corrupt/undecryptable row
+ * (logged and skipped) so one bad note can't abort a whole user's batch.
+ */
+function decryptNotes(
+  c: { id: string; notes: string | null; notesEncrypted: boolean },
+  userId: string,
+): string | null {
+  if (!c.notes) return null;
+  if (!c.notesEncrypted) return c.notes;
+  try {
+    return crypto.decrypt(c.notes, userId);
+  } catch (err) {
+    console.error("[tag-discovery] note decrypt failed:", c.id, err);
+    return null;
+  }
+}
+
+/**
+ * Load a user's contacts that have non-empty notes, decrypting once so the
+ * discovery and assignment passes can share the result instead of each
+ * re-reading and re-decrypting the whole table.
+ */
+export async function loadNotedContacts(
+  db: DatabaseClient,
+  userId: string,
+): Promise<NotedContact[]> {
+  const rows = await db
+    .select()
+    .from(contacts)
+    .where(eq(contacts.userId, userId));
+
+  const noted: NotedContact[] = [];
+  for (const c of rows) {
+    const notes = decryptNotes(c, userId);
+    if (notes && notes.trim().length > 0) noted.push({ id: c.id, notes });
+  }
+  return noted;
+}
+
+/**
+ * Pass 1 — discovery. Analyze the given set of notes in a single LLM call and
+ * return candidate relationship-context tags that fit some or all contacts.
+ * Purely in-memory: nothing is written to the database here. The returned names
+ * are handed to {@link assignDiscoveredTagsToContacts}.
+ */
+const discoverTagsSignature = f()
+  .input(
+    "notes",
+    f.string(
+      "The full set of notes across many of the user's contacts, each note separated by a blank line",
+    ),
+  )
+  .output(
+    "tags",
+    f
+      .string("A tag describing relationship context")
+      .array(
+        "New tags describing relationship contexts shared by SOME OR ALL of the contacts",
+      ),
+  )
+  .description(
+    "Analyze the ENTIRE SET of contact notes and propose dynamic tags that describe the " +
+      "RELATIONSHIP CONTEXT — how or where the user knows these people, shared settings, " +
+      "communities, companies, events, or recurring themes that span SOME OR ALL contacts. " +
+      "Strongly prefer tags that apply to MULTIPLE contacts. " +
+      "Good tags: 'Professional', 'Personal', 'Family', 'Investor', 'College Friend', 'Met at Conference'. " +
+      "Avoid tags that merely describe what one contact does (e.g. 'Software Engineer') " +
+      "unless that context is also why the user knows them.",
+  )
+  .build();
+
+export async function discoverDynamicTagsFromNotes(
+  notes: string[],
+): Promise<string[]> {
+  if (notes.length === 0) return [];
+  if (
+    !settings.LLM_BASE_URL ||
+    !settings.LLM_API_KEY ||
+    !settings.LLM_FAST_MODEL
+  )
+    return [];
+
+  try {
+    const gen = new AxGen(discoverTagsSignature);
+    const result = await gen.forward(getAI(), { notes: notes.join("\n\n") });
+
+    const rawTags = Array.isArray(result.tags)
+      ? result.tags
+      : typeof result.tags === "string"
+        ? [result.tags]
+        : [];
+
+    return [
+      ...new Set(
+        rawTags
+          .filter((t): t is string => typeof t === "string")
+          .flatMap((t) => t.split(","))
+          .map((t) => t.trim())
+          .filter(Boolean),
+      ),
+    ];
+  } catch (err) {
+    console.error("[tag-discovery] discover error:", err);
+    return [];
+  }
+}
+
+const assignTagsSignature = f()
+  .input(
+    "contactsBlock",
+    f.string(
+      "The user's contacts, one per line, formatted exactly as '[contactId] notes about the contact'",
+    ),
+  )
+  .input(
+    "availableTags",
+    f.string(
+      "Comma-separated list of the ONLY tag names you may assign — do not invent others",
+    ),
+  )
+  .output(
+    "assignments",
+    f
+      .string(
+        "One contact's assignment formatted EXACTLY as 'contactId: tag1, tag2' — " +
+          "the contactId copied verbatim from the input, a colon, then the comma-separated " +
+          "tags (only names from availableTags) that fit that contact",
+      )
+      .array("One entry per contact that should receive at least one tag")
+      .optional(),
+  )
+  .description(
+    "For each contact, decide which of the availableTags genuinely describe the user's " +
+      "RELATIONSHIP CONTEXT with that contact, based on their notes. " +
+      "Only use names from availableTags — never invent new tags. " +
+      "Return one entry per matching contact, each formatted 'contactId: tag1, tag2', " +
+      "copying the contactId verbatim from the input. Keep each contactId together with its " +
+      "own tags on the same line. Omit any contact that matches none of the availableTags.",
+  )
+  .build();
+
+async function callAssignLLM(
+  noted: NotedContact[],
+  byId: Map<string, NotedContact>,
+  candidateSet: Set<string>,
+): Promise<{ contactId: string; names: string[] }[]> {
+  const contactsBlock = noted
+    .map((c) => `[${c.id}] ${c.notes.replace(/\s+/g, " ").trim()}`)
+    .join("\n");
+
+  const gen = new AxGen(assignTagsSignature);
+  const result = await gen.forward(getAI(), {
+    contactsBlock,
+    availableTags: [...candidateSet].join(", "),
+  });
+
+  // Each entry couples an id with its tags ("contactId: tagA, tagB") so the two
+  // can't desync the way separate parallel arrays did at scale. The model may
+  // return one array element per contact OR collapse several into a single
+  // newline-separated string — flatten both shapes, then parse each line.
+  const rawAssignments = Array.isArray(result.assignments)
+    ? (result.assignments as unknown[]).filter(
+        (a): a is string => typeof a === "string",
+      )
+    : [];
+
+  return rawAssignments
+    .flatMap((a) => a.split("\n"))
+    .map((line) => {
+      const sep = line.indexOf(":");
+      if (sep === -1) return null;
+      const contactId = line
+        .slice(0, sep)
+        .trim()
+        .replace(/^\[|\]$/g, "");
+      if (!byId.has(contactId)) return null;
+      const names = line
+        .slice(sep + 1)
+        .split(",")
+        .map((t) => t.trim())
+        .filter((t) => candidateSet.has(t));
+      return names.length > 0 ? { contactId, names } : null;
+    })
+    .filter((p): p is { contactId: string; names: string[] } => p !== null);
+}
+
+/**
+ * Pass 2 — assignment. Given candidate tags (pre-created by the caller),
+ * makes a single LLM call mapping them onto contacts by id, then bulk-inserts
+ * the matching junction rows. Augment-only: existing tags are never removed.
+ * Returns the number of contacts that received at least one new tag.
+ */
+export async function assignDiscoveredTagsToContacts(
+  db: DatabaseClient,
+  userId: string,
+  noted: NotedContact[],
+  candidateTags: string[],
+): Promise<number> {
+  const candidateSet = new Set(
+    candidateTags.map((t) => t.trim()).filter(Boolean),
+  );
+  if (candidateSet.size === 0 || noted.length === 0) return 0;
+  if (
+    !settings.LLM_BASE_URL ||
+    !settings.LLM_API_KEY ||
+    !settings.LLM_FAST_MODEL
+  )
+    return 0;
+
+  try {
+    // 1. LLM decides which candidates fit each contact.
+    const byId = new Map(noted.map((c) => [c.id, c]));
+    const parsed = await callAssignLLM(noted, byId, candidateSet);
+    if (parsed.length === 0) return 0;
+
+    // 2. Resolve candidate tag names → ids (tags exist — guaranteed by caller).
+    const tagRows = await db
+      .select()
+      .from(tags)
+      .where(and(eq(tags.userId, userId), inArray(tags.name, candidateTags)));
+    const idByName = new Map(tagRows.map((t) => [t.name, t.id]));
+
+    // 3. Map assignments → junction rows, deduping within this batch.
+    const seen = new Set<string>();
+    const rowsToInsert = parsed.flatMap(({ contactId, names }) =>
+      names.flatMap((name) => {
+        const tagId = idByName.get(name);
+        if (!tagId) return [];
+        const key = `${contactId}:${tagId}`;
+        if (seen.has(key)) return [];
+        seen.add(key);
+        return [{ contactId, tagId, isDynamic: true as const }];
+      }),
+    );
+
+    // 4. Insert in batches (3 params/row × ROW_BATCH=30 = 90, under D1 limit).
+    //    onConflictDoNothing handles any rows already present.
+    for (const batch of chunk(rowsToInsert, ROW_BATCH)) {
+      await db.insert(contactTags).values(batch).onConflictDoNothing();
+    }
+
+    return new Set(rowsToInsert.map((r) => r.contactId)).size;
+  } catch (err) {
+    console.error("[tag-discovery] assign error:", err);
+    return 0;
   }
 }

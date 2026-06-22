@@ -4,6 +4,7 @@ import { tags } from "../database/schema";
 import { authProc } from "../middleware/auth";
 import { ORPCError } from "@orpc/server";
 import { base58IdSchema } from "@orbital/utils";
+import { discoverAndAssignForUser } from "../services/tag-discovery";
 
 const TagOutputSchema = z.object({
   id: z.string(),
@@ -62,14 +63,15 @@ export const updateTag = authProc
     operationId: "updateTag",
   })
   .input(
-    z.object({
-      id: base58IdSchema,
-      name: z.string().min(1).optional(),
-      color: z.string().optional(),
-    }).refine(
-      (d) => d.name !== undefined || d.color !== undefined,
-      { message: "At least one of name or color must be provided" },
-    ),
+    z
+      .object({
+        id: base58IdSchema,
+        name: z.string().min(1).optional(),
+        color: z.string().optional(),
+      })
+      .refine((d) => d.name !== undefined || d.color !== undefined, {
+        message: "At least one of name or color must be provided",
+      }),
   )
   .output(TagOutputSchema)
   .handler(async ({ input, context }) => {
@@ -113,11 +115,31 @@ export const deleteTag = authProc
     return { success: true };
   });
 
+export const discoverTags = authProc
+  .route({
+    method: "POST",
+    path: "/tags/discover",
+    summary: "Discover and assign dynamic tags for the current user",
+    operationId: "discoverTags",
+  })
+  .output(
+    z.object({
+      discovered: z.array(z.string()),
+      assignedContacts: z.number(),
+    }),
+  )
+  .handler(async ({ context }) => {
+    const { db, user } = context;
+    // Manual trigger: runs both passes now for the calling user (no day gate).
+    return discoverAndAssignForUser(db, user.id);
+  });
+
 export const router = {
   list: listTags,
   create: createTag,
   update: updateTag,
   delete: deleteTag,
+  discover: discoverTags,
 };
 
 export default router;

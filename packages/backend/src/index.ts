@@ -2,6 +2,7 @@ import app from "./app";
 import { type Env } from "./types/env";
 import { getDbClient } from "./database/client";
 import { processAccountDeletions } from "./services/account-deletion";
+import { runDailyTagDiscovery } from "./services/tag-discovery";
 
 export default {
   fetch(req: Request, env: Env, ctx: ExecutionContext) {
@@ -17,5 +18,8 @@ export default {
     });
     const count = await processAccountDeletions(db);
     console.log(`[cron] Processed ${count} account deletion(s).`);
+
+    const tagged = await runDailyTagDiscovery(db);
+    console.log(`[cron] Tag discovery processed ${tagged} active user(s).`);
   },
 };
