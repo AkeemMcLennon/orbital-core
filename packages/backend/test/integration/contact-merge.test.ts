@@ -2,6 +2,7 @@ import {
   createContact,
   getContactById,
   mergeContact,
+  mergeNewContact,
   initializeApiClient,
   isSuccess,
   getSuccessData,
@@ -140,5 +141,129 @@ describe("Contact Merge API", () => {
       sourceId: "nonexistentid12345678",
     });
     expect(res.status).toBe(404);
+  });
+
+  describe("merge from a new (inline) contact", () => {
+    it("inherits empty fields from the inline source", async () => {
+      const destRes = await createContact({
+        name: "Inline Dest",
+        email: "inline-dest@example.com",
+      });
+      const dest = getSuccessData(destRes)!;
+
+      const res = await mergeNewContact(dest.id, {
+        source: {
+          name: "Captured From Share",
+          phone: "+15557770000",
+          company: "Globex",
+          jobTitle: "Director",
+        },
+      });
+      expect(isSuccess(res)).toBe(true);
+
+      const merged = getSuccessData(res)!;
+      expect(merged.id).toBe(dest.id);
+      expect(merged.name).toBe("Inline Dest"); // destination name is never overwritten
+      expect(merged.email).toBe("inline-dest@example.com");
+      expect(merged.phone).toBe("+15557770000");
+      expect(merged.company).toBe("Globex");
+      expect(merged.jobTitle).toBe("Director");
+    });
+
+    it("does not overwrite an existing destination field", async () => {
+      const destRes = await createContact({
+        name: "Keeps Email",
+        email: "keep@example.com",
+      });
+      const dest = getSuccessData(destRes)!;
+
+      const res = await mergeNewContact(dest.id, {
+        source: { name: "New Data", email: "overwrite@example.com" },
+      });
+      const merged = getSuccessData(res)!;
+
+      expect(merged.email).toBe("keep@example.com");
+    });
+
+    it("merges links additively and leaves the destination's tags untouched", async () => {
+      const destRes = await createContact({
+        name: "Has One Tag",
+        tags: ["friends"],
+        links: [{ type: "github", value: "octocat" }],
+      });
+      const dest = getSuccessData(destRes)!;
+
+      const res = await mergeNewContact(dest.id, {
+        source: {
+          name: "More Links",
+          links: [
+            { type: "github", value: "octocat" }, // duplicate, ignored
+            { type: "linkedin", value: "in/octo" }, // new
+          ],
+        },
+      });
+      const merged = getSuccessData(res)!;
+
+      // The inline merge doesn't carry tags over: only the destination's own
+      // static tag remains.
+      const staticTagNames = (merged.tags ?? [])
+        .filter((t) => !t.isDynamic)
+        .map((t) => t.name);
+      expect(staticTagNames).toEqual(["friends"]);
+
+      const linkKeys = (merged.links ?? [])
+        .map((l) => `${l.type}:${l.value}`)
+        .sort();
+      expect(linkKeys).toContain("github:octocat");
+      expect(linkKeys).toContain("linkedin:in/octo");
+      // duplicate github link not double-inserted
+      expect(linkKeys.filter((k) => k === "github:octocat")).toHaveLength(1);
+    });
+
+    it("writes source notes when the destination has none", async () => {
+      const destRes = await createContact({ name: "No Notes Yet" });
+      const dest = getSuccessData(destRes)!;
+
+      const res = await mergeNewContact(dest.id, {
+        source: { name: "Brings Notes", notes: "Met at the conference." },
+      });
+      const merged = getSuccessData(res)!;
+
+      expect(merged.notes).toBe("Met at the conference.");
+    });
+
+    it("does not delete the destination contact", async () => {
+      const destRes = await createContact({ name: "Survives Merge" });
+      const dest = getSuccessData(destRes)!;
+
+      await mergeNewContact(dest.id, {
+        source: { name: "Inline", phone: "+15550009999" },
+      });
+
+      const fetched = await getContactById(dest.id);
+      expect(isSuccess(fetched)).toBe(true);
+      expect(getSuccessData(fetched)!.phone).toBe("+15550009999");
+    });
+
+    it("succeeds when the source omits name and keeps the destination name", async () => {
+      const destRes = await createContact({ name: "Original Name" });
+      const dest = getSuccessData(destRes)!;
+
+      const res = await mergeNewContact(dest.id, {
+        source: { company: "Initech" },
+      });
+      expect(isSuccess(res)).toBe(true);
+
+      const merged = getSuccessData(res)!;
+      expect(merged.name).toBe("Original Name");
+      expect(merged.company).toBe("Initech");
+    });
+
+    it("returns 404 for an unknown destination", async () => {
+      const res = await mergeNewContact("nonexistentid12345678", {
+        source: { name: "Orphan" },
+      });
+      expect(res.status).toBe(404);
+    });
   });
 });

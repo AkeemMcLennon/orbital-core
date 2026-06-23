@@ -997,6 +997,157 @@ export const reindexContacts = authProc
   });
 
 /**
+ * Source for a merge, consumed by {@link applyMergeIntoDestination}. It is a
+ * `Contact` row — the shape `mergeContact` selects out of `contacts` — with
+ * every column optional (`Partial`), so the inline `mergeNewContact` source (a
+ * not-yet-persisted contact with no `id`, `userId`, or timestamps) fits the same
+ * type. `notes` must be **plaintext**; it is encrypted here before being
+ * written. `links` aren't columns on the row, so they ride alongside.
+ * `staticTagNames`, also not a column, is supplied only by the id-based merge —
+ * the inline merge doesn't carry tags over.
+ */
+type MergeSource = Partial<Contact> & {
+  staticTagNames?: string[]; // non-dynamic tag names; omitted by the inline merge
+  links?: Array<{
+    type: (typeof SOCIAL_LINK_TYPES)[number];
+    value: string;
+    label?: string | null;
+  }>;
+};
+
+/**
+ * Apply a merge source onto an already-fetched, ownership-checked destination
+ * contact: fill empty scalar fields, merge static tags and links additively,
+ * then run the shared write tail. This is the single source of truth for merge
+ * semantics — `mergeContact` and `mergeNewContact` differ only in how they build
+ * the `source` and what cleanup (source delete, directory re-point) they do
+ * around this call.
+ *
+ * `enrichNewNotes` controls the write tail: when the source's notes are written
+ * (i.e. the destination had none), pass `true` to regenerate dynamic tags and
+ * derive fields/relationships from them, exactly as `createContact` does. The
+ * id-based merge passes `false` — it isn't introducing genuinely new notes, so
+ * re-processing them as if fresh would be incorrect.
+ *
+ * Writes stay sequential (no `db.transaction()`): D1 rejects Drizzle's
+ * interactive transactions, and the destination is the only row mutated here, so
+ * a partial failure leaves it valid and the operation is safe to retry.
+ */
+async function applyMergeIntoDestination(
+  db: DatabaseClient,
+  user: User,
+  waitUntil: WaitUntil,
+  destination: Contact,
+  source: MergeSource,
+  enrichNewNotes: boolean,
+): Promise<z.input<typeof ContactOutputSchema>> {
+  const destDecrypted = decryptContact(destination, user.id);
+  const [destTags, destLinks] = await Promise.all([
+    fetchContactTags(db, user.id, destination.id),
+    fetchContactLinks(db, destination.id),
+  ]);
+
+  // Build patch: copy source fields only where destination is empty.
+  const patch: Partial<NewContact> & { notesEncrypted?: boolean } = {};
+
+  for (const field of [
+    "email",
+    "phone",
+    "avatarUrl",
+    "jobTitle",
+    "company",
+    "birthday",
+  ] as const) {
+    if (!destDecrypted[field] && source[field]) {
+      (patch as any)[field] = source[field];
+    }
+  }
+  // group handled separately to preserve its enum type
+  if (!destDecrypted.group && source.group) {
+    patch.group = source.group;
+  }
+
+  // Notes are only adopted when the destination has none of its own.
+  const newNotes = destDecrypted.notes ? null : (source.notes ?? null);
+  if (newNotes) {
+    const { notes: encNotes, notesEncrypted } = encryptNotes(newNotes, user.id);
+    patch.notes = encNotes ?? null;
+    patch.notesEncrypted = notesEncrypted;
+  }
+
+  const srcLastInteractionAt = source.lastInteractionAt;
+  if (
+    srcLastInteractionAt &&
+    (!destination.lastInteractionAt ||
+      srcLastInteractionAt > destination.lastInteractionAt)
+  ) {
+    patch.lastInteractionAt = srcLastInteractionAt;
+  }
+
+  // Compute tag/link changes against the destination's current state.
+  const destTagNames = new Set(destTags.map((t) => t.name));
+  const newTagNames = (source.staticTagNames ?? []).filter(
+    (n) => !destTagNames.has(n),
+  );
+  const mergedStaticTagNames =
+    newTagNames.length > 0
+      ? [
+          ...destTags.filter((t) => !t.isDynamic).map((t) => t.name),
+          ...newTagNames,
+        ]
+      : null;
+
+  const destLinkKeys = new Set(destLinks.map((l) => `${l.type}:${l.value}`));
+  const newLinks = (source.links ?? []).filter(
+    (l) => !destLinkKeys.has(`${l.type}:${l.value}`),
+  );
+
+  let updatedDest = destination;
+  if (Object.keys(patch).length > 0) {
+    const [updated] = await db
+      .update(contacts)
+      .set({ ...patch, updatedAt: new Date() } as Partial<NewContact>)
+      .where(
+        and(
+          eq(contacts.id, destination.id) as SQL,
+          eq(contacts.userId, user.id) as SQL,
+        ),
+      )
+      .returning();
+    updatedDest = updated ?? destination;
+  }
+
+  if (mergedStaticTagNames) {
+    await replaceStaticTags(db, user.id, destination.id, mergedStaticTagNames);
+  }
+
+  if (newLinks.length > 0) {
+    await db
+      .insert(contactChannels)
+      .values(
+        newLinks.map((l) => ({
+          contactId: destination.id,
+          type: l.type,
+          value: l.value,
+          label: l.label ?? null,
+        })),
+      )
+      .onConflictDoNothing();
+  }
+
+  // Enrich only the notes we actually wrote, using the post-merge email.
+  const finalizeOpts =
+    enrichNewNotes && newNotes
+      ? {
+          notesForDynamicTags: newNotes,
+          deriveInput: { notes: newNotes, email: updatedDest.email ?? null },
+        }
+      : { notesForDynamicTags: null, deriveInput: null };
+
+  return finalizeContactWrite(db, user, updatedDest, waitUntil, finalizeOpts);
+}
+
+/**
  * Merge source contact into destination contact.
  * Destination inherits each scalar field from source only where destination's
  * own value is null/empty. Tags and links are merged additively. Source is
@@ -1026,34 +1177,32 @@ export const mergeContact = authProc
       });
     }
 
-    // All reads upfront in parallel so no reads are needed inside the transaction.
-    const [destination, source, destTags, srcTags, destLinks, srcLinks] =
-      await Promise.all([
-        db
-          .select()
-          .from(contacts)
-          .where(
-            and(
-              eq(contacts.id, input.destinationId) as SQL,
-              eq(contacts.userId, user.id) as SQL,
-            ),
-          )
-          .then((r) => r[0]),
-        db
-          .select()
-          .from(contacts)
-          .where(
-            and(
-              eq(contacts.id, input.sourceId) as SQL,
-              eq(contacts.userId, user.id) as SQL,
-            ),
-          )
-          .then((r) => r[0]),
-        fetchContactTags(db, user.id, input.destinationId),
-        fetchContactTags(db, user.id, input.sourceId),
-        fetchContactLinks(db, input.destinationId),
-        fetchContactLinks(db, input.sourceId),
-      ]);
+    // Read both contacts and the source's tags/links upfront in parallel; the
+    // destination's tags/links are fetched inside applyMergeIntoDestination.
+    const [destination, source, srcTags, srcLinks] = await Promise.all([
+      db
+        .select()
+        .from(contacts)
+        .where(
+          and(
+            eq(contacts.id, input.destinationId) as SQL,
+            eq(contacts.userId, user.id) as SQL,
+          ),
+        )
+        .then((r) => r[0]),
+      db
+        .select()
+        .from(contacts)
+        .where(
+          and(
+            eq(contacts.id, input.sourceId) as SQL,
+            eq(contacts.userId, user.id) as SQL,
+          ),
+        )
+        .then((r) => r[0]),
+      fetchContactTags(db, user.id, input.sourceId),
+      fetchContactLinks(db, input.sourceId),
+    ]);
 
     if (!destination) {
       throw new ORPCError("NOT_FOUND", {
@@ -1064,116 +1213,35 @@ export const mergeContact = authProc
       throw new ORPCError("NOT_FOUND", { message: "Source contact not found" });
     }
 
-    const destDecrypted = decryptContact(destination, user.id);
     const srcDecrypted = decryptContact(source, user.id);
 
-    // Build patch: copy source fields only where destination is empty.
-    const patch: Partial<NewContact> & { notesEncrypted?: boolean } = {};
-
-    for (const field of [
-      "email",
-      "phone",
-      "avatarUrl",
-      "jobTitle",
-      "company",
-      "birthday",
-    ] as const) {
-      if (!destDecrypted[field] && srcDecrypted[field]) {
-        (patch as any)[field] = srcDecrypted[field];
-      }
-    }
-    // group handled separately to preserve its enum type
-    if (!destDecrypted.group && srcDecrypted.group) {
-      patch.group = srcDecrypted.group;
-    }
-
-    if (!destDecrypted.notes && srcDecrypted.notes) {
-      const { notes: encNotes, notesEncrypted } = encryptNotes(
-        srcDecrypted.notes,
-        user.id,
-      );
-      patch.notes = encNotes ?? null;
-      patch.notesEncrypted = notesEncrypted;
-    }
-
-    if (
-      source.lastInteractionAt &&
-      (!destination.lastInteractionAt ||
-        source.lastInteractionAt > destination.lastInteractionAt)
-    ) {
-      patch.lastInteractionAt = source.lastInteractionAt;
-    }
-
-    // Compute tag/link changes from the pre-fetched data.
-    const destTagNames = new Set(destTags.map((t) => t.name));
-    const newTagNames = srcTags
-      .filter((t) => !t.isDynamic && !destTagNames.has(t.name))
-      .map((t) => t.name);
-    const mergedStaticTagNames =
-      newTagNames.length > 0
-        ? [
-            ...destTags.filter((t) => !t.isDynamic).map((t) => t.name),
-            ...newTagNames,
-          ]
-        : null;
-
-    const destLinkKeys = new Set(destLinks.map((l) => `${l.type}:${l.value}`));
-    const newLinks = srcLinks.filter(
-      (l) => !destLinkKeys.has(`${l.type}:${l.value}`),
+    // Populate the destination from the existing source contact. Skip field
+    // derivation and relationship extraction — we're not writing new notes, so
+    // re-processing them as if they were fresh would be incorrect.
+    const result = await applyMergeIntoDestination(
+      db,
+      user,
+      context.waitUntil,
+      destination,
+      {
+        // The decrypted source row is already a `Contact`; spread it straight
+        // in. Its non-dynamic tags and social links ride alongside.
+        ...srcDecrypted,
+        staticTagNames: srcTags.filter((t) => !t.isDynamic).map((t) => t.name),
+        links: srcLinks,
+      },
+      false, // existing source: don't re-process its notes as fresh
     );
 
-    // Writes are sequential rather than wrapped in a transaction: Cloudflare
-    // D1 rejects Drizzle's interactive `db.transaction()` (it emits a raw SQL
-    // `BEGIN`, which D1 refuses — D1's only atomic primitive is `db.batch()`,
-    // which can't accommodate the tag-merge helper's reads). The destination is
-    // fully populated before the source is deleted, so a mid-merge failure
-    // leaves both contacts intact and the operation is safe to retry.
-    let updatedDest = destination;
-    if (Object.keys(patch).length > 0) {
-      const [updated] = await db
-        .update(contacts)
-        .set({ ...patch, updatedAt: new Date() } as Partial<NewContact>)
-        .where(
-          and(
-            eq(contacts.id, destination.id) as SQL,
-            eq(contacts.userId, user.id) as SQL,
-          ),
-        )
-        .returning();
-      updatedDest = updated ?? destination;
-    }
-
-    if (mergedStaticTagNames) {
-      await replaceStaticTags(
-        db,
-        user.id,
-        destination.id,
-        mergedStaticTagNames,
-      );
-    }
-
-    if (newLinks.length > 0) {
-      await db
-        .insert(contactChannels)
-        .values(
-          newLinks.map((l) => ({
-            contactId: destination.id,
-            type: l.type,
-            value: l.value,
-            label: l.label,
-          })),
-        )
-        .onConflictDoNothing();
-    }
-
-    // Re-point directory promoted-pointer entries to the destination so
-    // contacts promoted from the directory stay promoted after the merge.
+    // The destination is now fully populated; tear down the source. Re-point
+    // directory promoted-pointer entries to the destination first so the
+    // delete's ON DELETE SET NULL doesn't strand them, then delete the source
+    // (cascade removes its tags/channels rows).
     await db
       .update(directory)
       .set({ activeContactId: destination.id })
       .where(eq(directory.activeContactId, source.id) as SQL);
 
-    // Delete source last (cascade removes its tags/channels rows).
     await db
       .delete(contacts)
       .where(
@@ -1185,12 +1253,85 @@ export const mergeContact = authProc
 
     context.waitUntil(meilisearchService.deleteContact(source.id));
 
-    // Skip field derivation and relationship extraction — we're not writing new
-    // notes, so re-processing them as if they were fresh would be incorrect.
-    return finalizeContactWrite(db, user, updatedDest, context.waitUntil, {
-      notesForDynamicTags: null,
-      deriveInput: null,
-    });
+    return result;
+  });
+
+/**
+ * Source payload for `mergeNewContact`: like a created contact, but `name` is
+ * optional (a merge never overwrites the destination's name) and `tags` are
+ * dropped (an inline merge doesn't carry tags over to the destination).
+ */
+const MergeSourceSchema = ContactInputSchema.omit({ tags: true }).extend({
+  name: z.string().min(1).optional(),
+});
+
+/**
+ * Merge an inline (not-yet-persisted) contact into an existing destination
+ * contact. Behaves like `mergeContact` but the source is supplied as a request
+ * payload rather than an existing row — so nothing is created or deleted, and
+ * there is no source contact to re-point the directory at. Lets a client merge
+ * freshly-captured data (share/intent/image) into a managed contact in one call
+ * instead of create-then-merge-then-delete.
+ */
+export const mergeNewContact = authProc
+  .route({
+    method: "POST",
+    path: "/contacts/{destinationId}/merge-new",
+    summary:
+      "Merge an inline (non-persisted) contact into a destination contact",
+    operationId: "mergeNewContact",
+  })
+  .input(
+    z.object({
+      destinationId: base58IdSchema,
+      source: MergeSourceSchema,
+    }),
+  )
+  .output(ContactOutputSchema)
+  .handler(async ({ input, context }) => {
+    const { db, user } = context;
+    const { source: src } = input;
+
+    const [destination] = await db
+      .select()
+      .from(contacts)
+      .where(
+        and(
+          eq(contacts.id, input.destinationId) as SQL,
+          eq(contacts.userId, user.id) as SQL,
+        ),
+      );
+
+    if (!destination) {
+      throw new ORPCError("NOT_FOUND", {
+        message: "Destination contact not found",
+      });
+    }
+
+    // Inline source: notes adopted by the destination are genuinely new to it,
+    // so enrich them (dynamic tags + field/relationship derivation) exactly as
+    // createContact would — this endpoint replaces a create-then-merge flow.
+    return applyMergeIntoDestination(
+      db,
+      user,
+      context.waitUntil,
+      destination,
+      {
+        // A partial `Contact` built from the request payload — no id/userId/
+        // timestamps, since this source was never persisted. Tags aren't carried
+        // over for an inline merge; links are.
+        email: src.email,
+        phone: src.phone,
+        avatarUrl: src.avatarUrl,
+        jobTitle: src.jobTitle,
+        company: src.company,
+        birthday: src.birthday,
+        group: (src.group as "work" | "personal" | undefined) ?? null,
+        notes: src.notes ?? null,
+        links: src.links ?? [],
+      },
+      true, // adopted notes are new to the destination → enrich them
+    );
   });
 
 /**
@@ -1204,6 +1345,7 @@ export const router = {
   update: updateContact,
   delete: deleteContact,
   merge: mergeContact,
+  mergeNew: mergeNewContact,
   search: searchContacts,
   reindex: reindexContacts,
   listAvailable,
