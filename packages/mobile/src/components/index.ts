@@ -14,3 +14,4 @@ export { FormField } from "./FormField";
 export type { DeviceContact } from "./ContactImportList";
 export { SocialLinksEditor } from "./SocialLinksEditor";
 export type { SocialLink } from "./SocialLinksEditor";
+export { ContactPickerModal } from "./ContactPickerModal";

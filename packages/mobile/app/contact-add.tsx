@@ -14,18 +14,21 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebounceValue } from "usehooks-ts";
 import * as ImagePicker from "expo-image-picker";
 import {
   searchAvailableContacts,
   getAvailableContacts,
   contactsExtractFromImage,
+  mergeNewContact,
   isSuccess,
+  getSuccessData,
 } from "@orbital/client";
 import { useExtractImageQuery } from "../src/hooks/useExtractImageQuery";
 import { contactKeys } from "../src/queries/contacts";
 import { createContactWithAvatar } from "../src/lib/createContactWithAvatar";
+import { uploadAvatar } from "../src/lib/uploadAvatar";
 import Constants from "expo-constants";
 import { colors, spacing, borderRadius, shadows } from "../src/theme";
 import {
@@ -40,6 +43,7 @@ import {
 } from "../src/utils/socialLinks";
 import { SocialLinkIcon } from "../src/components/SocialLinkIcon";
 import { WebCaptureModal } from "../src/components/WebCaptureModal";
+import { ContactPickerModal } from "../src/components/ContactPickerModal";
 
 export default function AddContactScreen() {
   const {
@@ -79,6 +83,7 @@ export default function AddContactScreen() {
     type: SocialLinkType;
     value: string;
   } | null>(null);
+  const [showMergeDestPicker, setShowMergeDestPicker] = useState(false);
   const queryClient = useQueryClient();
   const extractionApplied = useRef(false);
 
@@ -295,6 +300,86 @@ export default function AddContactScreen() {
     ]);
   }
 
+  const mergeMutation = useMutation({
+    mutationFn: async (destinationId: string) => {
+      // The server owns merge semantics: it fills only the destination's empty
+      // scalar fields, additively de-dups links, and adopts (and enriches)
+      // notes only when the destination has none. So we just hand it the
+      // preloaded contact as the source.
+      //
+      // A remote avatar is a URL the server can adopt directly; a local file://
+      // URI (e.g. from image extraction) isn't a valid URL for the endpoint and
+      // is uploaded afterward via the presigned-R2 flow the create path uses.
+      const avatar = selectedContact?.avatarUrl ?? undefined;
+      const avatarIsLocal = !!avatar && !avatar.startsWith("http");
+
+      const res = await mergeNewContact(destinationId, {
+        source: {
+          email: selectedContact?.email || undefined,
+          notes: notes || undefined,
+          avatarUrl: avatar && !avatarIsLocal ? avatar : undefined,
+          links: detectedLink
+            ? [{ type: detectedLink.type, value: detectedLink.value }]
+            : undefined,
+        },
+      });
+      const merged = getSuccessData(res);
+      if (!merged) throw new Error("Merge failed");
+
+      // Local avatar: upload only when the merge left the destination without
+      // one (the server preserves an existing avatar, so the merged result's
+      // empty avatarUrl means it had none). Uploading otherwise would overwrite
+      // the destination's photo.
+      let avatarUploadFailed = false;
+      if (avatarIsLocal && avatar && !merged.avatarUrl) {
+        try {
+          await uploadAvatar(
+            destinationId,
+            avatar,
+            avatarMimeType ?? "image/jpeg",
+          );
+        } catch (err) {
+          console.error("Avatar upload failed:", err);
+          avatarUploadFailed = true;
+        }
+      }
+
+      return { avatarUploadFailed };
+    },
+    onSuccess: ({ avatarUploadFailed }) => {
+      queryClient.invalidateQueries({ queryKey: contactKeys.all });
+      router.back();
+      if (avatarUploadFailed) {
+        Alert.alert(
+          "Photo upload failed",
+          "The contact was merged, but the photo couldn't be uploaded. You can try again from the edit screen.",
+        );
+      }
+    },
+    onError: () =>
+      Alert.alert(
+        "Merge Failed",
+        "Unable to merge contacts. Please try again.",
+      ),
+  });
+
+  const handleMergeIntoExisting = (
+    destinationId: string,
+    destinationName: string,
+  ) => {
+    Alert.alert(
+      "Merge into Contact",
+      `Merge into "${destinationName}"?\n\nEmpty fields in "${destinationName}" will be filled from this preloaded contact.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Merge",
+          onPress: () => mergeMutation.mutate(destinationId),
+        },
+      ],
+    );
+  };
+
   const handleAddContact = async () => {
     const name = selectedContact?.name || searchText.trim();
     if (!name || isSubmitting) return;
@@ -363,525 +448,583 @@ export default function AddContactScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{
-          paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.lg,
-        }}
-      >
-        {/* Import from device button */}
-        <Pressable
-          onPress={() => router.push("/contacts/import")}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: colors.primaryLight,
-            borderRadius: borderRadius.md,
-            padding: spacing.md,
-            marginBottom: spacing.lg,
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{
+            paddingHorizontal: spacing.lg,
+            paddingVertical: spacing.lg,
           }}
         >
-          <Ionicons
-            name="download-outline"
-            size={20}
-            color={colors.primary}
-            style={{ marginRight: spacing.sm }}
-          />
-          <Text
+          {/* Import from device button */}
+          <Pressable
+            onPress={() => router.push("/contacts/import")}
             style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: colors.primary,
-              flex: 1,
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: colors.primaryLight,
+              borderRadius: borderRadius.md,
+              padding: spacing.md,
+              marginBottom: spacing.lg,
             }}
           >
-            Import from Phone or Google
-          </Text>
-          <Ionicons name="chevron-forward" size={18} color={colors.primary} />
-        </Pressable>
-        {/* Scan image button */}
-        <Pressable
-          onPress={promptScanImage}
-          disabled={isExtractingImage || isLoadingExtraction}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: colors.primaryLight,
-            borderRadius: borderRadius.md,
-            padding: spacing.md,
-            marginBottom: spacing.lg,
-            opacity: isExtractingImage || isLoadingExtraction ? 0.7 : 1,
-          }}
-        >
-          {isExtractingImage || isLoadingExtraction ? (
-            <ActivityIndicator
-              size="small"
-              color={colors.primary}
-              style={{ marginRight: spacing.sm }}
-            />
-          ) : (
             <Ionicons
-              name="camera-outline"
+              name="download-outline"
               size={20}
               color={colors.primary}
               style={{ marginRight: spacing.sm }}
             />
-          )}
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: colors.primary,
-              flex: 1,
-            }}
-          >
-            {isExtractingImage || isLoadingExtraction
-              ? "Extracting contact info..."
-              : "Scan Business Card / Screenshot"}
-          </Text>
-        </Pressable>
-        {/* Hybrid Search Input */}
-        <View style={{ marginBottom: spacing.lg }}>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: colors.textMain,
-              marginBottom: spacing.sm,
-            }}
-          >
-            Name
-          </Text>
-          <View
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "600",
+                color: colors.primary,
+                flex: 1,
+              }}
+            >
+              Import from Phone or Google
+            </Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+          </Pressable>
+          {/* Scan image button */}
+          <Pressable
+            onPress={promptScanImage}
+            disabled={isExtractingImage || isLoadingExtraction}
             style={{
               flexDirection: "row",
               alignItems: "center",
-              backgroundColor: colors.card,
+              backgroundColor: colors.primaryLight,
               borderRadius: borderRadius.md,
-              paddingHorizontal: spacing.md,
-              borderColor: isAiMode ? colors.primary : colors.border,
-              borderWidth: 2,
-              ...shadows.sm,
+              padding: spacing.md,
+              marginBottom: spacing.lg,
+              opacity: isExtractingImage || isLoadingExtraction ? 0.7 : 1,
             }}
           >
-            <Ionicons
-              name={isAiMode ? "sparkles" : "search"}
-              size={18}
-              color={isAiMode ? colors.primary : colors.textTertiary}
-            />
-            <TextInput
-              accessibilityLabel="Search or enter a contact name"
-              placeholder={
-                isAiMode ? "Ask AI to find..." : "Search contacts..."
-              }
-              placeholderTextColor={colors.textTertiary}
-              value={searchText}
-              onChangeText={(text) => {
-                setSearchText(text);
-                setShowResults(true);
-                // Clear selection if user types
-                if (selectedContact && text !== selectedContact.name) {
-                  setSelectedContact(null);
-                }
-              }}
+            {isExtractingImage || isLoadingExtraction ? (
+              <ActivityIndicator
+                size="small"
+                color={colors.primary}
+                style={{ marginRight: spacing.sm }}
+              />
+            ) : (
+              <Ionicons
+                name="camera-outline"
+                size={20}
+                color={colors.primary}
+                style={{ marginRight: spacing.sm }}
+              />
+            )}
+            <Text
               style={{
-                flex: 1,
-                paddingLeft: spacing.sm,
-                paddingVertical: spacing.md,
-                color: colors.textMain,
                 fontSize: 14,
-              }}
-            />
-            <Pressable
-              onPress={() => setIsAiMode(!isAiMode)}
-              style={{
-                paddingHorizontal: spacing.sm,
-                paddingVertical: spacing.xs,
-                borderRadius: borderRadius.full,
-                backgroundColor: isAiMode ? colors.primary : colors.bg,
+                fontWeight: "600",
+                color: colors.primary,
+                flex: 1,
               }}
             >
-              <Text
-                style={{
-                  color: isAiMode ? colors.card : colors.textTertiary,
-                  fontSize: 11,
-                  fontWeight: "600",
-                }}
-              >
-                {isAiMode ? "AI" : "Local"}
-              </Text>
-            </Pressable>
-          </View>
-
-          {/* Search Results */}
-          {showResults && !selectedContact && (
+              {isExtractingImage || isLoadingExtraction
+                ? "Extracting contact info..."
+                : "Scan Business Card / Screenshot"}
+            </Text>
+          </Pressable>
+          {/* Hybrid Search Input */}
+          <View style={{ marginBottom: spacing.lg }}>
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "600",
+                color: colors.textMain,
+                marginBottom: spacing.sm,
+              }}
+            >
+              Name
+            </Text>
             <View
               style={{
-                marginTop: spacing.md,
+                flexDirection: "row",
+                alignItems: "center",
                 backgroundColor: colors.card,
                 borderRadius: borderRadius.md,
+                paddingHorizontal: spacing.md,
+                borderColor: isAiMode ? colors.primary : colors.border,
+                borderWidth: 2,
+                ...shadows.sm,
+              }}
+            >
+              <Ionicons
+                name={isAiMode ? "sparkles" : "search"}
+                size={18}
+                color={isAiMode ? colors.primary : colors.textTertiary}
+              />
+              <TextInput
+                accessibilityLabel="Search or enter a contact name"
+                placeholder={
+                  isAiMode ? "Ask AI to find..." : "Search contacts..."
+                }
+                placeholderTextColor={colors.textTertiary}
+                value={searchText}
+                onChangeText={(text) => {
+                  setSearchText(text);
+                  setShowResults(true);
+                  // Clear selection if user types
+                  if (selectedContact && text !== selectedContact.name) {
+                    setSelectedContact(null);
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  paddingLeft: spacing.sm,
+                  paddingVertical: spacing.md,
+                  color: colors.textMain,
+                  fontSize: 14,
+                }}
+              />
+              <Pressable
+                onPress={() => setIsAiMode(!isAiMode)}
+                style={{
+                  paddingHorizontal: spacing.sm,
+                  paddingVertical: spacing.xs,
+                  borderRadius: borderRadius.full,
+                  backgroundColor: isAiMode ? colors.primary : colors.bg,
+                }}
+              >
+                <Text
+                  style={{
+                    color: isAiMode ? colors.card : colors.textTertiary,
+                    fontSize: 11,
+                    fontWeight: "600",
+                  }}
+                >
+                  {isAiMode ? "AI" : "Local"}
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Search Results */}
+            {showResults && !selectedContact && (
+              <View
+                style={{
+                  marginTop: spacing.md,
+                  backgroundColor: colors.card,
+                  borderRadius: borderRadius.md,
+                  overflow: "hidden",
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                  ...shadows.md,
+                  maxHeight: 250, // Limit height
+                }}
+              >
+                {isSearching ? (
+                  <View style={{ padding: spacing.md, alignItems: "center" }}>
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  </View>
+                ) : availableContacts.length > 0 ? (
+                  availableContacts.map((contact, index) => (
+                    <Pressable
+                      key={contact.id}
+                      onPress={() => handleContactSelect(contact)}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        padding: spacing.md,
+                        borderBottomWidth:
+                          index < availableContacts.length - 1 ? 1 : 0,
+                        borderBottomColor: colors.border,
+                      }}
+                    >
+                      <Image
+                        source={{
+                          uri:
+                            contact.avatarUrl ||
+                            `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                              contact.name,
+                            )}&background=random`,
+                        }}
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: borderRadius.full,
+                          marginRight: spacing.md,
+                        }}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            color: colors.textMain,
+                            fontWeight: "500",
+                          }}
+                        >
+                          {contact.name}
+                        </Text>
+                        {contact.email && (
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              color: colors.textSecondary,
+                            }}
+                            numberOfLines={1}
+                          >
+                            {contact.email}
+                          </Text>
+                        )}
+                      </View>
+                    </Pressable>
+                  ))
+                ) : (
+                  <View style={{ padding: spacing.md }}>
+                    <Text
+                      style={{
+                        color: colors.textTertiary,
+                        textAlign: "center",
+                      }}
+                    >
+                      No contacts found
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+
+          {/* URL Metadata Preview Card */}
+          {(isFetchingMetadata || urlMetadata) && !selectedContact && (
+            <Pressable
+              onPress={() => {
+                if (!urlMetadata) return;
+                selectFromMetadata(urlMetadata);
+              }}
+              style={{
+                backgroundColor: colors.card,
+                borderRadius: borderRadius.lg,
+                marginBottom: spacing.lg,
                 overflow: "hidden",
                 borderColor: colors.border,
                 borderWidth: 1,
                 ...shadows.md,
-                maxHeight: 250, // Limit height
               }}
             >
-              {isSearching ? (
-                <View style={{ padding: spacing.md, alignItems: "center" }}>
-                  <ActivityIndicator size="small" color={colors.primary} />
-                </View>
-              ) : availableContacts.length > 0 ? (
-                availableContacts.map((contact, index) => (
-                  <Pressable
-                    key={contact.id}
-                    onPress={() => handleContactSelect(contact)}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      padding: spacing.md,
-                      borderBottomWidth:
-                        index < availableContacts.length - 1 ? 1 : 0,
-                      borderBottomColor: colors.border,
-                    }}
-                  >
-                    <Image
-                      source={{
-                        uri:
-                          contact.avatarUrl ||
-                          `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                            contact.name,
-                          )}&background=random`,
-                      }}
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: borderRadius.full,
-                        marginRight: spacing.md,
-                      }}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          color: colors.textMain,
-                          fontWeight: "500",
-                        }}
-                      >
-                        {contact.name}
-                      </Text>
-                      {contact.email && (
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            color: colors.textSecondary,
-                          }}
-                          numberOfLines={1}
-                        >
-                          {contact.email}
-                        </Text>
-                      )}
-                    </View>
-                  </Pressable>
-                ))
-              ) : (
-                <View style={{ padding: spacing.md }}>
-                  <Text
-                    style={{ color: colors.textTertiary, textAlign: "center" }}
-                  >
-                    No contacts found
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-        </View>
-
-        {/* URL Metadata Preview Card */}
-        {(isFetchingMetadata || urlMetadata) && !selectedContact && (
-          <Pressable
-            onPress={() => {
-              if (!urlMetadata) return;
-              selectFromMetadata(urlMetadata);
-            }}
-            style={{
-              backgroundColor: colors.card,
-              borderRadius: borderRadius.lg,
-              marginBottom: spacing.lg,
-              overflow: "hidden",
-              borderColor: colors.border,
-              borderWidth: 1,
-              ...shadows.md,
-            }}
-          >
-            {isFetchingMetadata ? (
-              <View
-                style={{
-                  padding: spacing.md,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: spacing.sm,
-                }}
-              >
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={{ fontSize: 13, color: colors.textSecondary }}>
-                  Fetching link preview...
-                </Text>
-              </View>
-            ) : urlMetadata ? (
-              <View style={{ flexDirection: "row" }}>
-                {urlMetadata.image ? (
-                  <Image
-                    source={{ uri: urlMetadata.image }}
-                    style={{ width: 80, height: 80 }}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View
-                    style={{
-                      width: 80,
-                      height: 80,
-                      backgroundColor: colors.primaryLight,
-                      justifyContent: "center",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Ionicons name="link" size={32} color={colors.primary} />
-                  </View>
-                )}
-                <View style={{ flex: 1, padding: spacing.md }}>
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      fontWeight: "600",
-                      color: colors.textMain,
-                      marginBottom: 2,
-                    }}
-                    numberOfLines={2}
-                  >
-                    {urlMetadata.title || "No title"}
-                  </Text>
-                  {urlMetadata.description ? (
-                    <Text
-                      style={{ fontSize: 11, color: colors.textSecondary }}
-                      numberOfLines={2}
-                    >
-                      {urlMetadata.description}
-                    </Text>
-                  ) : null}
-                  <Text
-                    style={{
-                      fontSize: 10,
-                      color: colors.textTertiary,
-                      marginTop: spacing.xs,
-                    }}
-                    numberOfLines={1}
-                  >
-                    Tap to add as contact
-                  </Text>
-                </View>
-              </View>
-            ) : null}
-          </Pressable>
-        )}
-
-        {/* Selected Contact Card */}
-        {selectedContact && (
-          <View
-            style={{
-              backgroundColor: colors.primary,
-              borderRadius: borderRadius.lg,
-              padding: spacing.lg,
-              marginBottom: spacing.lg,
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-              ...shadows.md,
-            }}
-          >
-            <View
-              style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
-            >
-              <Image
-                source={{
-                  uri:
-                    selectedContact.avatarUrl ||
-                    `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                      selectedContact.name,
-                    )}&background=random`,
-                }}
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: borderRadius.full,
-                  marginRight: spacing.md,
-                }}
-              />
-              <View style={{ flex: 1 }}>
-                <Text
+              {isFetchingMetadata ? (
+                <View
                   style={{
-                    fontSize: 16,
-                    color: colors.card,
-                    fontWeight: "600",
+                    padding: spacing.md,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: spacing.sm,
                   }}
                 >
-                  {selectedContact.name}
-                </Text>
-                {selectedContact.email && (
-                  <Text
-                    style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}
-                    numberOfLines={1}
-                  >
-                    {selectedContact.email}
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={{ fontSize: 13, color: colors.textSecondary }}>
+                    Fetching link preview...
                   </Text>
-                )}
-                {detectedLink && (
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: spacing.xs,
-                      marginTop: spacing.xs,
-                    }}
-                  >
-                    <SocialLinkIcon
-                      type={detectedLink.type}
-                      size={14}
-                      color="rgba(255,255,255,0.8)"
+                </View>
+              ) : urlMetadata ? (
+                <View style={{ flexDirection: "row" }}>
+                  {urlMetadata.image ? (
+                    <Image
+                      source={{ uri: urlMetadata.image }}
+                      style={{ width: 80, height: 80 }}
+                      resizeMode="cover"
                     />
-                    <Text
-                      style={{ fontSize: 11, color: "rgba(255,255,255,0.8)" }}
+                  ) : (
+                    <View
+                      style={{
+                        width: 80,
+                        height: 80,
+                        backgroundColor: colors.primaryLight,
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
                     >
-                      {SOCIAL_LINK_META[detectedLink.type].label}
+                      <Ionicons name="link" size={32} color={colors.primary} />
+                    </View>
+                  )}
+                  <View style={{ flex: 1, padding: spacing.md }}>
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: "600",
+                        color: colors.textMain,
+                        marginBottom: 2,
+                      }}
+                      numberOfLines={2}
+                    >
+                      {urlMetadata.title || "No title"}
+                    </Text>
+                    {urlMetadata.description ? (
+                      <Text
+                        style={{ fontSize: 11, color: colors.textSecondary }}
+                        numberOfLines={2}
+                      >
+                        {urlMetadata.description}
+                      </Text>
+                    ) : null}
+                    <Text
+                      style={{
+                        fontSize: 10,
+                        color: colors.textTertiary,
+                        marginTop: spacing.xs,
+                      }}
+                      numberOfLines={1}
+                    >
+                      Tap to add as contact
                     </Text>
                   </View>
-                )}
-              </View>
-            </View>
-            <Pressable
-              onPress={() => {
-                setSelectedContact(null);
-                setAvatarMimeType(null);
-                setSearchText("");
-                setDetectedLink(null);
+                </View>
+              ) : null}
+            </Pressable>
+          )}
+
+          {/* Selected Contact Card */}
+          {selectedContact && (
+            <View
+              style={{
+                backgroundColor: colors.primary,
+                borderRadius: borderRadius.lg,
+                padding: spacing.lg,
+                marginBottom: spacing.lg,
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                ...shadows.md,
               }}
             >
-              <Ionicons name="close" size={20} color={colors.card} />
-            </Pressable>
-          </View>
-        )}
+              <View
+                style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+              >
+                <Image
+                  source={{
+                    uri:
+                      selectedContact.avatarUrl ||
+                      `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                        selectedContact.name,
+                      )}&background=random`,
+                  }}
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: borderRadius.full,
+                    marginRight: spacing.md,
+                  }}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      color: colors.card,
+                      fontWeight: "600",
+                    }}
+                  >
+                    {selectedContact.name}
+                  </Text>
+                  {selectedContact.email && (
+                    <Text
+                      style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}
+                      numberOfLines={1}
+                    >
+                      {selectedContact.email}
+                    </Text>
+                  )}
+                  {detectedLink && (
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: spacing.xs,
+                        marginTop: spacing.xs,
+                      }}
+                    >
+                      <SocialLinkIcon
+                        type={detectedLink.type}
+                        size={14}
+                        color="rgba(255,255,255,0.8)"
+                      />
+                      <Text
+                        style={{ fontSize: 11, color: "rgba(255,255,255,0.8)" }}
+                      >
+                        {SOCIAL_LINK_META[detectedLink.type].label}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+              <Pressable
+                onPress={() => {
+                  setSelectedContact(null);
+                  setAvatarMimeType(null);
+                  setSearchText("");
+                  setDetectedLink(null);
+                }}
+              >
+                <Ionicons name="close" size={20} color={colors.card} />
+              </Pressable>
+            </View>
+          )}
 
-        {/* Notes Field */}
-        <View>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: colors.textMain,
-              marginBottom: spacing.sm,
-            }}
-          >
-            Notes
-          </Text>
-          <View
-            style={{
-              backgroundColor: colors.card,
-              borderRadius: borderRadius.md,
-              borderColor: colors.border,
-              borderWidth: 1,
-              paddingHorizontal: spacing.md,
-              minHeight: 100,
-              ...shadows.sm,
-            }}
-          >
-            <TextInput
-              placeholder="Add notes about this person..."
-              placeholderTextColor={colors.textTertiary}
-              value={notes}
-              onChangeText={setNotes}
-              multiline
-              numberOfLines={4}
+          {/* Merge into existing — only visible when contact is preloaded */}
+          {selectedContact && (
+            <Pressable
+              onPress={() => setShowMergeDestPicker(true)}
+              disabled={mergeMutation.isPending}
               style={{
-                paddingVertical: spacing.md,
-                color: colors.textMain,
-                fontSize: 14,
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: colors.primaryLight,
+                borderRadius: borderRadius.md,
+                padding: spacing.md,
+                marginBottom: spacing.lg,
+                opacity: mergeMutation.isPending ? 0.7 : 1,
               }}
-            />
-          </View>
-        </View>
-      </ScrollView>
+            >
+              {mergeMutation.isPending ? (
+                <ActivityIndicator
+                  size="small"
+                  color={colors.primary}
+                  style={{ marginRight: spacing.sm }}
+                />
+              ) : (
+                <Ionicons
+                  name="git-merge-outline"
+                  size={20}
+                  color={colors.primary}
+                  style={{ marginRight: spacing.sm }}
+                />
+              )}
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: "600",
+                  color: colors.primary,
+                  flex: 1,
+                }}
+              >
+                {mergeMutation.isPending
+                  ? "Merging..."
+                  : "Merge into Existing Contact"}
+              </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={colors.primary}
+              />
+            </Pressable>
+          )}
 
-      {/* Action Buttons */}
-      <View
-        style={{
-          flexDirection: "row",
-          gap: spacing.md,
-          paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.lg,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
-        }}
-      >
-        <Pressable
-          onPress={() => router.back()}
-          disabled={isSubmitting}
+          {/* Notes Field */}
+          <View>
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "600",
+                color: colors.textMain,
+                marginBottom: spacing.sm,
+              }}
+            >
+              Notes
+            </Text>
+            <View
+              style={{
+                backgroundColor: colors.card,
+                borderRadius: borderRadius.md,
+                borderColor: colors.border,
+                borderWidth: 1,
+                paddingHorizontal: spacing.md,
+                minHeight: 100,
+                ...shadows.sm,
+              }}
+            >
+              <TextInput
+                placeholder="Add notes about this person..."
+                placeholderTextColor={colors.textTertiary}
+                value={notes}
+                onChangeText={setNotes}
+                multiline
+                numberOfLines={4}
+                style={{
+                  paddingVertical: spacing.md,
+                  color: colors.textMain,
+                  fontSize: 14,
+                }}
+              />
+            </View>
+          </View>
+        </ScrollView>
+
+        {/* Action Buttons */}
+        <View
           style={{
-            flex: 1,
-            paddingVertical: spacing.md,
-            borderRadius: borderRadius.lg,
-            backgroundColor: colors.border,
-            opacity: isSubmitting ? 0.5 : 1,
-          }}
-        >
-          <Text
-            style={{
-              textAlign: "center",
-              color: colors.textMain,
-              fontWeight: "600",
-            }}
-          >
-            Cancel
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={handleAddContact}
-          disabled={(!selectedContact && !searchText.trim()) || isSubmitting}
-          accessibilityRole="button"
-          accessibilityLabel="Add Contact"
-          style={{
-            flex: 1,
-            paddingVertical: spacing.md,
-            borderRadius: borderRadius.lg,
-            backgroundColor:
-              selectedContact || searchText.trim()
-                ? colors.primary
-                : colors.border,
-            opacity: !selectedContact && !searchText.trim() ? 0.5 : 1,
-            justifyContent: "center",
-            alignItems: "center",
             flexDirection: "row",
+            gap: spacing.md,
+            paddingHorizontal: spacing.lg,
+            paddingVertical: spacing.lg,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
           }}
         >
-          {isSubmitting ? (
-            <ActivityIndicator
-              size="small"
-              color={colors.card}
-              style={{ marginRight: spacing.sm }}
-            />
-          ) : null}
-          <Text
+          <Pressable
+            onPress={() => router.back()}
+            disabled={isSubmitting}
             style={{
-              textAlign: "center",
-              color: colors.card,
-              fontWeight: "600",
+              flex: 1,
+              paddingVertical: spacing.md,
+              borderRadius: borderRadius.lg,
+              backgroundColor: colors.border,
+              opacity: isSubmitting ? 0.5 : 1,
             }}
           >
-            {isSubmitting ? "Adding..." : "Add Contact"}
-          </Text>
-        </Pressable>
-      </View>
+            <Text
+              style={{
+                textAlign: "center",
+                color: colors.textMain,
+                fontWeight: "600",
+              }}
+            >
+              Cancel
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={handleAddContact}
+            disabled={(!selectedContact && !searchText.trim()) || isSubmitting}
+            accessibilityRole="button"
+            accessibilityLabel="Add Contact"
+            style={{
+              flex: 1,
+              paddingVertical: spacing.md,
+              borderRadius: borderRadius.lg,
+              backgroundColor:
+                selectedContact || searchText.trim()
+                  ? colors.primary
+                  : colors.border,
+              opacity: !selectedContact && !searchText.trim() ? 0.5 : 1,
+              justifyContent: "center",
+              alignItems: "center",
+              flexDirection: "row",
+            }}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator
+                size="small"
+                color={colors.card}
+                style={{ marginRight: spacing.sm }}
+              />
+            ) : null}
+            <Text
+              style={{
+                textAlign: "center",
+                color: colors.card,
+                fontWeight: "600",
+              }}
+            >
+              {isSubmitting ? "Adding..." : "Add Contact"}
+            </Text>
+          </Pressable>
+        </View>
       </KeyboardAvoidingView>
+      <ContactPickerModal
+        open={showMergeDestPicker}
+        onClose={() => setShowMergeDestPicker(false)}
+        onSelect={handleMergeIntoExisting}
+        title="Select Contact to Merge Into"
+      />
       <WebCaptureModal
         visible={showWebCapture}
         url={webCaptureUrl}
