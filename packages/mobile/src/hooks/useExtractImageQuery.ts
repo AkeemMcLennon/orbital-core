@@ -9,6 +9,7 @@ export type ExtractedContact = {
   company?: string;
   jobTitle?: string;
   linkedinUrl?: string;
+  notes?: string;
 };
 
 function toFileUri(uri: string): string {

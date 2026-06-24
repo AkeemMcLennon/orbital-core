@@ -88,7 +88,7 @@ async function cropToFace(
  * falls back to the manual cropper, then navigates to /contact-add.
  *
  * Must be called from a component rendered inside
- * RNMLKitFaceDetectionContextProvider.
+ * FaceDetectionProvider.
  */
 export function useFaceCropFlow(
   sharedImageUri: string,

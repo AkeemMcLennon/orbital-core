@@ -102,6 +102,7 @@ export default function AddContactScreen() {
       company?: string;
       jobTitle?: string;
       linkedinUrl?: string;
+      notes?: string;
     },
     avatarUri?: string,
     mimeType?: string,
@@ -124,6 +125,7 @@ export default function AddContactScreen() {
       data.phone && `Phone: ${data.phone}`,
       data.company && `Company: ${data.company}`,
       data.jobTitle && `Title: ${data.jobTitle}`,
+      data.notes,
     ]
       .filter(Boolean)
       .join("\n");
