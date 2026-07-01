@@ -1,29 +1,13 @@
 import { getAvatarUploadUrl, updateContact } from "@orbital/client";
-
-const ALLOWED_MIME_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-] as const;
-
-type AllowedMimeType = (typeof ALLOWED_MIME_TYPES)[number];
-
-function normalizeImageMimeType(mimeType: string): AllowedMimeType {
-  // iOS sometimes returns "image/jpg" instead of the standard "image/jpeg"
-  const normalized = mimeType === "image/jpg" ? "image/jpeg" : mimeType;
-  if (!(ALLOWED_MIME_TYPES as readonly string[]).includes(normalized)) {
-    throw new Error(`Unsupported image type: ${mimeType}`);
-  }
-  return normalized as AllowedMimeType;
-}
+import { canonicalImageMimeType } from "./imageMime";
 
 export async function uploadAvatar(
   contactId: string,
   localUri: string,
   mimeType: string,
 ): Promise<void> {
-  const contentType = normalizeImageMimeType(mimeType);
+  const contentType = canonicalImageMimeType(mimeType);
+  if (!contentType) throw new Error(`Unsupported image type: ${mimeType}`);
   const blob = await (await fetch(localUri)).blob();
 
   const urlRes = await getAvatarUploadUrl(contactId, {

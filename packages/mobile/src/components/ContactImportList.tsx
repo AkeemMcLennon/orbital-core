@@ -10,18 +10,13 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius } from "../theme";
+import { type ImportedContact } from "../import/types";
 
-export type DeviceContact = {
-  id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  imageUri?: string;
-  company?: string;
-};
+/** A normalized import contact plus a stable id for selection state. */
+export type SelectableContact = ImportedContact & { id: string };
 
 type Props = {
-  contacts: DeviceContact[];
+  contacts: SelectableContact[];
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
   onSelectAll: () => void;
@@ -54,8 +49,10 @@ export function ContactImportList({
     selectedIds.size === contacts.length && contacts.length > 0;
 
   const renderItem = useCallback(
-    ({ item }: { item: DeviceContact }) => {
+    ({ item }: { item: SelectableContact }) => {
       const isSelected = selectedIds.has(item.id);
+      const uri =
+        item.avatar?.kind === "remote" ? item.avatar.url : item.avatar?.uri;
       return (
         <Pressable
           onPress={() => onToggleSelect(item.id)}
@@ -85,9 +82,9 @@ export function ContactImportList({
             )}
           </View>
 
-          {item.imageUri ? (
+          {uri ? (
             <Image
-              source={{ uri: item.imageUri }}
+              source={{ uri }}
               style={{
                 width: 40,
                 height: 40,

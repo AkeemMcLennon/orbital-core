@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { File as FSFile } from "expo-file-system";
 import { contactsExtractFromImage, isSuccess } from "@orbital/client";
+import { toFileUri } from "../utils/fileUri";
 
 export type ExtractedContact = {
   name?: string;
@@ -11,11 +12,6 @@ export type ExtractedContact = {
   linkedinUrl?: string;
   notes?: string;
 };
-
-function toFileUri(uri: string): string {
-  if (uri.startsWith("file://") || uri.startsWith("content://")) return uri;
-  return `file://${uri}`;
-}
 
 async function fileToBase64(uri: string): Promise<string> {
   return await new FSFile(toFileUri(uri)).base64();

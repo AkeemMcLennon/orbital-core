@@ -20,9 +20,12 @@
         "CFBundleDocumentTypes": [
           {
             "CFBundleTypeName": "URL",
-            "LSItemContentTypes": [
-              "public.url"
-            ],
+            "LSItemContentTypes": ["public.url"],
+            "CFBundleTypeRole": "Viewer"
+          },
+          {
+            "CFBundleTypeName": "vCard",
+            "LSItemContentTypes": ["public.vcard", "com.apple.contact"],
             "CFBundleTypeRole": "Viewer"
           }
         ]
@@ -41,7 +44,7 @@
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_MEDIA_IMAGES"
-      ],
+      ]
     },
     "web": {
       "output": "static",
@@ -75,7 +78,13 @@
           "androidMainActivityAttributes": {
             "android:launchMode": "singleTask"
           },
-          "androidIntentFilters": ["text/*", "image/*"]
+          "androidIntentFilters": [
+            "text/*",
+            "image/*",
+            "text/vcard",
+            "text/x-vcard",
+            "text/directory"
+          ]
         }
       ]
     ],

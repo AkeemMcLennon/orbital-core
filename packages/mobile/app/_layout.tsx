@@ -16,6 +16,7 @@ import { Alert } from "react-native";
 import { useShareIntent } from "expo-share-intent";
 
 import { extractUrlFromText, isUrl } from "../src/utils/metadata";
+import { isVCardFile } from "../src/utils/vcard";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -93,6 +94,18 @@ function AuthGate() {
         },
       });
       handleDeepLink(link);
+      return;
+    }
+
+    // vCard (.vcf) share: pass the file URI to the import screen, which reads,
+    // parses, and routes to add-contact (single card) or selection list (multi).
+    const file = shareIntent.files?.[0];
+    if (isVCardFile(file) && file?.path) {
+      resetShareIntent();
+      router.replace({
+        pathname: "/contacts/import",
+        params: { vcfUri: file.path },
+      });
       return;
     }
 

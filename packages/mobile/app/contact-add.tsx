@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   View,
@@ -25,7 +25,10 @@ import {
   isSuccess,
   getSuccessData,
 } from "@orbital/client";
-import { useExtractImageQuery } from "../src/hooks/useExtractImageQuery";
+import {
+  useExtractImageQuery,
+  type ExtractedContact,
+} from "../src/hooks/useExtractImageQuery";
 import { contactKeys } from "../src/queries/contacts";
 import { createContactWithAvatar } from "../src/lib/createContactWithAvatar";
 import { uploadAvatar } from "../src/lib/uploadAvatar";
@@ -44,6 +47,9 @@ import {
 import { SocialLinkIcon } from "../src/components/SocialLinkIcon";
 import { WebCaptureModal } from "../src/components/WebCaptureModal";
 import { ContactPickerModal } from "../src/components/ContactPickerModal";
+import { useVCardQuery } from "../src/hooks/useVCardQuery";
+import { planPrefill } from "../src/import/funnel";
+import type { ImportedContact } from "../src/import/types";
 
 export default function AddContactScreen() {
   const {
@@ -51,11 +57,13 @@ export default function AddContactScreen() {
     sharedImageUri,
     sharedImageMimeType,
     croppedImageUri,
+    vcfUri,
   } = useLocalSearchParams<{
     url?: string;
     sharedImageUri?: string;
     sharedImageMimeType?: string;
     croppedImageUri?: string;
+    vcfUri?: string;
   }>();
   const [isAiMode, setIsAiMode] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -85,8 +93,6 @@ export default function AddContactScreen() {
   } | null>(null);
   const [showMergeDestPicker, setShowMergeDestPicker] = useState(false);
   const queryClient = useQueryClient();
-  const extractionApplied = useRef(false);
-
   // If arriving from contact-screenshot-crop, extraction may already be cached
   const {
     data: extractedData,
@@ -94,52 +100,22 @@ export default function AddContactScreen() {
     isError: isExtractionError,
   } = useExtractImageQuery(sharedImageUri, sharedImageMimeType);
 
-  function applyExtractedContact(
-    data: {
-      name?: string;
-      email?: string | null;
-      phone?: string;
-      company?: string;
-      jobTitle?: string;
-      linkedinUrl?: string;
-      notes?: string;
-    },
-    avatarUri?: string,
-    mimeType?: string,
-  ) {
-    const name = data.name || "Unknown";
-    setSearchText(name);
+  // Prefill the form from any import source. All folding (extras + notes +
+  // birthday into the notes field), link detection, and avatar mime handling
+  // happens once in `planPrefill`; this just applies the result to UI state.
+  function applyImportedContact(contact: ImportedContact) {
+    const plan = planPrefill(contact);
+    setSearchText(plan.name);
     setSelectedContact({
-      id: `extracted:${Date.now()}`,
-      name,
-      email: data.email ?? null,
-      avatarUrl: avatarUri ?? null,
+      id: `imported:${Date.now()}`,
+      name: plan.name,
+      email: plan.email,
+      avatarUrl: plan.avatarUrl,
     });
-    setAvatarMimeType(
-      avatarUri && !avatarUri.startsWith("http")
-        ? (mimeType ?? "image/jpeg")
-        : null,
-    );
+    setAvatarMimeType(plan.avatarMimeType);
     setShowResults(false);
-    const extra = [
-      data.phone && `Phone: ${data.phone}`,
-      data.company && `Company: ${data.company}`,
-      data.jobTitle && `Title: ${data.jobTitle}`,
-      data.notes,
-    ]
-      .filter(Boolean)
-      .join("\n");
-    if (extra) setNotes(extra);
-
-    if (data.linkedinUrl) {
-      // Screenshot extraction sometimes yields a bare path ("/in/johndoe")
-      // rather than a full URL; give it a host so detection can resolve it.
-      const raw = data.linkedinUrl.startsWith("/")
-        ? `linkedin.com${data.linkedinUrl}`
-        : data.linkedinUrl;
-      const channel = detectChannelFromUrl(raw);
-      if (channel) setDetectedLink(channel);
-    }
+    if (plan.notes) setNotes(plan.notes);
+    if (plan.detectedLink) setDetectedLink(plan.detectedLink);
   }
 
   // Pre-fill from deep link url param on mount. When arriving back from the
@@ -166,20 +142,54 @@ export default function AddContactScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Prefill from a shared .vcf file: map the first parsed card (from the hook,
+  // which also materializes its avatar) into the shared import funnel.
+  const { data: vcards } = useVCardQuery(vcfUri);
+  useEffect(() => {
+    if (!vcards) return;
+    const { card, avatar } = vcards[0];
+    applyImportedContact({
+      name: card.name,
+      email: card.email,
+      phone: card.phone,
+      company: card.company,
+      jobTitle: card.jobTitle,
+      birthday: card.birthday,
+      notes: card.notes,
+      rawLinks: card.urls,
+      avatar: avatar
+        ? avatar.uri.startsWith("http")
+          ? { kind: "remote", url: avatar.uri }
+          : { kind: "local", uri: avatar.uri, mimeType: avatar.mimeType }
+        : undefined,
+    });
+  }, [vcards]);
+
   // Populate form when shared-image extraction completes (may be instant from cache)
   useEffect(() => {
     if (isExtractionError) {
-      if (extractionApplied.current) return;
-      extractionApplied.current = true;
       Alert.alert(
         "Extraction failed",
         "Unable to read contact info from this image.",
       );
       return;
     }
-    if (!extractedData || extractionApplied.current) return;
-    extractionApplied.current = true;
-    applyExtractedContact(extractedData, croppedImageUri);
+    if (!extractedData) return;
+    applyImportedContact({
+      name: extractedData.name || "Unknown",
+      email: extractedData.email,
+      phone: extractedData.phone,
+      company: extractedData.company,
+      jobTitle: extractedData.jobTitle,
+      rawLinks: extractedData.linkedinUrl
+        ? [extractedData.linkedinUrl]
+        : undefined,
+      avatar: croppedImageUri
+        ? croppedImageUri.startsWith("http")
+          ? { kind: "remote", url: croppedImageUri }
+          : { kind: "local", uri: croppedImageUri, mimeType: "image/jpeg" }
+        : undefined,
+    });
   }, [extractedData, isExtractionError]);
 
   // Auto-fetch metadata when search text looks like a URL
@@ -193,16 +203,15 @@ export default function AddContactScreen() {
   }, [debouncedSearchText]);
 
   function selectFromMetadata(metadata: MetadataResult) {
-    const name = metadata.title || metadata.url;
-    setSearchText(name);
-    setSelectedContact({
-      id: metadata.url,
-      name,
-      email: undefined,
-      avatarUrl: metadata.image || undefined,
+    const channel = detectChannelFromUrl(metadata.url);
+    applyImportedContact({
+      name: metadata.title || metadata.url,
+      notes: metadata.description ?? undefined,
+      links: channel && channel.type !== "website" ? [channel] : undefined,
+      avatar: metadata.image
+        ? { kind: "remote", url: metadata.image }
+        : undefined,
     });
-    setNotes(metadata.description || "");
-    setShowResults(false);
   }
 
   async function triggerMetadataFetch(url: string, autoSelect = false) {
@@ -279,11 +288,22 @@ export default function AddContactScreen() {
       });
       if (!isSuccess(res)) throw new Error("Extraction failed");
 
-      applyExtractedContact(
-        res.data as Record<string, string>,
-        asset.uri,
-        asset.mimeType ?? "image/jpeg",
-      );
+      const extracted = res.data as ExtractedContact;
+      applyImportedContact({
+        name: extracted.name || "Unknown",
+        email: extracted.email,
+        phone: extracted.phone,
+        company: extracted.company,
+        jobTitle: extracted.jobTitle,
+        rawLinks: extracted.linkedinUrl ? [extracted.linkedinUrl] : undefined,
+        avatar: asset.uri.startsWith("http")
+          ? { kind: "remote", url: asset.uri }
+          : {
+              kind: "local",
+              uri: asset.uri,
+              mimeType: asset.mimeType ?? "image/jpeg",
+            },
+      });
     } catch {
       Alert.alert(
         "Extraction failed",

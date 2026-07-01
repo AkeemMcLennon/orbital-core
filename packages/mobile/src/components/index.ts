@@ -11,7 +11,7 @@ export { Tag } from "./Tag";
 export { TagEditor } from "./TagEditor";
 export type { TagItem } from "./TagEditor";
 export { FormField } from "./FormField";
-export type { DeviceContact } from "./ContactImportList";
+export type { SelectableContact } from "./ContactImportList";
 export { SocialLinksEditor } from "./SocialLinksEditor";
 export type { SocialLink } from "./SocialLinksEditor";
 export { ContactPickerModal } from "./ContactPickerModal";

@@ -1,13 +1,15 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { View, Text, Pressable, Alert, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import * as Contacts from "expo-contacts";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { bulkCreateContacts, integrationsGoogleConnect } from "@orbital/client";
+import { useVCardQuery } from "../../src/hooks/useVCardQuery";
+import { uploadAvatar } from "../../src/lib/uploadAvatar";
 import {
   colors,
   spacing,
@@ -17,7 +19,7 @@ import {
 } from "../../src/theme";
 import {
   ContactImportList,
-  type DeviceContact,
+  type SelectableContact,
 } from "../../src/components/ContactImportList";
 
 type Screen = "sources" | "select-device";
@@ -29,43 +31,69 @@ const CONTACT_FIELDS = [
   Contacts.Fields.Company,
 ];
 
-async function fetchDeviceContacts(): Promise<DeviceContact[]> {
+async function fetchDeviceContacts(): Promise<SelectableContact[]> {
   const { data } = await Contacts.getContactsAsync({ fields: CONTACT_FIELDS });
   return data
     .filter((c) => c.name)
-    .map((c) => ({
-      id: c.id!,
-      name: c.name!,
-      email: c.emails?.[0]?.email,
-      phone: c.phoneNumbers?.[0]?.number,
-      imageUri: c.image?.uri,
-      company: c.company ?? undefined,
-    }));
+    .map((c) => {
+      const imageUri = c.image?.uri;
+      return {
+        name: c.name!,
+        email: c.emails?.[0]?.email,
+        phone: c.phoneNumbers?.[0]?.number,
+        company: c.company ?? undefined,
+        avatar: imageUri
+          ? imageUri.startsWith("http")
+            ? { kind: "remote" as const, url: imageUri }
+            : { kind: "local" as const, uri: imageUri, mimeType: "image/jpeg" }
+          : undefined,
+        id: c.id!,
+      };
+    });
 }
 
-const toContactInput = (c: DeviceContact) => ({
-  name: c.name,
-  email: c.email,
-  phone: c.phone,
-  avatarUrl: c.imageUri,
-  company: c.company,
-});
-
 export default function ImportContactsScreen() {
-  const [screen, setScreen] = useState<Screen>("sources");
-  const [deviceContacts, setDeviceContacts] = useState<DeviceContact[]>([]);
+  const { vcfUri } = useLocalSearchParams<{ vcfUri?: string }>();
+  const [screen, setScreen] = useState<Screen>(
+    vcfUri ? "select-device" : "sources",
+  );
+  const [deviceContacts, setDeviceContacts] = useState<SelectableContact[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isLoadingContacts, setIsLoadingContacts] = useState(false);
   const queryClient = useQueryClient();
 
   const importMutation = useMutation({
-    mutationFn: async (contacts: DeviceContact[]) => {
+    mutationFn: async (contacts: SelectableContact[]) => {
       const created: { id: string }[] = [];
       for (let i = 0; i < contacts.length; i += 500) {
+        const slice = contacts.slice(i, i + 500);
         const response = await bulkCreateContacts({
-          contacts: contacts.slice(i, i + 500).map(toContactInput),
+          contacts: slice.map((c) => ({
+            name: c.name,
+            email: c.email,
+            phone: c.phone,
+            company: c.company,
+            jobTitle: c.jobTitle,
+            birthday: c.birthday,
+            avatarUrl: c.avatar?.kind === "remote" ? c.avatar.url : undefined,
+          })),
         });
-        if (response.status === 200) created.push(...response.data);
+        if (response.status !== 200) continue;
+        created.push(...response.data);
+        // Remote avatars go through the bulk payload; local URIs (device
+        // content:// or vCard file://) are uploaded per-contact afterwards.
+        // bulkCreateContacts returns rows in input order, so pair by index.
+        await Promise.all(
+          response.data.map(async (row, j) => {
+            const avatar = slice[j]?.avatar;
+            if (avatar?.kind !== "local") return;
+            try {
+              await uploadAvatar(row.id, avatar.uri, avatar.mimeType);
+            } catch (err) {
+              console.error("Avatar upload failed:", err);
+            }
+          }),
+        );
       }
       return created;
     },
@@ -82,6 +110,42 @@ export default function ImportContactsScreen() {
       Alert.alert("Import Failed", "Something went wrong. Please try again.");
     },
   });
+
+  // When launched from a shared .vcf file, map the parsed + avatar-materialized
+  // cards (from the hook) into the selectable list once they're available.
+  const { data: vcards, isLoading: isLoadingVCards } = useVCardQuery(vcfUri);
+
+  useEffect(() => {
+    if (!vcards) return;
+    // Single card: hand off to the add-contact screen for richer field prefill.
+    if (vcards.length === 1) {
+      router.replace({ pathname: "/contact-add", params: { vcfUri } });
+      return;
+    }
+    const list: SelectableContact[] = vcards.map(({ card, avatar }, i) => ({
+      name: card.name,
+      email: card.email,
+      phone: card.phone,
+      company: card.company,
+      jobTitle: card.jobTitle,
+      birthday: card.birthday,
+      notes: card.notes,
+      rawLinks: card.urls,
+      avatar: avatar
+        ? avatar.uri.startsWith("http")
+          ? { kind: "remote" as const, url: avatar.uri }
+          : {
+              kind: "local" as const,
+              uri: avatar.uri,
+              mimeType: avatar.mimeType,
+            }
+        : undefined,
+      id: `vcf-${i}`,
+    }));
+    setScreen("select-device");
+    setDeviceContacts(list);
+    setSelectedIds(new Set(list.map((c) => c.id)));
+  }, [vcards, vcfUri]);
 
   const requestContactsPermission = async (): Promise<boolean> => {
     const { status } = await Contacts.getPermissionsAsync();
@@ -304,7 +368,7 @@ export default function ImportContactsScreen() {
         onToggleSelect={toggleSelect}
         onSelectAll={selectAll}
         onDeselectAll={deselectAll}
-        isLoading={isLoadingContacts}
+        isLoading={isLoadingContacts || isLoadingVCards}
       />
 
       {/* Import button */}
