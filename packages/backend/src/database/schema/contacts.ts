@@ -40,6 +40,9 @@ export const contacts = sqliteTable(
     group: text("group", { enum: ["work", "personal"] }),
 
     // Relationship Management
+    // Relationship strength: -2 distant, -1 acquaintance, 0 neutral, 1 close, 2 inner circle
+    // Optional column; defaults to 0 (neutral) when unset.
+    strength: integer("strength").default(0),
     lastInteractionAt: integer("last_interaction_at", { mode: "timestamp" }),
 
     createdAt: integer("created_at", { mode: "timestamp" })

@@ -27,6 +27,7 @@ import { authProc } from "../middleware/auth";
 import { ORPCError } from "@orpc/server";
 import { base58IdSchema } from "@orbital/utils";
 import { PaginationInputSchema, paginatedSchema } from "../utils/pagination";
+import { fivePointScaleSchema } from "../utils/scale";
 import { StorageService } from "../services/storage";
 import { generateRepsForNewContact } from "../services/memory-reps";
 import {
@@ -191,6 +192,7 @@ const ContactInputSchema = z.object({
     .optional(),
   notes: z.string().optional(),
   group: z.string().optional(),
+  strength: fivePointScaleSchema.optional().default(0),
   tags: z.array(z.string()).optional(),
   links: z.array(ContactLinkInputSchema).optional(),
 });
@@ -208,6 +210,7 @@ const ContactOutputSchema = z.object({
   birthday: z.string().nullable(),
   notes: z.string().nullable(),
   group: z.enum(["work", "personal"]).nullable(),
+  strength: fivePointScaleSchema.nullable(),
   lastInteractionAt: dateField().nullable(),
   createdAt: dateField(),
   updatedAt: dateField(),
@@ -451,6 +454,7 @@ export const createContact = authProc
         notes: encNotes,
         notesEncrypted,
         group: (input.group as "work" | "personal" | undefined) ?? null,
+        strength: input.strength,
       })
       .returning();
 
@@ -513,6 +517,7 @@ export const bulkCreateContacts = authProc
         notes: encNotes,
         notesEncrypted,
         group: (c.group as "work" | "personal" | undefined) ?? null,
+        strength: c.strength,
       };
     });
 
@@ -559,6 +564,7 @@ export const updateContact = authProc
         .optional(),
       notes: z.string().optional(),
       group: z.string().optional(),
+      strength: fivePointScaleSchema.optional(),
       tags: z.array(z.string()).optional(),
       links: z.array(ContactLinkInputSchema).optional(),
     }),
@@ -1067,6 +1073,16 @@ async function applyMergeIntoDestination(
     patch.group = source.group;
   }
 
+  // Relationship strength: 0 (neutral) is the "unrated" sentinel, so the
+  // copy-if-empty loop above can't be used (it treats 0 as a real value).
+  // Adopt the source's rating only when the source has a real (non-zero)
+  // strength and the destination is still unrated (0 or null).
+  const srcStrength = source.strength ?? 0;
+  const destStrength = destDecrypted.strength ?? 0;
+  if (srcStrength !== 0 && destStrength === 0) {
+    patch.strength = srcStrength;
+  }
+
   // Notes are only adopted when the destination has none of its own.
   const newNotes = destDecrypted.notes ? null : (source.notes ?? null);
   if (newNotes) {
@@ -1328,6 +1344,7 @@ export const mergeNewContact = authProc
         birthday: src.birthday,
         group: (src.group as "work" | "personal" | undefined) ?? null,
         notes: src.notes ?? null,
+        strength: src.strength,
         links: src.links ?? [],
       },
       true, // adopted notes are new to the destination → enrich them

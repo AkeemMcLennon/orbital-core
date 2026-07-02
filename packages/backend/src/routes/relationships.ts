@@ -5,6 +5,10 @@ import { authProc } from "../middleware/auth";
 import { ORPCError } from "@orpc/server";
 import { base58IdSchema } from "@orbital/utils";
 import { PaginationInputSchema, paginatedSchema } from "../utils/pagination";
+import {
+  fivePointScaleSchema,
+  fivePointScaleQuerySchema,
+} from "../utils/scale";
 
 // Helper for date fields that can be Date objects or ISO strings
 const dateField = () =>
@@ -19,7 +23,7 @@ const RelationshipOutputSchema = z.object({
   contactId: z.string(),
   relatedContactId: z.string(),
   type: z.string(),
-  sentiment: z.number().int().min(-2).max(2),
+  sentiment: fivePointScaleSchema,
   description: z.string().nullable(),
   mirrorId: z.string().nullable(),
   createdAt: dateField(),
@@ -137,7 +141,7 @@ export const createRelationship = authProc
       contactId: base58IdSchema,
       relatedContactId: base58IdSchema,
       type: z.string().min(1).max(100),
-      sentiment: z.number().int().min(-2).max(2).optional().default(0),
+      sentiment: fivePointScaleSchema.optional().default(0),
       description: z.string().max(500).optional(),
     }),
   )
@@ -254,7 +258,7 @@ export const updateRelationship = authProc
     z.object({
       id: base58IdSchema,
       type: z.string().min(1).max(100).optional(),
-      sentiment: z.number().int().min(-2).max(2).optional(),
+      sentiment: fivePointScaleSchema.optional(),
       description: z.string().max(500).optional(),
     }),
   )
@@ -387,7 +391,7 @@ export const listAllRelationships = authProc
   .input(
     PaginationInputSchema.extend({
       type: z.string().optional(),
-      sentiment: z.coerce.number().int().min(-2).max(2).optional(),
+      sentiment: fivePointScaleQuerySchema.optional(),
     }),
   )
   .output(paginatedSchema(RelationshipWithContactSchema))

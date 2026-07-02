@@ -266,4 +266,59 @@ describe("Contact Merge API", () => {
       expect(res.status).toBe(404);
     });
   });
+
+  describe("relationship strength merge", () => {
+    it("adopts source strength when the destination is unrated (0)", async () => {
+      const dest = getSuccessData(
+        await createContact({ name: "Unrated Dest" }),
+      )!;
+      const src = getSuccessData(
+        await createContact({ name: "Rated Source", strength: 2 }),
+      )!;
+
+      const merged = getSuccessData(
+        await mergeContact(dest.id, { sourceId: src.id }),
+      )!;
+      expect(merged.strength).toBe(2);
+    });
+
+    it("keeps destination strength when it is already rated", async () => {
+      const dest = getSuccessData(
+        await createContact({ name: "Rated Dest", strength: -1 }),
+      )!;
+      const src = getSuccessData(
+        await createContact({ name: "Also Rated", strength: 2 }),
+      )!;
+
+      const merged = getSuccessData(
+        await mergeContact(dest.id, { sourceId: src.id }),
+      )!;
+      expect(merged.strength).toBe(-1);
+    });
+
+    it("leaves the destination at 0 when the source is also unrated", async () => {
+      const dest = getSuccessData(
+        await createContact({ name: "Neutral Dest" }),
+      )!;
+      const src = getSuccessData(
+        await createContact({ name: "Neutral Source" }),
+      )!;
+
+      const merged = getSuccessData(
+        await mergeContact(dest.id, { sourceId: src.id }),
+      )!;
+      expect(merged.strength).toBe(0);
+    });
+
+    it("adopts inline source strength into an unrated destination", async () => {
+      const dest = getSuccessData(
+        await createContact({ name: "Inline Unrated" }),
+      )!;
+
+      const merged = getSuccessData(
+        await mergeNewContact(dest.id, { source: { strength: 1 } }),
+      )!;
+      expect(merged.strength).toBe(1);
+    });
+  });
 });

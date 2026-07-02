@@ -154,6 +154,48 @@ describe("Contacts API", () => {
     });
   });
 
+  describe("Relationship strength", () => {
+    it("should default strength to 0 (neutral) when omitted", async () => {
+      const response = await createContact({ name: "Default Strength" });
+      if (response.status !== 200) throw new Error("Contact creation failed");
+      expect(response.data.strength).toBe(0);
+    });
+
+    it("should round-trip strength through create and get", async () => {
+      const created = await createContact({
+        name: "Inner Circle Person",
+        strength: 2,
+      });
+      if (created.status !== 200) throw new Error("Contact creation failed");
+      expect(created.data.strength).toBe(2);
+
+      const fetched = await getContactById(created.data.id);
+      if (fetched.status !== 200) throw new Error("Expected 200 response");
+      expect(fetched.data.strength).toBe(2);
+    });
+
+    it("should update strength", async () => {
+      const created = await createContact({ name: "Strength Update Test" });
+      if (created.status !== 200) throw new Error("Contact creation failed");
+
+      const updated = await updateContact(created.data.id, { strength: -1 });
+      if (updated.status !== 200) throw new Error("Contact update failed");
+      expect(updated.data.strength).toBe(-1);
+
+      const fetched = await getContactById(created.data.id);
+      if (fetched.status !== 200) throw new Error("Expected 200 response");
+      expect(fetched.data.strength).toBe(-1);
+    });
+
+    it("should reject out-of-range strength values", async () => {
+      const tooHigh = await createContact({ name: "Too High", strength: 3 });
+      expect(tooHigh.status).toBe(400);
+
+      const tooLow = await createContact({ name: "Too Low", strength: -3 });
+      expect(tooLow.status).toBe(400);
+    });
+  });
+
   describe("GET /rpc/contacts", () => {
     beforeEach(async () => {
       await backend.seedTestContacts(db, "user-1", { schema }, 10);

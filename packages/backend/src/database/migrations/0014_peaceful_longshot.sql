@@ -1,0 +1,1 @@
+ALTER TABLE `contacts` ADD `strength` integer DEFAULT 0;
