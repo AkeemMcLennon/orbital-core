@@ -18,8 +18,11 @@ const JWTPayloadSchema = z.object({
   name: z.string().optional(),
   // Tenant the request is scoped to (Base58 UUIDv7). Optional during rollout:
   // tokens minted before the auth service began emitting it won't carry it.
+  // `.nullish()` (not `.optional()`) so an explicit `tenant_id: null` — which
+  // pre-tenant users' tokens carry, since the claim is emitted from a NULL DB
+  // value — is accepted and coerced to `null` below rather than 401-ing.
   // Phase 2 uses this (verified) claim to route to the tenant's data store.
-  tenant_id: base58IdSchema.optional(),
+  tenant_id: base58IdSchema.nullish(),
 });
 
 export type JWTPayload = z.infer<typeof JWTPayloadSchema>;

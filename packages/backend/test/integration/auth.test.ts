@@ -101,6 +101,26 @@ describe("Authentication", () => {
       expect(response.data.tenantId).toBe(tenantId);
     });
 
+    it("should accept a token whose tenant_id is null (pre-rollout users)", async () => {
+      // Regression: pre-tenant users have a NULL tenantId, so the auth service
+      // emitted `tenant_id: null` in their tokens (jose keeps null). `.optional()`
+      // rejected null → every request 401'd. `.nullish()` must treat it as absent.
+      const token = await createTestToken({
+        sub: "tenant-user-null",
+        email: "tenant-null@example.com",
+        tenant_id: null,
+      });
+
+      const response = await getAuthMe({
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(response.status).toBe(200);
+      if (response.status != 200) {
+        return;
+      }
+      expect(response.data.tenantId).toBeNull();
+    });
+
     it("should reject a token whose tenant_id is not a valid Base58 id", async () => {
       const token = await createTestToken({
         sub: "tenant-user-2",

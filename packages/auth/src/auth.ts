@@ -149,12 +149,18 @@ export async function createAuth(env: Env) {
           issuer: env.BETTER_AUTH_URL,
           audience: env.BETTER_AUTH_URL,
           expirationTime: "1h",
-          definePayload: ({ user }) => ({
-            sub: user.id,
-            email: user.email,
-            name: user.name,
-            tenant_id: (user as { tenantId?: string }).tenantId,
-          }),
+          definePayload: ({ user }) => {
+            // Existing (pre-rollout) users have a NULL tenantId; omit the claim
+            // rather than emitting `tenant_id: null`, which downstream validators
+            // treat as invalid. Only present once a tenant has been minted.
+            const tenantId = (user as { tenantId?: string | null }).tenantId;
+            return {
+              sub: user.id,
+              email: user.email,
+              name: user.name,
+              ...(tenantId ? { tenant_id: tenantId } : {}),
+            };
+          },
         },
         jwks: {
           keyPairConfig: {
@@ -169,12 +175,18 @@ export async function createAuth(env: Env) {
         refreshTokenExpiresIn: 30 * 24 * 3600,
         scopes: ["openid", "profile", "email", "offline_access"],
         cachedTrustedClients: new Set(["orbital-mobile"]),
-        customAccessTokenClaims: ({ user }) => ({
-          sub: user?.id ?? "",
-          email: user?.email ?? "",
-          name: user?.name ?? undefined,
-          tenant_id: (user as { tenantId?: string } | undefined)?.tenantId,
-        }),
+        customAccessTokenClaims: ({ user }) => {
+          // Omit the claim for pre-rollout users (NULL tenantId) instead of
+          // emitting `tenant_id: null` — see definePayload above.
+          const tenantId = (user as { tenantId?: string | null } | undefined)
+            ?.tenantId;
+          return {
+            sub: user?.id ?? "",
+            email: user?.email ?? "",
+            name: user?.name ?? undefined,
+            ...(tenantId ? { tenant_id: tenantId } : {}),
+          };
+        },
       }),
     ],
   });
