@@ -1,8 +1,7 @@
 import { ORPCError, os } from "@orpc/server";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { IncomingHttpHeaders } from "node:http";
-import { getDbClient } from "../database/client";
-import type { DatabaseClient } from "../database/client";
+import type { DatabaseClient, DbResolver } from "../database/client";
 import { settings } from "../config";
 import { getOrCreateUserByExternalId } from "../services/auth";
 import { cancelPendingDeletion } from "../services/account-deletion";
@@ -21,7 +20,6 @@ const JWTPayloadSchema = z.object({
   // `.nullish()` (not `.optional()`) so an explicit `tenant_id: null` — which
   // pre-tenant users' tokens carry, since the claim is emitted from a NULL DB
   // value — is accepted and coerced to `null` below rather than 401-ing.
-  // Phase 2 uses this (verified) claim to route to the tenant's data store.
   tenant_id: base58IdSchema.nullish(),
 });
 
@@ -36,6 +34,7 @@ export interface BaseContext {
   headers: IncomingHttpHeaders;
   env: CloudflareEnv;
   waitUntil: WaitUntil; // Request-scoped background-task runner (see utils/wait-until.ts)
+  resolveDb: DbResolver; // How to obtain the request's db (injected by createApp)
 }
 
 export interface AuthContext {
@@ -115,15 +114,11 @@ export const authProc = os
       }
 
       const payload = validationResult.data;
+      const tenantId = payload.tenant_id ?? null;
 
-      // Initialize database client
-      // Auto-detect D1 when binding is available (Cloudflare Workers)
-      const provider = context.env.DB ? "d1" : settings.DB_PROVIDER;
-      const db = await getDbClient({
-        provider,
-        d1: context.env.DB,
-        sqlitePath: settings.SQLITE_DB_PATH,
-      });
+      // Resolve the database client for this request via the injected strategy
+      // (see createApp), given the runtime env and the verified tenant claim.
+      const db = await context.resolveDb({ env: context.env, tenantId });
 
       // Get or create user in database
       const user = await getOrCreateUserByExternalId(db, {
@@ -139,7 +134,7 @@ export const authProc = os
       return next({
         context: {
           user, // Full database user object
-          tenantId: payload.tenant_id ?? null, // Verified tenant claim
+          tenantId, // Verified tenant claim
           db,
           headers: context.headers,
           waitUntil: context.waitUntil,

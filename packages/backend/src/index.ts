@@ -1,8 +1,7 @@
 import app from "./app";
 import { type Env } from "./types/env";
 import { getDbClient } from "./database/client";
-import { processAccountDeletions } from "./services/account-deletion";
-import { runDailyTagDiscovery } from "./services/tag-discovery";
+import { runTenantMaintenance } from "./services/maintenance";
 
 export default {
   fetch(req: Request, env: Env, ctx: ExecutionContext) {
@@ -12,14 +11,11 @@ export default {
   },
 
   async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
+    // Run scheduled maintenance once over this deployment's database.
     const db = await getDbClient({
       provider: env.DB ? "d1" : "sqlite",
       d1: env.DB,
     });
-    const count = await processAccountDeletions(db);
-    console.log(`[cron] Processed ${count} account deletion(s).`);
-
-    const tagged = await runDailyTagDiscovery(db);
-    console.log(`[cron] Tag discovery processed ${tagged} active user(s).`);
+    await runTenantMaintenance(db, null);
   },
 };
