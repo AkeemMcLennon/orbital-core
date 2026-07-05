@@ -31,6 +31,7 @@
       "dependencies": {
         "@better-auth/expo": "^1.6.16",
         "@better-auth/oauth-provider": "^1.6.16",
+        "@orbital/utils": "workspace:*",
         "better-auth": "^1.6.16",
         "drizzle-orm": "^0.45.1",
         "hono": "^4.0.2",
@@ -227,6 +228,7 @@
         "bs58": "^6.0.0",
         "date-fns": "^3.0.6",
         "uuid": "^13.0.0",
+        "uuidv7": "^1.1.0",
         "zod": "^4.3.5",
       },
       "devDependencies": {

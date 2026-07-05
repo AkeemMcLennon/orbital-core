@@ -16,6 +16,7 @@
   "dependencies": {
     "@better-auth/expo": "^1.6.16",
     "@better-auth/oauth-provider": "^1.6.16",
+    "@orbital/utils": "workspace:*",
     "better-auth": "^1.6.16",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.0.2",

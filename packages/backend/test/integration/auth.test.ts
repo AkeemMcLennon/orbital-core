@@ -1,4 +1,5 @@
 import { getAuthMe, initializeApiClient } from "@orbital/client";
+import { generateId } from "@orbital/utils";
 import { backend, expectError } from "@orbital/testing";
 import {
   createExpiredToken,
@@ -78,6 +79,41 @@ describe("Authentication", () => {
       expect(data.name).toBe("Test User");
       expect(data.userId).toBeDefined(); // UUID
       expect(data.createdAt).toBeDefined();
+      // No tenant_id claim on this token → null (pre-tenant rollout safety)
+      expect(data.tenantId).toBeNull();
+    });
+
+    it("should surface the verified tenant_id claim as tenantId", async () => {
+      const tenantId = generateId();
+      const token = await createTestToken({
+        sub: "tenant-user-1",
+        email: "tenant@example.com",
+        tenant_id: tenantId,
+      });
+
+      const response = await getAuthMe({
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(response.status).toBe(200);
+      if (response.status != 200) {
+        return;
+      }
+      expect(response.data.tenantId).toBe(tenantId);
+    });
+
+    it("should reject a token whose tenant_id is not a valid Base58 id", async () => {
+      const token = await createTestToken({
+        sub: "tenant-user-2",
+        email: "tenant2@example.com",
+        tenant_id: "not valid base58!!!",
+      });
+
+      await expectError(async () => {
+        const response = await getAuthMe({
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        expect(response.status).toBe(401);
+      });
     });
 
     it("should return 401 when Authorization header is missing", async () => {

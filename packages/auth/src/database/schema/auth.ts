@@ -9,6 +9,10 @@ export const user = sqliteTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: integer("emailVerified", { mode: "boolean" }).notNull(),
   image: text("image"),
+  // Tenant this user belongs to (Base58 UUIDv7). Currently 1:1 with the user;
+  // minted on creation and encoded into the JWT as the `tenant_id` claim so the
+  // backend can scope/route by tenant. Future: shared across invited org members.
+  tenantId: text("tenantId"),
   createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull(),
 });

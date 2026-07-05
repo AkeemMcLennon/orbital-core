@@ -5,6 +5,7 @@ import { oauthProvider } from "@better-auth/oauth-provider";
 import { expo } from "@better-auth/expo";
 import { drizzle } from "drizzle-orm/d1";
 import { importPKCS8, SignJWT } from "jose";
+import { generateId } from "@orbital/utils";
 import type { Env } from "./types/env";
 import * as schema from "./database/schema";
 
@@ -89,6 +90,29 @@ export async function createAuth(env: Env) {
       enabled: true,
     },
 
+    // Surface the tenant id on the user object (read-only — never client-settable)
+    // so it flows into JWT/access-token claims below.
+    user: {
+      additionalFields: {
+        tenantId: {
+          type: "string",
+          required: false,
+          input: false,
+        },
+      },
+    },
+
+    // Mint a Base58 UUIDv7 tenant id on user creation (1:1 with the user for now).
+    databaseHooks: {
+      user: {
+        create: {
+          before: async (newUser) => ({
+            data: { ...newUser, tenantId: generateId() },
+          }),
+        },
+      },
+    },
+
     socialProviders:
       Object.keys(socialProviders).length > 0 ? socialProviders : undefined,
 
@@ -129,6 +153,7 @@ export async function createAuth(env: Env) {
             sub: user.id,
             email: user.email,
             name: user.name,
+            tenant_id: (user as { tenantId?: string }).tenantId,
           }),
         },
         jwks: {
@@ -148,6 +173,7 @@ export async function createAuth(env: Env) {
           sub: user?.id ?? "",
           email: user?.email ?? "",
           name: user?.name ?? undefined,
+          tenant_id: (user as { tenantId?: string } | undefined)?.tenantId,
         }),
       }),
     ],

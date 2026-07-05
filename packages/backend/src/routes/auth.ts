@@ -15,19 +15,21 @@ export const me = authProc
     z.object({
       userId: z.string(),
       externalId: z.string(),
+      tenantId: z.string().nullable(),
       email: z.string(),
       name: z.string().nullable(),
-      createdAt: z.union([z.date(), z.string().datetime()]).transform(val =>
-        val instanceof Date ? val.toISOString() : val
-      ),
-    })
+      createdAt: z
+        .union([z.date(), z.string().datetime()])
+        .transform((val) => (val instanceof Date ? val.toISOString() : val)),
+    }),
   )
   .handler(async ({ context }) => {
-    const { user } = context;
+    const { user, tenantId } = context;
 
     return {
       userId: user.id,
       externalId: user.externalId,
+      tenantId,
       email: user.email,
       name: user.name,
       createdAt: user.createdAt,

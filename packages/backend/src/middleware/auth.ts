@@ -8,6 +8,7 @@ import { getOrCreateUserByExternalId } from "../services/auth";
 import { cancelPendingDeletion } from "../services/account-deletion";
 import type { User } from "../database/schema/users";
 import type { WaitUntil } from "../utils/wait-until";
+import { base58IdSchema } from "@orbital/utils";
 import { z } from "zod";
 
 // Zod schema for JWT payload validation
@@ -15,6 +16,10 @@ const JWTPayloadSchema = z.object({
   sub: z.string().min(1, "JWT 'sub' claim is required"),
   email: z.string().email("JWT 'email' claim must be a valid email"),
   name: z.string().optional(),
+  // Tenant the request is scoped to (Base58 UUIDv7). Optional during rollout:
+  // tokens minted before the auth service began emitting it won't carry it.
+  // Phase 2 uses this (verified) claim to route to the tenant's data store.
+  tenant_id: base58IdSchema.optional(),
 });
 
 export type JWTPayload = z.infer<typeof JWTPayloadSchema>;
@@ -32,6 +37,7 @@ export interface BaseContext {
 
 export interface AuthContext {
   user: User; // Full database user record
+  tenantId: string | null; // Verified tenant claim (Base58); null on pre-tenant tokens
   db: DatabaseClient;
   headers: IncomingHttpHeaders; // Request headers for deriving URLs, etc.
   waitUntil: WaitUntil; // Request-scoped background-task runner
@@ -130,6 +136,7 @@ export const authProc = os
       return next({
         context: {
           user, // Full database user object
+          tenantId: payload.tenant_id ?? null, // Verified tenant claim
           db,
           headers: context.headers,
           waitUntil: context.waitUntil,

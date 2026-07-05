@@ -1,7 +1,6 @@
 import { customType } from "drizzle-orm/sqlite-core";
-import { uuidv7 } from "uuidv7";
-import { parse } from "uuid";
 import bs58 from "bs58";
+import { generateId } from "@orbital/utils";
 
 /**
  * Custom Drizzle type for UUIDv7 stored as BLOB in SQLite
@@ -22,14 +21,11 @@ export const uuidV7 = customType<{ data: string; driverData: Buffer }>({
 });
 
 /**
- * Generate a new UUIDv7 encoded as a Base58 string (the app-layer ID format).
- * Exported so services can pre-generate IDs (e.g. to cross-link rows in a single
- * atomic insert) using the exact same scheme as the `pk()` column default.
+ * Re-exported from @orbital/utils so services can pre-generate IDs (e.g. to
+ * cross-link rows in a single atomic insert) using the exact same scheme as the
+ * `pk()` column default — a single source of truth shared with the auth service.
  */
-export const generateId = (): string => {
-  const bytes = parse(uuidv7());
-  return bs58.encode(Buffer.from(bytes));
-};
+export { generateId };
 
 /**
  * Primary key helper that generates a new UUIDv7 and encodes it as Base58
