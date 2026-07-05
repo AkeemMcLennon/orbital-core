@@ -48,3 +48,6 @@ local.db
 
 # TypeScript
 *.tsbuildinfo
+
+# Copybara preview output
+cb-out/
