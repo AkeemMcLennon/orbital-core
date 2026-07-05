@@ -10,6 +10,7 @@ import { Tag } from "./Tag";
 import { colors, spacing, borderRadius, shadows } from "../theme";
 import { getSocialLinkMeta } from "../utils/socialLinks";
 import { SocialLinkIcon } from "./SocialLinkIcon";
+import { StrengthBadge } from "./StrengthSelector";
 import { useAvatarUpload } from "../hooks/useAvatarUpload";
 
 interface ContactDetailsProps {
@@ -17,6 +18,7 @@ interface ContactDetailsProps {
   name: string;
   role: string;
   avatar: string;
+  strength?: number;
   notes?: string;
   interactions?: Array<{
     id: string;
@@ -39,6 +41,7 @@ export function ContactDetails({
   name,
   role,
   avatar,
+  strength = 0,
   notes = "No notes yet.",
   interactions = [],
   email,
@@ -151,11 +154,15 @@ export function ContactDetails({
             style={{
               fontSize: 16,
               color: colors.textSecondary,
-              marginBottom: spacing.lg,
+              marginBottom: spacing.md,
             }}
           >
             {role}
           </Text>
+
+          <View style={{ marginBottom: spacing.lg }}>
+            <StrengthBadge value={strength} />
+          </View>
 
           {/* Action Buttons */}
           <View

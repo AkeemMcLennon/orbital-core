@@ -6,6 +6,7 @@ export async function createContactWithAvatar(params: {
   name: string;
   email?: string;
   notes?: string;
+  strength?: number;
   avatarUrl?: string;
   avatarMimeType?: string;
   links?: Array<{ type: SocialLinkType; value: string }>;
@@ -16,6 +17,7 @@ export async function createContactWithAvatar(params: {
     name: params.name,
     email: params.email,
     notes: params.notes,
+    strength: params.strength,
     avatarUrl: isLocal ? undefined : params.avatarUrl,
     links: params.links,
   });

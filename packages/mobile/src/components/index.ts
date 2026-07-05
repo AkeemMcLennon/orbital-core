@@ -15,3 +15,10 @@ export type { SelectableContact } from "./ContactImportList";
 export { SocialLinksEditor } from "./SocialLinksEditor";
 export type { SocialLink } from "./SocialLinksEditor";
 export { ContactPickerModal } from "./ContactPickerModal";
+export { StrengthSelector, StrengthBadge } from "./StrengthSelector";
+export {
+  ScaleSelector,
+  fivePointColor,
+  fivePointScaleOptions,
+} from "./ScaleSelector";
+export type { ScaleOption } from "./ScaleSelector";

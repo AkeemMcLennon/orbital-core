@@ -23,6 +23,7 @@ import {
   FormField,
   SocialLinksEditor,
   ContactPickerModal,
+  StrengthSelector,
   type TagItem,
   type SocialLink,
 } from "../../../src/components";
@@ -43,6 +44,7 @@ export default function EditContactScreen() {
   const [company, setCompany] = useState(contact?.company || "");
   const [notes, setNotes] = useState(contact?.notes || "");
   const [group, setGroup] = useState(contact?.group || "");
+  const [strength, setStrength] = useState(contact?.strength ?? 0);
   const [tags, setTags] = useState<TagItem[]>(
     contact?.tags?.map((t) => ({
       name: t.name,
@@ -71,6 +73,7 @@ export default function EditContactScreen() {
       setCompany(contact.company || "");
       setNotes(contact.notes || "");
       setGroup(contact.group || "");
+      setStrength(contact.strength ?? 0);
       setTags(
         contact.tags?.map((t) => ({
           name: t.name,
@@ -145,6 +148,7 @@ export default function EditContactScreen() {
       company: company.trim() || undefined,
       notes: notes.trim() || undefined,
       group: group.trim() || undefined,
+      strength,
       tags: tags.map((t) => t.name),
       links: links
         .filter((l) => l.value.trim())
@@ -327,6 +331,10 @@ export default function EditContactScreen() {
                 }}
               />
             </View>
+          </FormField>
+
+          <FormField label="Relationship Strength">
+            <StrengthSelector value={strength} onChange={setStrength} />
           </FormField>
 
           {/* Merge */}

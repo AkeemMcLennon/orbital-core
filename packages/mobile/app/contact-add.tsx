@@ -47,6 +47,7 @@ import {
 import { SocialLinkIcon } from "../src/components/SocialLinkIcon";
 import { WebCaptureModal } from "../src/components/WebCaptureModal";
 import { ContactPickerModal } from "../src/components/ContactPickerModal";
+import { StrengthSelector } from "../src/components/StrengthSelector";
 import { useVCardQuery } from "../src/hooks/useVCardQuery";
 import { planPrefill } from "../src/import/funnel";
 import type { ImportedContact } from "../src/import/types";
@@ -82,6 +83,7 @@ export default function AddContactScreen() {
 
   const [showResults, setShowResults] = useState(false);
   const [notes, setNotes] = useState("");
+  const [strength, setStrength] = useState(0);
   const [isExtractingImage, setIsExtractingImage] = useState(false);
   const [avatarMimeType, setAvatarMimeType] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -339,6 +341,7 @@ export default function AddContactScreen() {
         source: {
           email: selectedContact?.email || undefined,
           notes: notes || undefined,
+          strength,
           avatarUrl: avatar && !avatarIsLocal ? avatar : undefined,
           links: detectedLink
             ? [{ type: detectedLink.type, value: detectedLink.value }]
@@ -412,6 +415,7 @@ export default function AddContactScreen() {
         name,
         email: selectedContact?.email || undefined,
         notes: notes || undefined,
+        strength,
         avatarUrl: selectedContact?.avatarUrl ?? undefined,
         avatarMimeType: avatarMimeType ?? undefined,
         links:
@@ -969,6 +973,13 @@ export default function AddContactScreen() {
               />
             </View>
           </View>
+
+          {/* Relationship Strength */}
+          <StrengthSelector
+            value={strength}
+            onChange={setStrength}
+            label="Relationship Strength"
+          />
         </ScrollView>
 
         {/* Action Buttons */}

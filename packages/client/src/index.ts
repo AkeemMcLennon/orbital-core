@@ -12,4 +12,6 @@ import { ResultAsync } from "neverthrow";
 export * from "./generated/client";
 
 // Hand-written client exports for newer endpoints
+export * from "./scale";
 export * from "./relationships";
+export * from "./contactStrength";

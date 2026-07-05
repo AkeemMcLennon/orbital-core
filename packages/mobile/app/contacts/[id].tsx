@@ -66,6 +66,7 @@ export default function ContactDetailsScreen() {
       role={contact?.jobTitle || ""}
       name={contact?.name || "Unknown"}
       avatar={contact?.avatarUrl || ""}
+      strength={contact?.strength ?? 0}
       notes={contact?.notes || ""}
       email={contact?.email || ""}
       phone={contact?.phone || ""}

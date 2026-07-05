@@ -12,6 +12,11 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { FaceAvatar } from "./FaceAvatar";
+import {
+  ScaleSelector,
+  fivePointColor,
+  fivePointScaleOptions,
+} from "./ScaleSelector";
 import { colors, spacing, borderRadius, shadows } from "../theme";
 import {
   useContactRelationships,
@@ -19,30 +24,19 @@ import {
   useDeleteRelationship,
 } from "../queries/relationships";
 import { useContactsList } from "../queries/contacts";
-import type { ListContactRelationships200ItemsItem, RelationshipSentiment } from "@orbital/client";
+import type {
+  ListContactRelationships200ItemsItem,
+  RelationshipSentiment,
+} from "@orbital/client";
 import { RelationshipSentimentLabel } from "@orbital/client";
 
-/** Map sentiment integer to a color */
+/** Map sentiment integer to a color (dislike end is light red). */
 function sentimentColor(s: number): string {
-  if (s >= 2) return colors.success;
-  if (s === 1) return "#6EE7B7"; // light green
-  if (s === 0) return colors.textTertiary;
-  if (s === -1) return "#FCA5A5"; // light red
-  return colors.error; // -2
+  return fivePointColor(s, colors.errorLight);
 }
 
-/** Map sentiment integer to a short label */
-function sentimentLabel(s: number): string {
-  return RelationshipSentimentLabel[s as RelationshipSentiment] ?? "Neutral";
-}
-
-const SENTIMENT_OPTIONS: { value: RelationshipSentiment; label: string }[] = [
-  { value: -2, label: "Strongly Dislike" },
-  { value: -1, label: "Dislike" },
-  { value: 0, label: "Neutral" },
-  { value: 1, label: "Like" },
-  { value: 2, label: "Strongly Like" },
-];
+// Ordered lowest → highest (left → right), emoji at the extremes.
+const SENTIMENT_OPTIONS = fivePointScaleOptions(RelationshipSentimentLabel);
 
 interface RelationshipsSectionProps {
   contactId: string;
@@ -505,54 +499,14 @@ function AddRelationshipModal({
                 />
 
                 {/* Sentiment */}
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "600",
-                    color: colors.textMain,
-                    marginBottom: spacing.xs,
-                  }}
-                >
-                  Sentiment
-                </Text>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    gap: spacing.xs,
-                    marginBottom: spacing.md,
-                  }}
-                >
-                  {SENTIMENT_OPTIONS.map((opt) => {
-                    const isSelected = sentiment === opt.value;
-                    const color = sentimentColor(opt.value);
-                    return (
-                      <Pressable
-                        key={opt.value}
-                        onPress={() => setSentiment(opt.value)}
-                        style={{
-                          flex: 1,
-                          paddingVertical: spacing.sm,
-                          borderRadius: borderRadius.md,
-                          borderWidth: 1,
-                          borderColor: isSelected ? color : colors.border,
-                          backgroundColor: isSelected
-                            ? `${color}15`
-                            : colors.card,
-                          alignItems: "center",
-                        }}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 10,
-                            fontWeight: isSelected ? "700" : "400",
-                            color: isSelected ? color : colors.textSecondary,
-                          }}
-                        >
-                          {opt.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
+                <View style={{ marginBottom: spacing.md }}>
+                  <ScaleSelector
+                    options={SENTIMENT_OPTIONS}
+                    value={sentiment}
+                    onChange={setSentiment}
+                    colorFor={sentimentColor}
+                    label="Sentiment"
+                  />
                 </View>
 
                 {/* Description */}
