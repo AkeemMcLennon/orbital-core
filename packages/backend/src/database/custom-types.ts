@@ -15,8 +15,11 @@ export const uuidV7 = customType<{ data: string; driverData: Buffer }>({
     return Buffer.from(bs58.decode(value));
   },
   fromDriver(value: Buffer): string {
-    // Convert Buffer back to Base58 string
-    return bs58.encode(value);
+    // Convert the stored bytes back to a Base58 string. Different SQLite
+    // drivers surface BLOBs differently (Buffer/Uint8Array vs ArrayBuffer),
+    // so normalize before encoding.
+    const bytes = value instanceof ArrayBuffer ? new Uint8Array(value) : value;
+    return bs58.encode(bytes);
   },
 });
 

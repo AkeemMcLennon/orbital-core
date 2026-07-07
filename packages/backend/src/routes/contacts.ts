@@ -39,6 +39,7 @@ import {
 } from "../services/tags";
 import { deriveContactRelationships } from "../services/relationships";
 import type { WaitUntil } from "../utils/wait-until";
+import { randomUUID } from "node:crypto";
 import { crypto } from "../utils/crypto";
 import { settings } from "../config";
 import { extractContactFromImage } from "../services/contact-extract";
@@ -934,7 +935,7 @@ export const getAvatarUploadUrl = authProc
 
     const storage = new StorageService();
     const ext = IMAGE_EXT[input.contentType];
-    const key = `avatars/${user.id}/${input.contactId}-${globalThis.crypto.randomUUID()}.${ext}`;
+    const key = `avatars/${user.id}/${input.contactId}-${randomUUID()}.${ext}`;
     return storage.getPresignedUploadUrl(
       key,
       input.contentType,

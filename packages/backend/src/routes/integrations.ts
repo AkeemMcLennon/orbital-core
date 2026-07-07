@@ -84,7 +84,7 @@ export const connectGoogle = authProc
     }),
   )
   .handler(async ({ context, input }) => {
-    const { db, user, headers } = context;
+    const { db, user, headers, tenantId } = context;
     const { next } = input;
 
     // Validate Google OAuth is configured
@@ -116,18 +116,24 @@ export const connectGoogle = authProc
       throw new Error("Failed to create OAuth session");
     }
 
+    // The OAuth state parameter is the session id, optionally prefixed with the
+    // caller's tenant claim ("<tenant>.<sessionId>"). The provider echoes state
+    // back verbatim, so routing layers in front of the app can use the prefix to
+    // direct the callback; the callback handler tolerates either form.
+    const state = tenantId ? `${tenantId}.${session.id}` : session.id;
+
     // Create OAuth2 client and generate authorization URL
     const oauth2Client = createGoogleOAuth2Client(callbackUri);
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: "offline",
       scope: GOOGLE_OAUTH_SCOPES,
       prompt: "consent",
-      state: session.id, // Session id is the OAuth state parameter
+      state,
     });
 
     return {
       url: authUrl,
-      state: session.id, // Return for frontend reference
+      state, // Return for frontend reference
     };
   });
 

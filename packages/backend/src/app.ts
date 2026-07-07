@@ -7,7 +7,7 @@ import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { loadSettings } from "./config";
 import router from "./routes";
-import googleOAuth from "./routes/oauth/google";
+import { createGoogleOAuthRoutes } from "./routes/oauth/google";
 import { Env } from "./types/env";
 import { createWaitUntil, type WaitUntil } from "./utils/wait-until";
 import { defaultDbResolver, type DbResolver } from "./database/client";
@@ -38,8 +38,8 @@ export function createApp(options: CreateAppOptions = {}) {
     return c.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
-  // Google OAuth callback handler
-  app.route("/auth", googleOAuth);
+  // Google OAuth callback handler (shares the app's db-resolution strategy)
+  app.route("/auth", createGoogleOAuthRoutes(resolveDb));
 
   // Create OpenAPI handler with plugins
   const handler = new OpenAPIHandler(router, {
