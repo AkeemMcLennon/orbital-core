@@ -1,16 +1,20 @@
 import { createContact, isSuccess } from "@orbital/client";
-import { uploadAvatar } from "./uploadAvatar";
+import type { QueryClient } from "@tanstack/react-query";
+import { backgroundUploadAvatar } from "./uploadAvatar";
 import type { SocialLinkType } from "../utils/socialLinks";
 
-export async function createContactWithAvatar(params: {
-  name: string;
-  email?: string;
-  notes?: string;
-  strength?: number;
-  avatarUrl?: string;
-  avatarMimeType?: string;
-  links?: Array<{ type: SocialLinkType; value: string }>;
-}): Promise<{ id: string; avatarUploadFailed?: true }> {
+export async function createContactWithAvatar(
+  queryClient: QueryClient,
+  params: {
+    name: string;
+    email?: string;
+    notes?: string;
+    strength?: number;
+    avatarUrl?: string;
+    avatarMimeType?: string;
+    links?: Array<{ type: SocialLinkType; value: string }>;
+  },
+): Promise<{ id: string; avatarUpload?: Promise<void> }> {
   const isLocal = !!params.avatarUrl && !params.avatarUrl.startsWith("http");
 
   const result = await createContact({
@@ -23,18 +27,18 @@ export async function createContactWithAvatar(params: {
   });
   if (!isSuccess(result)) throw new Error("Failed to create contact");
 
-  if (isLocal && params.avatarUrl) {
-    try {
-      await uploadAvatar(
-        result.data.id,
-        params.avatarUrl,
-        params.avatarMimeType ?? "image/jpeg",
-      );
-    } catch (err) {
-      console.error("Avatar upload failed:", err);
-      return { ...result.data, avatarUploadFailed: true };
-    }
-  }
+  // For a local photo, don't block on the upload: start it in the background
+  // (with an optimistic cache preview) and return a promise the caller can
+  // react to (alert on failure) after it has already navigated away.
+  const avatarUpload =
+    isLocal && params.avatarUrl
+      ? backgroundUploadAvatar(
+          queryClient,
+          result.data.id,
+          params.avatarUrl,
+          params.avatarMimeType ?? "image/jpeg",
+        )
+      : undefined;
 
-  return result.data;
+  return { id: result.data.id, avatarUpload };
 }

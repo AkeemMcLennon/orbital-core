@@ -104,6 +104,7 @@ export default function ContactsByTagScreen() {
               >
                 <FaceAvatar
                   name={item.name}
+                  avatar={item.avatarUrl ?? undefined}
                   size={40}
                   showLabel={false}
                   noMargin

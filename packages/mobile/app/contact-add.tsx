@@ -31,7 +31,7 @@ import {
 } from "../src/hooks/useExtractImageQuery";
 import { contactKeys } from "../src/queries/contacts";
 import { createContactWithAvatar } from "../src/lib/createContactWithAvatar";
-import { uploadAvatar } from "../src/lib/uploadAvatar";
+import { backgroundUploadAvatar } from "../src/lib/uploadAvatar";
 import Constants from "expo-constants";
 import { colors, spacing, borderRadius, shadows } from "../src/theme";
 import {
@@ -354,30 +354,29 @@ export default function AddContactScreen() {
       // Local avatar: upload only when the merge left the destination without
       // one (the server preserves an existing avatar, so the merged result's
       // empty avatarUrl means it had none). Uploading otherwise would overwrite
-      // the destination's photo.
-      let avatarUploadFailed = false;
-      if (avatarIsLocal && avatar && !merged.avatarUrl) {
-        try {
-          await uploadAvatar(
-            destinationId,
-            avatar,
-            avatarMimeType ?? "image/jpeg",
-          );
-        } catch (err) {
-          console.error("Avatar upload failed:", err);
-          avatarUploadFailed = true;
-        }
-      }
+      // the destination's photo. Deferred to onSuccess so it runs in the
+      // background with an optimistic preview, like the create path.
+      const localAvatarUri =
+        avatarIsLocal && avatar && !merged.avatarUrl ? avatar : undefined;
 
-      return { avatarUploadFailed };
+      return { destinationId, localAvatarUri };
     },
-    onSuccess: ({ avatarUploadFailed }) => {
+    onSuccess: ({ destinationId, localAvatarUri }) => {
       queryClient.invalidateQueries({ queryKey: contactKeys.all });
       router.back();
-      if (avatarUploadFailed) {
-        Alert.alert(
-          "Photo upload failed",
-          "The contact was merged, but the photo couldn't be uploaded. You can try again from the edit screen.",
+      if (localAvatarUri) {
+        // The upload swaps the cached avatarUrl between the local preview and
+        // the real URL itself; we only handle the failure alert.
+        backgroundUploadAvatar(
+          queryClient,
+          destinationId,
+          localAvatarUri,
+          avatarMimeType ?? "image/jpeg",
+        ).catch(() =>
+          Alert.alert(
+            "Photo upload failed",
+            "The contact was merged, but the photo couldn't be uploaded. You can try again from the edit screen.",
+          ),
         );
       }
     },
@@ -411,7 +410,7 @@ export default function AddContactScreen() {
 
     setIsSubmitting(true);
     try {
-      const created = await createContactWithAvatar({
+      const created = await createContactWithAvatar(queryClient, {
         name,
         email: selectedContact?.email || undefined,
         notes: notes || undefined,
@@ -431,12 +430,15 @@ export default function AddContactScreen() {
         queryClient.invalidateQueries({ queryKey: contactKeys.all });
         router.back();
       }
-      if (created.avatarUploadFailed) {
+      // The avatar uploads in the background; the upload itself swaps the
+      // cached avatarUrl between the local preview and the real URL. We only
+      // alert on failure, without blocking the flow the user already completed.
+      created.avatarUpload?.catch(() =>
         Alert.alert(
           "Photo upload failed",
           "The contact was saved, but the photo couldn't be uploaded. You can try again from the edit screen.",
-        );
-      }
+        ),
+      );
     } catch (err) {
       console.error("Failed to create contact:", err);
       alert("Failed to create contact. Please try again.");
