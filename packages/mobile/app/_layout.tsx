@@ -83,14 +83,21 @@ function AuthGate() {
   useEffect(() => {
     if (!isAuthenticated || !shareIntent) return;
 
+    const file = shareIntent.files?.[0];
+    const sharedText = shareIntent.text || shareIntent.webUrl || "";
+    const trimmed = sharedText.trim();
+
+    // expo-share-intent emits a truthy (but empty) intent on normal launch.
+    // Only react when content was actually shared.
+    if (!file && !trimmed) return;
+
     // Image share
-    const imageFile = shareIntent.files?.[0];
-    if (imageFile?.mimeType?.startsWith("image/")) {
+    if (file?.mimeType?.startsWith("image/")) {
       resetShareIntent();
       const link = Linking.createURL("contact-add", {
         queryParams: {
-          sharedImageUri: imageFile.path,
-          sharedImageMimeType: imageFile.mimeType,
+          sharedImageUri: file.path,
+          sharedImageMimeType: file.mimeType,
         },
       });
       handleDeepLink(link);
@@ -99,7 +106,6 @@ function AuthGate() {
 
     // vCard (.vcf) share: pass the file URI to the import screen, which reads,
     // parses, and routes to add-contact (single card) or selection list (multi).
-    const file = shareIntent.files?.[0];
     if (isVCardFile(file) && file?.path) {
       resetShareIntent();
       router.replace({
@@ -110,13 +116,6 @@ function AuthGate() {
     }
 
     // Text/URL share: default to the WebView capture flow for any shared URL.
-    const sharedText = shareIntent.text || shareIntent.webUrl || "";
-    const trimmed = sharedText.trim();
-
-    // expo-share-intent emits a truthy (but empty) intent on normal launch.
-    // Only react when content was actually shared.
-    if (!imageFile && !trimmed) return;
-
     const extracted =
       extractUrlFromText(sharedText) ?? (isUrl(trimmed) ? trimmed : null);
     resetShareIntent();
@@ -152,7 +151,8 @@ function AuthGate() {
 
       await SplashScreen.hideAsync();
 
-      // Handle VIEW deep links on initial launch
+      // Handle VIEW deep links on initial launch (a shared URL still opens the
+      // capture flow). Post-auth onboarding routing is handled explicitly above.
       if (isAuthenticated) {
         const initialUrl = await Linking.getInitialURL();
         if (initialUrl) handleDeepLink(initialUrl);
@@ -162,7 +162,7 @@ function AuthGate() {
     prepare();
   }, [isReady, isAuthenticated, queryClient]);
 
-  // Handle VIEW deep links when the app is already open
+  // Handle VIEW deep links when the app is already open.
   useEffect(() => {
     const sub = Linking.addEventListener("url", ({ url }) => {
       if (isAuthenticated) handleDeepLink(url);
@@ -179,6 +179,9 @@ function AuthGate() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(main)" />
+      {/* First-run intro tour; swipe-back disabled so it can't be dismissed
+          without completing (Android back exiting the app is fine). */}
+      <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
       <Stack.Screen name="contact-screenshot-crop" />
       <Stack.Screen name="contact-add" />
       <Stack.Screen name="contacts/[id]" />

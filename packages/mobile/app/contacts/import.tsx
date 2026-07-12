@@ -10,17 +10,12 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { bulkCreateContacts, integrationsGoogleConnect } from "@orbital/client";
 import { useVCardQuery } from "../../src/hooks/useVCardQuery";
 import { uploadAvatar } from "../../src/lib/uploadAvatar";
-import {
-  colors,
-  spacing,
-  borderRadius,
-  shadows,
-  typography,
-} from "../../src/theme";
+import { colors, spacing, borderRadius, typography } from "../../src/theme";
 import {
   ContactImportList,
   type SelectableContact,
 } from "../../src/components/ContactImportList";
+import { SourceCard } from "../../src/components/SourceCard";
 
 type Screen = "sources" | "select-device";
 
@@ -417,80 +412,5 @@ export default function ImportContactsScreen() {
         </View>
       )}
     </SafeAreaView>
-  );
-}
-
-function SourceCard({
-  icon,
-  title,
-  description,
-  onPress,
-  isLoading,
-  iconColor,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  description: string;
-  onPress: () => void;
-  isLoading?: boolean;
-  iconColor?: string;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={isLoading}
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: colors.card,
-        borderRadius: borderRadius.lg,
-        padding: spacing.lg,
-        marginBottom: spacing.md,
-        borderWidth: 1,
-        borderColor: colors.border,
-        ...shadows.sm,
-        opacity: isLoading ? 0.7 : 1,
-      }}
-    >
-      <View
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: borderRadius.md,
-          backgroundColor: colors.primaryLight,
-          alignItems: "center",
-          justifyContent: "center",
-          marginRight: spacing.md,
-        }}
-      >
-        {isLoading ? (
-          <ActivityIndicator size="small" color={colors.primary} />
-        ) : (
-          <Ionicons name={icon} size={22} color={iconColor ?? colors.primary} />
-        )}
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text
-          style={{
-            fontSize: typography.base,
-            fontWeight: "600",
-            color: colors.textMain,
-            marginBottom: 2,
-          }}
-        >
-          {title}
-        </Text>
-        <Text
-          style={{
-            fontSize: typography.xs,
-            color: colors.textSecondary,
-            lineHeight: 16,
-          }}
-        >
-          {description}
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
-    </Pressable>
   );
 }

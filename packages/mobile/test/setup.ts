@@ -131,6 +131,11 @@ jest.mock("react-native-reanimated", () =>
   require("react-native-reanimated/mock"),
 );
 
+// Route tests render the dashboard directly (the real AuthGate is mocked out),
+// so treat onboarding as already completed to skip the root-route redirect.
+// Tests that exercise the onboarding flow reset this via the completion module.
+require("../src/onboarding/completion").markOnboardingCompleted();
+
 // ── tamagui ──
 jest.mock("tamagui", () => {
   const React = require("react");

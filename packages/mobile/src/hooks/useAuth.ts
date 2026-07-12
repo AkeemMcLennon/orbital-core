@@ -117,6 +117,10 @@ export function useAuth(): AuthState {
             code: error.code,
           };
         }
+        // signUp.email has no rememberMe option; re-establish the session as a
+        // remembered one so it persists across app kills, matching sign-in.
+        // Non-fatal if it fails — the sign-up session is already valid.
+        await authClient.signIn.email({ email, password, rememberMe: true });
         await configureMobileApi();
         const me = getSuccessData(await getAuthMe());
         if (me) setUser(me);

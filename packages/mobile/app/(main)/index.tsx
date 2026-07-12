@@ -1,8 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useQueryClient } from "@tanstack/react-query";
-import { RelativePathString, useFocusEffect } from "expo-router";
-import React, { useCallback, useState } from "react";
+import { Redirect, RelativePathString, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -19,6 +19,10 @@ import {
   TimelineItem,
 } from "../../src/components";
 import { useAuthContext } from "../../src/contexts/AuthContext";
+import {
+  onboardingCompletedCached,
+  readOnboardingCompleted,
+} from "../../src/onboarding/completion";
 import { contactKeys, useContactsList } from "../../src/queries/contacts";
 import {
   memoryRepKeys,
@@ -28,7 +32,36 @@ import {
 } from "../../src/queries/memory-reps";
 import { borderRadius, colors, shadows, spacing } from "../../src/theme";
 
-export default function DailyOrbitScreen() {
+/**
+ * Root-route onboarding gate: send first-run users to the intro tour. Renders
+ * the dashboard while the flag is still being read so the cold-start splash /
+ * a returning user never see a blank frame.
+ */
+function useShouldOnboard(): boolean {
+  const [completed, setCompleted] = useState<boolean | null>(
+    onboardingCompletedCached(),
+  );
+
+  useEffect(() => {
+    if (completed !== null) return;
+    let cancelled = false;
+    readOnboardingCompleted().then((value) => {
+      if (!cancelled) setCompleted(value);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [completed]);
+
+  return completed === false;
+}
+
+export default function DailyOrbitRoute() {
+  if (useShouldOnboard()) return <Redirect href="/onboarding" />;
+  return <DailyOrbitScreen />;
+}
+
+function DailyOrbitScreen() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set());
   const [isRefreshing, setIsRefreshing] = useState(false);

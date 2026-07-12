@@ -8,6 +8,9 @@ import * as WebBrowser from "expo-web-browser";
  * In development, expo-auth-session intercepts the callback before the router
  * sees it. In production builds, the deep link arrives as a navigation event
  * that Expo Router must match to a route — without this file, it's "unmatched".
+ *
+ * Routes to the dashboard; the root-route onboarding guard redirects first-time
+ * users to the intro tour from there.
  */
 export default function AuthCallback() {
   const router = useRouter();
