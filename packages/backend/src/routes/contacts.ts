@@ -229,13 +229,21 @@ const ContactOutputSchema = z.object({
 });
 
 /**
- * Shared tail for createContact and updateContact: regenerate dynamic tags,
- * derive fields + relationships from notes/email, enrich empty fields, then
- * fetch tags/links, index into Meilisearch, and shape the response.
+ * Shared tail for createContact, updateContact, and merge: regenerate dynamic
+ * tags + relationships, derive fields from notes/email, enrich empty fields,
+ * then fetch tags/links, index into Meilisearch, and shape the response.
  *
- * The two callers differ only in which notes string drives each step:
- * - `notesForDynamicTags` — notes written *this request* (regen dynamic tags when truthy)
- * - `deriveInput` — notes to derive fields/relationships from (may be existing notes on update)
+ * The three enrichment LLM calls all read the notes and write to disjoint
+ * tables (contact_tags / — / contact_relationships), so they run concurrently
+ * in one `Promise.all` — the write blocks on the slowest single call rather
+ * than their sum.
+ *
+ * Two notes inputs drive the steps:
+ * - `changedNotes` — the notes written *this request*, or null when unchanged.
+ *   Dynamic tags and relationships derive only from the notes text, so they
+ *   run only when the notes actually changed.
+ * - `deriveInput` — notes + email for field derivation (company can be inferred
+ *   from the email domain), so it also runs on an email-only change.
  */
 async function finalizeContactWrite(
   db: DatabaseClient,
@@ -243,35 +251,38 @@ async function finalizeContactWrite(
   contact: Contact,
   waitUntil: WaitUntil,
   opts: {
-    notesForDynamicTags: string | null;
+    changedNotes: string | null;
     deriveInput: { notes: string; email: string | null } | null;
   },
 ): Promise<z.input<typeof ContactOutputSchema>> {
-  if (opts.notesForDynamicTags) {
-    await generateDynamicTagsForContact(
-      db,
-      user.id,
-      contact.id,
-      opts.notesForDynamicTags,
-      contact.email ?? null,
-    );
-  }
+  // Only the field-derivation result is consumed below; the tag and
+  // relationship calls apply their own writes. Name it so the `[derived]`
+  // destructure doesn't silently depend on array position.
+  const derivedFields = opts.deriveInput
+    ? deriveContactFields(opts.deriveInput.notes, opts.deriveInput.email)
+    : Promise.resolve(null);
 
-  let derived: Awaited<ReturnType<typeof deriveContactFields>> = null;
-  if (opts.deriveInput) {
-    [derived] = await Promise.all([
-      deriveContactFields(opts.deriveInput.notes, opts.deriveInput.email),
-      opts.deriveInput.notes
-        ? deriveContactRelationships(
-            db,
-            user.id,
-            contact.id,
-            contact.name,
-            opts.deriveInput.notes,
-          )
-        : Promise.resolve(),
-    ]);
-  }
+  const [derived] = await Promise.all([
+    derivedFields,
+    opts.changedNotes
+      ? generateDynamicTagsForContact(
+          db,
+          user.id,
+          contact.id,
+          opts.changedNotes,
+          contact.email ?? null,
+        )
+      : Promise.resolve(),
+    opts.changedNotes
+      ? deriveContactRelationships(
+          db,
+          user.id,
+          contact.id,
+          contact.name,
+          opts.changedNotes,
+        )
+      : Promise.resolve(),
+  ]);
 
   const [tagList, links] = await Promise.all([
     fetchContactTags(db, user.id, contact.id),
@@ -290,7 +301,7 @@ async function finalizeContactWrite(
       const [enriched] = await db
         .update(contacts)
         .set({ ...patch, updatedAt: new Date() })
-        .where(eq(contacts.id, contact.id))
+        .where(and(eq(contacts.id, contact.id), eq(contacts.userId, user.id)))
         .returning();
       finalContact = enriched ?? contact;
     }
@@ -478,7 +489,7 @@ export const createContact = authProc
     );
 
     return finalizeContactWrite(db, user, contact, context.waitUntil, {
-      notesForDynamicTags: input.notes ?? null,
+      changedNotes: input.notes ?? null,
       deriveInput:
         input.notes || input.email
           ? { notes: input.notes ?? "", email: input.email ?? null }
@@ -615,8 +626,7 @@ export const updateContact = authProc
       contact.notes && !contact.notesEncrypted ? contact.notes : null;
 
     return finalizeContactWrite(db, user, contact, context.waitUntil, {
-      notesForDynamicTags:
-        patch.notes !== undefined ? (input.notes ?? "") : null,
+      changedNotes: patch.notes !== undefined ? (input.notes ?? "") : null,
       deriveInput:
         patch.notes !== undefined || patch.email !== undefined
           ? {
@@ -1156,10 +1166,10 @@ async function applyMergeIntoDestination(
   const finalizeOpts =
     enrichNewNotes && newNotes
       ? {
-          notesForDynamicTags: newNotes,
+          changedNotes: newNotes,
           deriveInput: { notes: newNotes, email: updatedDest.email ?? null },
         }
-      : { notesForDynamicTags: null, deriveInput: null };
+      : { changedNotes: null, deriveInput: null };
 
   return finalizeContactWrite(db, user, updatedDest, waitUntil, finalizeOpts);
 }
