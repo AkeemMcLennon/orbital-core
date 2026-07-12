@@ -39,6 +39,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "package": "diy.orbital.mobile",
+      "googleServicesFile": "../../ops/mobile/google-services.json",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
