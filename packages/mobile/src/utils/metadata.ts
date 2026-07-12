@@ -5,10 +5,10 @@ export interface MetadataResult {
   url: string;
 }
 
-export class LinkedInAuthRequiredError extends Error {
-  constructor() {
-    super("LinkedIn authentication required");
-    this.name = "LinkedInAuthRequiredError";
+export class ProfileAuthRequiredError extends Error {
+  constructor(platform: string) {
+    super(`${platform} authentication required`);
+    this.name = "ProfileAuthRequiredError";
   }
 }
 
@@ -156,6 +156,7 @@ export async function fetchMetadata(
   url: string,
   userAgent?: string,
 ): Promise<MetadataResult> {
+  const platform = detectSocialPlatform(url);
   let result: XhrResult;
   try {
     result = await xhrFetch(url, {
@@ -166,11 +167,11 @@ export async function fetchMetadata(
   } catch (e) {
     // LinkedIn returns HTTP 999 for bot-blocked requests, or times out when throttling
     if (
-      detectSocialPlatform(url) === "linkedin" &&
+      platform === "linkedin" &&
       e instanceof Error &&
       (e.message.includes("HTTP 999") || e.message.includes("timed out"))
     ) {
-      throw new LinkedInAuthRequiredError();
+      throw new ProfileAuthRequiredError("LinkedIn");
     }
     throw e;
   }
@@ -178,7 +179,7 @@ export async function fetchMetadata(
   // LinkedIn redirects unauthenticated requests to /authwall or /login.
   // On Android, xhr.responseURL may not capture the redirect destination,
   // so we also inspect the HTML body for authwall markers.
-  if (detectSocialPlatform(url) === "linkedin") {
+  if (platform === "linkedin") {
     const finalUrl = result.responseUrl.toLowerCase();
     const bodyLower = result.text.toLowerCase();
     if (
@@ -188,7 +189,22 @@ export async function fetchMetadata(
       bodyLower.includes("uas/login") ||
       bodyLower.includes("session_redirect")
     ) {
-      throw new LinkedInAuthRequiredError();
+      throw new ProfileAuthRequiredError("LinkedIn");
+    }
+  }
+
+  // Instagram serves logged-out clients a login interstitial (redirect to
+  // /accounts/login/) whose og:title is "Login • Instagram", not the profile
+  // name. Detect it so the caller falls back to the authenticated capture flow
+  // instead of creating a contact named "Login".
+  if (platform === "instagram") {
+    const finalUrl = result.responseUrl.toLowerCase();
+    const bodyLower = result.text.toLowerCase();
+    if (
+      finalUrl.includes("/accounts/login") ||
+      bodyLower.includes("/accounts/login/")
+    ) {
+      throw new ProfileAuthRequiredError("Instagram");
     }
   }
 

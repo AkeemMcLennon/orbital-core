@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   View,
@@ -52,6 +52,9 @@ import { useVCardQuery } from "../src/hooks/useVCardQuery";
 import { planPrefill } from "../src/import/funnel";
 import type { ImportedContact } from "../src/import/types";
 
+// Device user agent for link-metadata fetches; falls back to the lib default.
+const USER_AGENT = Constants.userAgent ?? undefined;
+
 export default function AddContactScreen() {
   const {
     url: deepLinkUrl,
@@ -94,6 +97,9 @@ export default function AddContactScreen() {
     value: string;
   } | null>(null);
   const [showMergeDestPicker, setShowMergeDestPicker] = useState(false);
+  // Set once the user starts filling the form themselves, so a slow shared-URL
+  // metadata fetch that resolves later doesn't clobber their in-progress input.
+  const userEditedRef = useRef(false);
   const queryClient = useQueryClient();
   // If arriving from contact-screenshot-crop, extraction may already be cached
   const {
@@ -221,6 +227,33 @@ export default function AddContactScreen() {
     // the page (signing in if needed) and screenshots it into the
     // image-extraction flow. Typed URLs still get an inline link preview.
     if (autoSelect) {
+      // Instagram profile pages expose public OG metadata, so extract the
+      // contact directly instead of forcing the WebView screenshot flow. Only
+      // real profile URLs qualify (posts/reels/share links resolve to a
+      // "website" channel); everything else — and any profile behind Instagram's
+      // login wall (fetchMetadata throws) or without a title — falls back to
+      // capture. LinkedIn and generic sites always capture.
+      if (detectChannelFromUrl(url)?.type === "instagram") {
+        setIsFetchingMetadata(true);
+        try {
+          const result = await fetchMetadata(url, USER_AGENT);
+          // The user may have started filling the form during the slow fetch;
+          // don't overwrite their input or interrupt them with the capture flow.
+          if (userEditedRef.current) return;
+          if (result.title) {
+            selectFromMetadata(result);
+            return;
+          }
+        } catch (e) {
+          console.warn(
+            "Instagram metadata fetch failed, falling back to capture:",
+            e,
+          );
+        } finally {
+          setIsFetchingMetadata(false);
+        }
+        if (userEditedRef.current) return;
+      }
       setWebCaptureUrl(url);
       setShowWebCapture(true);
       return;
@@ -228,7 +261,7 @@ export default function AddContactScreen() {
     setUrlMetadata(null);
     setIsFetchingMetadata(true);
     try {
-      const result = await fetchMetadata(url, Constants.userAgent ?? undefined);
+      const result = await fetchMetadata(url, USER_AGENT);
       setUrlMetadata(result);
     } catch (e) {
       console.warn("Metadata fetch failed:", e);
@@ -262,6 +295,7 @@ export default function AddContactScreen() {
     searchData?.status === 200 ? searchData.data.items : [];
 
   const handleContactSelect = (contact: (typeof availableContacts)[0]) => {
+    userEditedRef.current = true;
     setSelectedContact(contact);
     setAvatarMimeType(null);
     setSearchText(contact.name);
@@ -591,6 +625,7 @@ export default function AddContactScreen() {
                 placeholderTextColor={colors.textTertiary}
                 value={searchText}
                 onChangeText={(text) => {
+                  userEditedRef.current = true;
                   setSearchText(text);
                   setShowResults(true);
                   // Clear selection if user types
@@ -964,7 +999,10 @@ export default function AddContactScreen() {
                 placeholder="Add notes about this person..."
                 placeholderTextColor={colors.textTertiary}
                 value={notes}
-                onChangeText={setNotes}
+                onChangeText={(text) => {
+                  userEditedRef.current = true;
+                  setNotes(text);
+                }}
                 multiline
                 numberOfLines={4}
                 style={{

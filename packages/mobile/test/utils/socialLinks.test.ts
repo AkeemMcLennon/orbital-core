@@ -45,6 +45,10 @@ describe("detectChannelFromUrl", () => {
     it.each([
       "https://twitter.com/home",
       "https://www.instagram.com/p/abc123",
+      "https://www.instagram.com/reel/abc123",
+      "https://www.instagram.com/reels/abc123",
+      "https://www.instagram.com/tv/abc123",
+      "https://www.instagram.com/share/abc123",
       "https://github.com/orgs/anthropics",
       "https://www.facebook.com/groups/12345",
       "https://www.facebook.com/profile.php?id=123",

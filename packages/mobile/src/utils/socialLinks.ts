@@ -121,7 +121,7 @@ const DETECTORS: PlatformDetector[] = [
     hosts: ["instagram.com"],
     pattern: /^\/([^/]+)/,
     type: "instagram",
-    excluded: ["p", "reel", "stories", "explore"],
+    excluded: ["p", "reel", "reels", "stories", "tv", "share", "explore"],
   },
   {
     hosts: ["github.com"],
