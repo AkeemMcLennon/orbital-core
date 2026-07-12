@@ -18,16 +18,16 @@ export const IMPORT_SOURCES: ImportSourcePreview[] = [
   {
     icon: "link-outline",
     title: "Share a social link",
-    description: "Paste a LinkedIn, Instagram or X profile URL.",
+    description: "Paste a link from LinkedIn, Instagram, or X.",
   },
   {
     icon: "camera-outline",
     title: "Share a screenshot",
-    description: "A profile screenshot — we read the face and details.",
+    description: "Screenshot a profile and we'll read the face and details.",
   },
   {
     icon: "person-outline",
     title: "Share a contact card",
-    description: "Send a vCard (.vcf) straight from your phone.",
+    description: "Send a contact card (.vcf) straight from your phone.",
   },
 ];

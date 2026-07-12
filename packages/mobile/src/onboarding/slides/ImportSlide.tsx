@@ -11,8 +11,8 @@ import { SlideLayout } from "./SlideLayout";
 export function ImportSlide() {
   return (
     <SlideLayout
-      title="Add people by sharing"
-      subtitle="From any app, share a profile link, a screenshot, or a contact card — we'll turn it into a contact for you."
+      title="Adding people is easy"
+      subtitle="No typing required. Share a profile or screenshot and we'll fill in the details."
     >
       <View>
         {IMPORT_SOURCES.map((source) => (

@@ -17,8 +17,8 @@ export function MemoryRepsSlide() {
 
   return (
     <SlideLayout
-      title="Remember every face"
-      subtitle="Each new contact seeds quick quizzes — recognise their face and recall the notes you saved, so introductions actually stick."
+      title="Never forget a face"
+      subtitle="Every new contact turns into a quick quiz, so names and faces stick before you meet again."
       previewSpacing={previewSpacing}
     >
       <View>

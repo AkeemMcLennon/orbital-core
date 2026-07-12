@@ -14,7 +14,7 @@ export function WelcomeSlide() {
   return (
     <SlideLayout
       title="Welcome to Orbital"
-      subtitle="Your personal relationship manager. Keep the people who matter close — and never forget a face or a detail."
+      subtitle="Your personal relationship manager. Stay close to the people you care about, without letting anyone slip."
       previewSpacing={previewSpacing}
     >
       <View style={{ alignItems: "center" }}>

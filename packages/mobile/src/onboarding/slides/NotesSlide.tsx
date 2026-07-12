@@ -22,7 +22,7 @@ export function NotesSlide() {
   return (
     <SlideLayout
       title="Remember the details"
-      subtitle="Jot down notes about the people you meet — what you talked about, how you know them, what matters to them."
+      subtitle="Meet someone worth remembering? Jot down the details while they're still fresh."
     >
       <View
         style={{
