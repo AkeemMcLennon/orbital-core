@@ -23,6 +23,9 @@
     "production": {
       "ios": {
         "ascAppId": "REPLACE_WITH_YOUR_ASC_APP_ID"
+      },
+      "android": {
+        "track": "internal"
       }
     }
   }
