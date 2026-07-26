@@ -438,6 +438,17 @@ export default function AddContactScreen() {
     );
   };
 
+  // Reading the stack directly (rather than assuming a back entry exists) keeps
+  // dismissal working when this screen is the effective root — e.g. a cold-start
+  // share intent lands here via router.replace with nothing behind it.
+  const dismissToHome = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(main)");
+    }
+  };
+
   const handleAddContact = async () => {
     const name = selectedContact?.name || searchText.trim();
     if (!name || isSubmitting) return;
@@ -456,8 +467,9 @@ export default function AddContactScreen() {
             ? [{ type: detectedLink.type, value: detectedLink.value.trim() }]
             : undefined,
       });
-      if (sharedImageUri) {
-        // Eager background fetch so cache is populated when home screen mounts
+      if (sharedImageUri || !router.canGoBack()) {
+        // Landing on home (image share, or a cold-start share with no back
+        // entry): eagerly refetch so the cache is populated when it mounts.
         queryClient.refetchQueries({ queryKey: contactKeys.all });
         router.replace("/(main)");
       } else {
@@ -495,7 +507,7 @@ export default function AddContactScreen() {
           borderBottomColor: colors.border,
         }}
       >
-        <Pressable onPress={() => router.back()}>
+        <Pressable onPress={dismissToHome}>
           <Ionicons name="chevron-back" size={24} color={colors.textMain} />
         </Pressable>
         <Text
@@ -1034,7 +1046,7 @@ export default function AddContactScreen() {
           }}
         >
           <Pressable
-            onPress={() => router.back()}
+            onPress={dismissToHome}
             disabled={isSubmitting}
             style={{
               flex: 1,
