@@ -29,6 +29,7 @@
     "postinstall": "bun run gen",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "release:mobile": "bun ops/scripts/release-mobile.ts",
     "prepare": "husky"
   },
   "devDependencies": {
