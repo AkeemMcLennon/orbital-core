@@ -29,7 +29,10 @@ import { base58IdSchema } from "@orbital/utils";
 import { PaginationInputSchema, paginatedSchema } from "../utils/pagination";
 import { fivePointScaleSchema } from "../utils/scale";
 import { StorageService } from "../services/storage";
-import { generateRepsForNewContact } from "../services/memory-reps";
+import {
+  generateRepsForNewContact,
+  ensureIdentifyRep,
+} from "../services/memory-reps";
 import {
   assignStaticTags,
   replaceStaticTags,
@@ -622,6 +625,14 @@ export const updateContact = authProc
       await replaceContactLinks(db, contact.id, inputLinks);
     }
 
+    // A contact created from a local photo is born with avatarUrl = null; the
+    // background upload PUTs the public URL here, and that is the only moment
+    // an identify rep becomes possible for it. Idempotent, so firing on any
+    // avatarUrl write is safe.
+    if (patch.avatarUrl !== undefined) {
+      context.waitUntil(ensureIdentifyRep(db, contact));
+    }
+
     const existingPlainNotes =
       contact.notes && !contact.notesEncrypted ? contact.notes : null;
 
@@ -1142,6 +1153,13 @@ async function applyMergeIntoDestination(
       )
       .returning();
     updatedDest = updated ?? destination;
+  }
+
+  // A merge can hand the destination its first avatar (copy-if-empty above),
+  // and no merge path generates reps otherwise. Must use updatedDest —
+  // destination.avatarUrl is still null, which is why patch.avatarUrl is set.
+  if (patch.avatarUrl) {
+    waitUntil(ensureIdentifyRep(db, updatedDest));
   }
 
   if (mergedStaticTagNames) {

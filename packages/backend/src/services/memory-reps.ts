@@ -10,6 +10,7 @@ import {
   parseNameParts,
 } from "gender-name";
 import { getAI } from "./llm";
+import { getPreferenceValue, PrefKey } from "./preferences";
 import { settings } from "../config";
 import { crypto } from "../utils/crypto";
 
@@ -243,22 +244,23 @@ export async function generateMemoryReps(
     return { generated: 0, contactsUsed: 0, items: [] };
   }
 
-  // Shuffle and randomly split contacts between detail and identify sources
-  const shuffled = shuffle([...eligibleContacts]);
-  const splitAt = Math.floor(Math.random() * (shuffled.length + 1));
-  const detailPool = shuffled.slice(0, splitAt);
-  const identifyPool = shuffled.slice(splitAt);
+  // Every contact contributes to every pool it qualifies for, so notes + avatar
+  // yields both a detail and an identify rep. The previous random split sent
+  // each contact to exactly one pool, which starved identify reps whenever the
+  // split landed badly — and could empty the identify pool entirely.
+  const contactsWithNotes = eligibleContacts
+    .map((c) => decryptNotes(c, userId))
+    .filter((c) => c.notes);
 
   // Generate LLM-based detail questions
-  const decryptedDetailPool = detailPool.map((c) => decryptNotes(c, userId));
-  const contactsWithNotes = decryptedDetailPool.filter((c) => c.notes);
   const detailInserts = await generateDetailQuestions(
     contactsWithNotes,
     userId,
   );
 
-  // Generate deterministic identify questions
-  const identifyInserts = generateIdentifyQuestions(identifyPool, userId);
+  // Generate deterministic identify questions. Contacts without an avatar are
+  // dropped inside generateIdentifyQuestions.
+  const identifyInserts = generateIdentifyQuestions(eligibleContacts, userId);
 
   const toInsert = [...detailInserts, ...identifyInserts];
 
@@ -358,4 +360,59 @@ export async function generateRepsForNewContact(
   if (toInsert.length > 0) {
     await db.insert(memoryReps).values(toInsert);
   }
+}
+
+/**
+ * Ensure a contact with an avatar has an identify ("Who is this person?") rep.
+ *
+ * Contacts created from a local photo (camera, gallery, vCard, device import)
+ * are inserted with avatarUrl = null and only receive one on a later
+ * updateContact, once the background upload finishes — so creation-time
+ * generation cannot produce their identify rep. This is the catch-up path.
+ *
+ * Idempotent: a contact only ever gets one identify rep from here, so
+ * replacing an avatar doesn't pile up reps. Two *concurrent* avatarUrl writes
+ * could still both pass the existence check and double-insert; the client
+ * uploads sequentially so this isn't reachable in practice, and closing it
+ * properly needs a partial unique index (migration) rather than a wider read.
+ *
+ * TODO: notes have the symmetric gap — adding notes to an existing contact
+ * never generates a detail rep, and the 6-month cooldown then hides it.
+ */
+export async function ensureIdentifyRep(
+  db: DatabaseClient,
+  contact: Contact,
+): Promise<void> {
+  if (!contact.avatarUrl) return;
+
+  const [existing] = await db
+    .select()
+    .from(memoryReps)
+    .where(
+      and(
+        eq(memoryReps.userId, contact.userId),
+        eq(memoryReps.contactId, contact.id),
+        eq(memoryReps.questionType, "identify"),
+      ),
+    )
+    .limit(1);
+
+  if (existing) return;
+
+  // Looked up here rather than passed in: this whole call runs under
+  // waitUntil, so the request path shouldn't pay for the query.
+  const delayHours = await getPreferenceValue(
+    db,
+    contact.userId,
+    PrefKey.MemRepInitialDelayHours,
+  );
+  const schedule = new Date(Date.now() + delayHours * 3600000);
+
+  await db.insert(memoryReps).values(
+    // Non-empty: the avatarUrl check above is the predicate this filters on.
+    generateIdentifyQuestions([contact], contact.userId).map((q) => ({
+      ...q,
+      scheduledFor: schedule,
+    })),
+  );
 }

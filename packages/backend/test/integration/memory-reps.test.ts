@@ -3,6 +3,7 @@ import {
   generateMemoryReps,
   answerMemoryRep,
   createContact,
+  updateContact,
   updatePreferences,
   initializeApiClient,
   getSuccessData,
@@ -21,7 +22,6 @@ import {
   describe,
   expect,
   it,
-  spyOn,
 } from "bun:test";
 import { crypto } from "../../src/utils/crypto";
 import { parseNameParts } from "gender-name";
@@ -236,6 +236,36 @@ describe.skipIf(!HAS_LLM)("Memory Reps E2E (real LLM)", () => {
     expect(answerData.correct).toBe(true);
     expect(answerData.correctAnswer).toBe(rep.correctAnswer);
   }, 30000); // LLM calls can be slow
+
+  it("gives a contact with both notes and an avatar a detail rep AND an identify rep", async () => {
+    // A single contact is the sharpest case: a contact must contribute to
+    // every pool it qualifies for, not be assigned to exactly one of them.
+    await seedRichContact(db, "llm-user", {
+      name: "Priya Raman",
+      notes:
+        "Met at Web Summit 2023. Runs marathons and roasts her own coffee.",
+      avatarUrl: "https://example.com/priya.jpg",
+    });
+
+    const res = await generateMemoryReps({});
+    expect(res.status).toBe(200);
+    const data = getSuccessData(res)!;
+
+    expect(data.contactsUsed).toBe(1);
+    expect(data.items.map((i) => i.questionType).sort()).toEqual([
+      "detail",
+      "identify",
+    ]);
+
+    const identify = data.items.find((i) => i.questionType === "identify")!;
+    expect(identify.question).toBe("Who is this person?");
+    expect(identify.options[identify.correctAnswer]).toBe("Priya");
+    expect(identify.contactAvatarUrl).toBe("https://example.com/priya.jpg");
+
+    const detail = data.items.find((i) => i.questionType === "detail")!;
+    expect(detail.options).toHaveLength(4);
+    expect(detail.question).not.toBe("Who is this person?");
+  }, 30000);
 });
 
 // ─── Unit Tests (no LLM) ────────────────────────────────────────────────
@@ -494,14 +524,9 @@ describe("Memory Reps API (unit)", () => {
         notes: "Works at Acme Corp.",
       });
 
-      // Force all contacts into detailPool (splitAt = contactCount) so LLM is invoked
-      const spy = spyOn(Math, "random").mockReturnValue(0.9999);
-      try {
-        const response = await generateMemoryReps({});
-        expect(response.status).toBe(400);
-      } finally {
-        spy.mockRestore();
-      }
+      // Any contact with notes reaches the LLM, so this is deterministic.
+      const response = await generateMemoryReps({});
+      expect(response.status).toBe(400);
     });
 
     it("should generate identify questions without LLM when contacts have avatars", async () => {
@@ -513,31 +538,23 @@ describe("Memory Reps API (unit)", () => {
         });
       }
 
-      // Force all contacts into identifyPool (splitAt = 0)
-      const spy = spyOn(Math, "random").mockReturnValue(0);
-      try {
-        const response = await generateMemoryReps({});
-        const data = getSuccessData(response);
-        if (!data) throw new Error("No data");
+      const response = await generateMemoryReps({});
+      const data = getSuccessData(response);
+      if (!data) throw new Error("No data");
 
-        expect(data.generated).toBe(4);
-        expect(data.items.every((i) => i.questionType === "identify")).toBe(
-          true,
-        );
-        expect(
-          data.items.every((i) => i.question === "Who is this person?"),
-        ).toBe(true);
-        for (const item of data.items) {
-          // Correct answer option is the contact's first name
-          const expectedFirst =
-            parseNameParts(item.contactName).firstName ?? item.contactName;
-          expect(item.options[item.correctAnswer]).toBe(expectedFirst);
-          // There are wrong answers that are NOT the correct answer
-          const wrongOptions = item.options.filter((o) => o !== expectedFirst);
-          expect(wrongOptions.length).toBeGreaterThan(0);
-        }
-      } finally {
-        spy.mockRestore();
+      expect(data.generated).toBe(4);
+      expect(data.items.every((i) => i.questionType === "identify")).toBe(true);
+      expect(
+        data.items.every((i) => i.question === "Who is this person?"),
+      ).toBe(true);
+      for (const item of data.items) {
+        // Correct answer option is the contact's first name
+        const expectedFirst =
+          parseNameParts(item.contactName).firstName ?? item.contactName;
+        expect(item.options[item.correctAnswer]).toBe(expectedFirst);
+        // There are wrong answers that are NOT the correct answer
+        const wrongOptions = item.options.filter((o) => o !== expectedFirst);
+        expect(wrongOptions.length).toBeGreaterThan(0);
       }
     });
 
@@ -548,24 +565,16 @@ describe("Memory Reps API (unit)", () => {
         avatarUrl: "https://example.com/alice.jpg",
       });
 
-      // Force into identifyPool
-      const spy = spyOn(Math, "random").mockReturnValue(0);
-      try {
-        const response = await generateMemoryReps({});
-        const data = getSuccessData(response);
-        if (!data) throw new Error("No data");
+      const response = await generateMemoryReps({});
+      const data = getSuccessData(response);
+      if (!data) throw new Error("No data");
 
-        expect(data.generated).toBe(1);
-        // Correct answer is within options
-        expect(data.items[0].options[data.items[0].correctAnswer]).toBe(
-          "Alice",
-        );
-        // There are wrong answers that are NOT the correct answer
-        const wrongOptions = data.items[0].options.filter((o) => o !== "Alice");
-        expect(wrongOptions.length).toBeGreaterThan(0);
-      } finally {
-        spy.mockRestore();
-      }
+      expect(data.generated).toBe(1);
+      // Correct answer is within options
+      expect(data.items[0].options[data.items[0].correctAnswer]).toBe("Alice");
+      // There are wrong answers that are NOT the correct answer
+      const wrongOptions = data.items[0].options.filter((o) => o !== "Alice");
+      expect(wrongOptions.length).toBeGreaterThan(0);
     });
 
     it("should only generate identify questions for contacts with avatars", async () => {
@@ -581,22 +590,14 @@ describe("Memory Reps API (unit)", () => {
       await seedRichContact(db, "user-1", { name: "Charlie" });
       await seedRichContact(db, "user-1", { name: "Diana" });
 
-      // Force all contacts into identifyPool
-      const spy = spyOn(Math, "random").mockReturnValue(0);
-      try {
-        const response = await generateMemoryReps({});
-        const data = getSuccessData(response);
-        if (!data) throw new Error("No data");
+      const response = await generateMemoryReps({});
+      const data = getSuccessData(response);
+      if (!data) throw new Error("No data");
 
-        // Should generate identify only for the 2 with avatars
-        expect(data.items).toHaveLength(2);
-        expect(data.items.every((i) => i.questionType === "identify")).toBe(
-          true,
-        );
-        expect(data.items.every((i) => i.contactAvatarUrl !== null)).toBe(true);
-      } finally {
-        spy.mockRestore();
-      }
+      // Should generate identify only for the 2 with avatars
+      expect(data.items).toHaveLength(2);
+      expect(data.items.every((i) => i.questionType === "identify")).toBe(true);
+      expect(data.items.every((i) => i.contactAvatarUrl !== null)).toBe(true);
     });
 
     it("should include correct name in identify question options", async () => {
@@ -607,30 +608,24 @@ describe("Memory Reps API (unit)", () => {
         });
       }
 
-      // Force all contacts into identifyPool
-      const spy = spyOn(Math, "random").mockReturnValue(0);
-      try {
-        const response = await generateMemoryReps({});
-        const data = getSuccessData(response);
-        if (!data) throw new Error("No data");
+      const response = await generateMemoryReps({});
+      const data = getSuccessData(response);
+      if (!data) throw new Error("No data");
 
-        expect(data.items.length).toBeGreaterThan(0);
-        for (const item of data.items) {
-          // Correct answer option is the contact's first name
-          const expectedFirst =
-            parseNameParts(item.contactName).firstName ?? item.contactName;
-          expect(item.options[item.correctAnswer]).toBe(expectedFirst);
-          // All options should be non-empty strings
-          for (const opt of item.options) {
-            expect(typeof opt).toBe("string");
-            expect(opt.length).toBeGreaterThan(0);
-          }
-          // There are wrong answers that are NOT the correct answer
-          const wrongOptions = item.options.filter((o) => o !== expectedFirst);
-          expect(wrongOptions.length).toBeGreaterThan(0);
+      expect(data.items.length).toBeGreaterThan(0);
+      for (const item of data.items) {
+        // Correct answer option is the contact's first name
+        const expectedFirst =
+          parseNameParts(item.contactName).firstName ?? item.contactName;
+        expect(item.options[item.correctAnswer]).toBe(expectedFirst);
+        // All options should be non-empty strings
+        for (const opt of item.options) {
+          expect(typeof opt).toBe("string");
+          expect(opt.length).toBeGreaterThan(0);
         }
-      } finally {
-        spy.mockRestore();
+        // There are wrong answers that are NOT the correct answer
+        const wrongOptions = item.options.filter((o) => o !== expectedFirst);
+        expect(wrongOptions.length).toBeGreaterThan(0);
       }
     });
 
@@ -643,10 +638,7 @@ describe("Memory Reps API (unit)", () => {
         });
       }
 
-      // Force all contacts into identifyPool
-      const spy = spyOn(Math, "random").mockReturnValue(0);
       const genRes = await generateMemoryReps({});
-      spy.mockRestore();
       const genData = getSuccessData(genRes);
       if (!genData) throw new Error("No data");
       expect(genData.items.length).toBeGreaterThanOrEqual(2);
@@ -858,6 +850,121 @@ describe("Memory Reps API (unit)", () => {
       expect(futureRep).toBeUndefined();
     });
   });
+
+  // The mobile client creates the contact first and uploads a local photo
+  // afterwards (createContactWithAvatar -> backgroundUploadAvatar ->
+  // updateContact), so the row is born with avatarUrl = null and rep
+  // generation only ran at creation time — these contacts never got a
+  // "Who is this person?" rep.
+  describe("Identify reps when the avatar arrives after creation", () => {
+    async function repsFor(contactId: string) {
+      return db
+        .select()
+        .from(schema.memoryReps)
+        .where(eq(schema.memoryReps.contactId, contactId));
+    }
+
+    // Rep generation runs under waitUntil (fire-and-forget), so poll rather
+    // than guessing a sleep duration; returns whatever it has at the deadline.
+    async function waitForReps(
+      contactId: string,
+      done: (reps: Awaited<ReturnType<typeof repsFor>>) => boolean,
+      timeoutMs = 3000,
+    ) {
+      const deadline = Date.now() + timeoutMs;
+      for (;;) {
+        const reps = await repsFor(contactId);
+        if (done(reps) || Date.now() > deadline) return reps;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    }
+
+    it("creates an identify rep when the avatar is uploaded after the contact is created", async () => {
+      // 1. Contact created with no avatar — the local photo hasn't uploaded yet.
+      const createRes = await createContact({ name: "Nadia" });
+      expect(createRes.status).toBe(200);
+      const contact = getSuccessData(createRes)!;
+      expect(contact.avatarUrl).toBeNull();
+
+      // Creation-time generation cannot produce an identify rep here.
+      await new Promise((r) => setTimeout(r, 200));
+      const atCreate = await repsFor(contact.id);
+      expect(
+        atCreate.filter((r) => r.questionType === "identify"),
+      ).toHaveLength(0);
+
+      // 2. The background upload finishes and PUTs the public URL.
+      const updateRes = await updateContact(contact.id, {
+        avatarUrl: "https://cdn.example.com/avatars/nadia.jpg",
+      });
+      expect(updateRes.status).toBe(200);
+
+      // 3. That must now produce the identify rep.
+      const reps = await waitForReps(contact.id, (r) =>
+        r.some((x) => x.questionType === "identify"),
+      );
+      const identify = reps.filter((r) => r.questionType === "identify");
+      expect(identify).toHaveLength(1);
+      expect(identify[0]!.question).toBe("Who is this person?");
+      expect(identify[0]!.sourceField).toBe("avatar");
+      expect(identify[0]!.options[identify[0]!.correctAnswer]).toBe("Nadia");
+      expect(identify[0]!.scheduledFor).not.toBeNull();
+    });
+
+    it("surfaces the late-avatar identify rep through GET /memory-reps", async () => {
+      // 0-hour delay so the rep is immediately listable.
+      const prefRes = await updatePreferences({ memRepInitialDelayHours: 0 });
+      expect(prefRes.status).toBe(200);
+
+      const contact = getSuccessData(await createContact({ name: "Oskar" }))!;
+      await updateContact(contact.id, {
+        avatarUrl: "https://cdn.example.com/avatars/oskar.jpg",
+      });
+      await waitForReps(contact.id, (r) => r.length > 0);
+
+      const listData = getSuccessData(await getMemoryReps())!;
+      const items = listData.items.filter((i) => i.contactId === contact.id);
+      expect(items).toHaveLength(1);
+      expect(items[0]!.questionType).toBe("identify");
+      expect(items[0]!.contactAvatarUrl).toBe(
+        "https://cdn.example.com/avatars/oskar.jpg",
+      );
+    });
+
+    it("does not create a second identify rep when the avatar is replaced", async () => {
+      const contact = getSuccessData(await createContact({ name: "Priya" }))!;
+
+      await updateContact(contact.id, {
+        avatarUrl: "https://cdn.example.com/avatars/priya-1.jpg",
+      });
+      await waitForReps(contact.id, (r) => r.length > 0);
+
+      await updateContact(contact.id, {
+        avatarUrl: "https://cdn.example.com/avatars/priya-2.jpg",
+      });
+      await new Promise((r) => setTimeout(r, 300));
+
+      const reps = await repsFor(contact.id);
+      expect(reps.filter((r) => r.questionType === "identify")).toHaveLength(1);
+    });
+
+    it("creates exactly one identify rep when the contact is created with a remote avatar", async () => {
+      // Google-imported contacts carry an https:// photo URL, so the avatar is
+      // present at insert time and generateRepsForNewContact makes the rep.
+      // It must stay the sole owner on this path — a second trigger here (e.g.
+      // hanging ensureIdentifyRep off the shared write tail) would race it and
+      // double-insert, since generateRepsForNewContact's insert is unguarded.
+      const contact = getSuccessData(
+        await createContact({
+          name: "Quentin",
+          avatarUrl: "https://cdn.example.com/avatars/quentin.jpg",
+        }),
+      )!;
+
+      const reps = await waitForReps(contact.id, (r) => r.length > 0);
+      expect(reps.filter((r) => r.questionType === "identify")).toHaveLength(1);
+    });
+  });
 });
 
 // ─── Encryption Tests ───────────────────────────────────────────────────────
@@ -948,19 +1055,14 @@ describe("Memory Reps: notes decrypted before LLM", () => {
       }),
     );
 
-    // Force the contact into detailPool so generateDetailQuestions is reached.
-    const randomSpy = spyOn(Math, "random").mockReturnValue(0.9999);
-    try {
-      const response = await generateMemoryReps({});
-      expect(response.status).toBe(200);
-      // The request that hit the wire must carry the plaintext notes,
-      // never the raw ciphertext.
-      expect(mockLLM.requests.length).toBeGreaterThan(0);
-      const wirePayload = JSON.stringify(mockLLM.requests);
-      expect(wirePayload).toContain(PLAINTEXT_NOTES);
-      expect(wirePayload).not.toContain(encryptedNotes);
-    } finally {
-      randomSpy.mockRestore();
-    }
+    // Having notes is enough to reach generateDetailQuestions.
+    const response = await generateMemoryReps({});
+    expect(response.status).toBe(200);
+    // The request that hit the wire must carry the plaintext notes,
+    // never the raw ciphertext.
+    expect(mockLLM.requests.length).toBeGreaterThan(0);
+    const wirePayload = JSON.stringify(mockLLM.requests);
+    expect(wirePayload).toContain(PLAINTEXT_NOTES);
+    expect(wirePayload).not.toContain(encryptedNotes);
   });
 });
