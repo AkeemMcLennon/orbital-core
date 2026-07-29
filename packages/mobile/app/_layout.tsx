@@ -189,6 +189,7 @@ function AuthGate() {
       <Stack.Screen name="tags/[id]" />
       <Stack.Screen name="contacts/import" />
       <Stack.Screen name="settings" />
+      <Stack.Screen name="memory-rep-frequency" />
       <Stack.Screen name="developer-options" />
     </Stack>
   );

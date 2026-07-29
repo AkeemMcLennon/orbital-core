@@ -65,6 +65,39 @@ export default function SettingsScreen() {
       {/* Settings List */}
       <View style={{ paddingTop: spacing.md }}>
         <Pressable
+          onPress={() => router.push("/memory-rep-frequency")}
+          style={({ pressed }) => ({
+            flexDirection: "row",
+            alignItems: "center",
+            paddingHorizontal: spacing.lg,
+            paddingVertical: spacing.md,
+            backgroundColor: pressed ? colors.border : colors.bg,
+          })}
+        >
+          <View
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: borderRadius.sm,
+              backgroundColor: colors.primary + "20",
+              alignItems: "center",
+              justifyContent: "center",
+              marginRight: spacing.md,
+            }}
+          >
+            <Ionicons name="timer-outline" size={20} color={colors.primary} />
+          </View>
+          <Text style={{ flex: 1, fontSize: 16, color: colors.textMain }}>
+            Memory Rep Frequency
+          </Text>
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={colors.textTertiary}
+          />
+        </Pressable>
+
+        <Pressable
           onPress={() => router.push("/developer-options")}
           style={({ pressed }) => ({
             flexDirection: "row",
