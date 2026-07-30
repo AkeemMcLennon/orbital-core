@@ -17,16 +17,19 @@
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+        "LSSupportsOpeningDocumentsInPlace": false,
         "CFBundleDocumentTypes": [
           {
             "CFBundleTypeName": "URL",
             "LSItemContentTypes": ["public.url"],
-            "CFBundleTypeRole": "Viewer"
+            "CFBundleTypeRole": "Viewer",
+            "LSHandlerRank": "Alternate"
           },
           {
             "CFBundleTypeName": "vCard",
             "LSItemContentTypes": ["public.vcard", "com.apple.contact"],
-            "CFBundleTypeRole": "Viewer"
+            "CFBundleTypeRole": "Viewer",
+            "LSHandlerRank": "Alternate"
           }
         ]
       }
