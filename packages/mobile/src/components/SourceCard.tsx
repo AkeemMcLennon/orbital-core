@@ -1,10 +1,29 @@
 import React from "react";
-import { View, Text, Pressable, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  ActivityIndicator,
+  Image,
+  type ImageSourcePropType,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, shadows, typography } from "../theme";
 
 interface SourceCardProps {
-  icon: keyof typeof Ionicons.glyphMap;
+  /** Ionicons glyph for the tile. Ignored when `logo` is set. */
+  icon?: keyof typeof Ionicons.glyphMap;
+  /**
+   * Vendor logo artwork, rendered instead of `icon` on a white tile. Use this for any
+   * provider whose branding guidelines forbid a redrawn or recolored mark — e.g. Google,
+   * whose "G" must be the unmodified full-color artwork on a white background. See
+   * assets/images/README.md.
+   */
+  logo?: ImageSourcePropType;
+  /** Height of `logo`; defaults to the Ionicons size so the tiles stay consistent. */
+  logoSize?: number;
+  /** Aspect ratio of `logo` — vendor artwork is often not square. */
+  logoAspectRatio?: number;
   title: string;
   description: string;
   onPress?: () => void;
@@ -20,6 +39,9 @@ interface SourceCardProps {
  */
 export function SourceCard({
   icon,
+  logo,
+  logoSize = 22,
+  logoAspectRatio = 1,
   title,
   description,
   onPress,
@@ -49,7 +71,9 @@ export function SourceCard({
           width: 44,
           height: 44,
           borderRadius: borderRadius.md,
-          backgroundColor: colors.primaryLight,
+          // Vendor artwork sits on white — Google's guidelines require it, and the tinted
+          // primaryLight tile would violate them.
+          backgroundColor: logo ? "#FFFFFF" : colors.primaryLight,
           alignItems: "center",
           justifyContent: "center",
           marginRight: spacing.md,
@@ -57,9 +81,19 @@ export function SourceCard({
       >
         {isLoading ? (
           <ActivityIndicator size="small" color={colors.primary} />
-        ) : (
+        ) : logo ? (
+          <Image
+            source={logo}
+            // Both dimensions explicit: `height` + `aspectRatio` does not constrain an
+            // <Image> that has intrinsic dimensions — it stretches to fill instead.
+            style={{ width: logoSize * logoAspectRatio, height: logoSize }}
+            resizeMode="contain"
+            // Without this, iOS Smart Invert recolors the mark.
+            accessibilityIgnoresInvertColors
+          />
+        ) : icon ? (
           <Ionicons name={icon} size={22} color={iconColor ?? colors.primary} />
-        )}
+        ) : null}
       </View>
       <View style={{ flex: 1 }}>
         <Text

@@ -127,7 +127,7 @@ export async function createAuth(env: Env) {
       "orbital://",
       "exp://",
       "https://appleid.apple.com",
-      "https://app.orbital.diy",
+      "https://app.example.com",
       ...(env.TRUSTED_ORIGINS?.split(",")
         .map((o) => o.trim())
         .filter(Boolean) ?? []),

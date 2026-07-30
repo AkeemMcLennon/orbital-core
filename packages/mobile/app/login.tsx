@@ -14,6 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "tamagui";
 import { useAuthContext } from "../src/contexts/AuthContext";
+import { AppleSignInButton, GoogleSignInButton } from "../src/components";
 import {
   colors,
   spacing,
@@ -86,6 +87,13 @@ export default function AuthScreen() {
     const err = await signUpWithEmail(name.trim(), email.trim(), password);
     if (err) setError(err.message);
   }
+
+  const appleButton = (
+    <AppleSignInButton onPress={signInWithApple} disabled={isLoading} />
+  );
+  const googleButton = (
+    <GoogleSignInButton onPress={signInWithGoogle} disabled={isLoading} />
+  );
 
   return (
     <KeyboardAvoidingView
@@ -352,72 +360,14 @@ export default function AuthScreen() {
           />
         </View>
 
+        {/*
+          Apple first on iOS: its HIG asks that the Sign in with Apple button be no smaller
+          than other sign-in buttons and not require scrolling to reach. Both buttons are
+          identical in size, and leading the list is the cheapest way to honour the rest.
+        */}
         <View style={{ gap: spacing.sm }}>
-          <Pressable
-            onPress={signInWithGoogle}
-            disabled={isLoading}
-            style={({ pressed }) => ({
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              borderWidth: 1,
-              borderColor: colors.border,
-              paddingVertical: spacing.md,
-              borderRadius: borderRadius.lg,
-              opacity: pressed || isLoading ? 0.6 : 1,
-              backgroundColor: colors.card,
-              ...shadows.sm,
-            })}
-          >
-            <Ionicons
-              name="logo-google"
-              size={20}
-              color="#4285F4"
-              style={{ marginRight: spacing.sm }}
-            />
-            <Text
-              style={{
-                fontSize: typography.base,
-                fontWeight: "500",
-                color: colors.textMain,
-              }}
-            >
-              Continue with Google
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={signInWithApple}
-            disabled={isLoading}
-            style={({ pressed }) => ({
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              borderWidth: 1,
-              borderColor: colors.border,
-              paddingVertical: spacing.md,
-              borderRadius: borderRadius.lg,
-              opacity: pressed || isLoading ? 0.6 : 1,
-              backgroundColor: colors.card,
-              ...shadows.sm,
-            })}
-          >
-            <Ionicons
-              name="logo-apple"
-              size={20}
-              color={colors.textMain}
-              style={{ marginRight: spacing.sm }}
-            />
-            <Text
-              style={{
-                fontSize: typography.base,
-                fontWeight: "500",
-                color: colors.textMain,
-              }}
-            >
-              Continue with Apple
-            </Text>
-          </Pressable>
+          {Platform.OS === "ios" ? appleButton : googleButton}
+          {Platform.OS === "ios" ? googleButton : appleButton}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

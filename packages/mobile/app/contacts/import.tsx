@@ -313,13 +313,17 @@ export default function ImportContactsScreen() {
             onPress={handleSelectDeviceContacts}
           />
 
-          {/* Google Contacts */}
+          {/*
+            Google Contacts. This card opens a real Google OAuth consent screen, so it falls
+            under Google's branding guidelines: the "G" must be the unmodified full-color
+            artwork on a white background. See assets/images/README.md.
+          */}
           <SourceCard
-            icon="logo-google"
+            logo={require("../../assets/images/google-g-logo.png")}
+            logoAspectRatio={200 / 204}
             title="Google Contacts"
             description="Connect your Google account to sync contacts."
             onPress={handleGoogleConnect}
-            iconColor="#4285F4"
           />
         </View>
       </SafeAreaView>
