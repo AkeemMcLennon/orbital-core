@@ -1,7 +1,6 @@
 import React from "react";
 import { View } from "react-native";
 import { QuizCard } from "../../components/QuizCard";
-import { useResponsivePreviewSpacing } from "../useResponsivePreviewSpacing";
 import { SlideLayout } from "./SlideLayout";
 
 // Stock photo so the preview shows a face instead of an initials fallback.
@@ -13,13 +12,10 @@ const EXAMPLE_AVATAR_URL = "https://i.pravatar.cc/300?img=47";
  * their face and the notes you save.
  */
 export function MemoryRepsSlide() {
-  const previewSpacing = useResponsivePreviewSpacing();
-
   return (
     <SlideLayout
       title="Never forget a face"
       subtitle="Every new contact turns into a quick quiz, so names and faces stick before you meet again."
-      previewSpacing={previewSpacing}
     >
       <View>
         <QuizCard
