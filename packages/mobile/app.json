@@ -79,7 +79,7 @@
       [
         "expo-share-intent",
         {
-          "iosActivationRules": "SUBQUERY(extensionItems, $extensionItem, SUBQUERY($extensionItem.attachments, $attachment, ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO \"public.vcard\" || ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO \"public.image\" || ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO \"public.url\" || ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO \"public.plain-text\" || ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO \"com.apple.property-list\").@count >= 1).@count > 0",
+          "iosActivationRules": "SUBQUERY(extensionItems, $extensionItem, (SUBQUERY($extensionItem.attachments, $attachment, ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO \"public.vcard\" || ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO \"public.contact\" || ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO \"com.apple.contact\" || ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO \"public.image\" || ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO \"public.url\" || ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO \"public.plain-text\" || ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO \"com.apple.property-list\").@count >= 1 || $extensionItem.attachments.@count >= 1)).@count > 0",
           "androidMainActivityAttributes": {
             "android:launchMode": "singleTask"
           },
