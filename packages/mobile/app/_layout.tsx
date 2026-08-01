@@ -127,7 +127,7 @@ function AuthGate() {
     } else {
       Alert.alert(
         "Unsupported share",
-        "Only images and links can be added as contacts.",
+        "Only contact cards, images, and links can be added as contacts.",
       );
     }
   }, [isAuthenticated, shareIntent]);
