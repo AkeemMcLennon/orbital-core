@@ -17,6 +17,10 @@
       "distribution": "store",
       "autoIncrement": true,
       "channel": "production"
+    },
+    "beta": {
+      "extends": "production",
+      "channel": "beta"
     }
   },
   "submit": {
