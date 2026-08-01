@@ -79,13 +79,7 @@
       [
         "expo-share-intent",
         {
-          "iosActivationRules": {
-            "NSExtensionActivationSupportsText": true,
-            "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
-            "NSExtensionActivationSupportsWebPageWithMaxCount": 1,
-            "NSExtensionActivationSupportsImageWithMaxCount": 1,
-            "NSExtensionActivationSupportsFileWithMaxCount": 1
-          },
+          "iosActivationRules": "SUBQUERY(extensionItems, $extensionItem, SUBQUERY($extensionItem.attachments, $attachment, ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO \"public.vcard\" || ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO \"public.image\" || ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO \"public.url\" || ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO \"public.plain-text\" || ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO \"com.apple.property-list\").@count >= 1).@count > 0",
           "androidMainActivityAttributes": {
             "android:launchMode": "singleTask"
           },
