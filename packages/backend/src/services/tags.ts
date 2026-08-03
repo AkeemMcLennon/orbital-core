@@ -8,6 +8,19 @@ import { crypto } from "../utils/crypto";
 
 export const CONSTANT_TAGS = ["Personal", "Professional", "Family"];
 
+// Cloudflare D1 caps bound parameters per query (~100). Keep batches under it:
+// inArray binds one param per value; tag and contact_tag inserts bind three
+// columns/row (tags: generated id + user_id + name).
+const ID_BATCH = 90;
+const ROW_BATCH = 30;
+
+export function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size)
+    out.push(items.slice(i, i + size));
+  return out;
+}
+
 const tagSignature = f()
   .input(
     "notes",
@@ -39,27 +52,53 @@ const tagSignature = f()
   )
   .build();
 
+/**
+ * Upsert the given tag names for a user and return name → id, keyed by the
+ * *trimmed* name (names are trimmed and blanks dropped before resolving, so
+ * callers must look up with `name.trim()` too).
+ *
+ * Returned as a Map rather than an array on purpose: an array invites zipping
+ * ids against the caller's un-normalized name list, which silently misaligns
+ * whenever trimming/dedup/lookup-failure shrinks the resolved set.
+ *
+ * Both halves are set-based. Resolving one name at a time would cost two
+ * queries per name — a 500-contact import with a distinct tag each would issue
+ * a thousand round trips in a single request, blowing the time budget after the
+ * contacts are already written. Batched, the same payload costs ~23.
+ */
+export async function resolveTagIdMap(
+  db: DatabaseClient,
+  userId: string,
+  names: string[],
+): Promise<Map<string, string>> {
+  const idByName = new Map<string, string>();
+  const uniqueNames = [...new Set(names.map((n) => n.trim()).filter(Boolean))];
+  if (uniqueNames.length === 0) return idByName;
+
+  for (const batch of chunk(uniqueNames, ROW_BATCH)) {
+    await db
+      .insert(tags)
+      .values(batch.map((name) => ({ userId, name })))
+      .onConflictDoNothing();
+  }
+
+  for (const batch of chunk(uniqueNames, ID_BATCH)) {
+    const rows = await db
+      .select()
+      .from(tags)
+      .where(and(eq(tags.userId, userId), inArray(tags.name, batch)));
+    for (const row of rows) idByName.set(row.name, row.id);
+  }
+  return idByName;
+}
+
 async function resolveTagIds(
   db: DatabaseClient,
   userId: string,
   names: string[],
 ): Promise<string[]> {
   if (names.length === 0) return [];
-
-  const uniqueNames = [...new Set(names.map((n) => n.trim()).filter(Boolean))];
-  const ids: string[] = [];
-  for (const name of uniqueNames) {
-    await db.insert(tags).values({ userId, name }).onConflictDoNothing();
-
-    const [row] = await db
-      .select()
-      .from(tags)
-      .where(and(eq(tags.userId, userId), eq(tags.name, name)))
-      .limit(1);
-
-    if (row) ids.push(row.id);
-  }
-  return ids;
+  return [...(await resolveTagIdMap(db, userId, names)).values()];
 }
 
 export { resolveTagIds };
@@ -281,18 +320,6 @@ export async function deriveContactFields(
 }
 
 export type NotedContact = { id: string; notes: string };
-
-// Cloudflare D1 caps bound parameters per query (~100). Keep batches under it:
-// inArray binds one param per id; contact_tags inserts bind three columns/row.
-const ID_BATCH = 90;
-const ROW_BATCH = 30;
-
-function chunk<T>(items: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += size)
-    out.push(items.slice(i, i + size));
-  return out;
-}
 
 /**
  * Decrypt a contact's notes, tolerating a single corrupt/undecryptable row

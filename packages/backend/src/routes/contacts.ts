@@ -36,13 +36,16 @@ import {
 import {
   assignStaticTags,
   replaceStaticTags,
+  resolveTagIdMap,
   fetchContactTags,
   generateDynamicTagsForContact,
   deriveContactFields,
+  chunk,
 } from "../services/tags";
 import { deriveContactRelationships } from "../services/relationships";
 import type { WaitUntil } from "../utils/wait-until";
 import { randomUUID } from "node:crypto";
+import { generateId } from "../database/custom-types";
 import { crypto } from "../utils/crypto";
 import { settings } from "../config";
 import { extractContactFromImage } from "../services/contact-extract";
@@ -144,9 +147,21 @@ async function fetchContactLinks(db: DatabaseClient, contactId: string) {
 }
 
 /**
+ * Drop repeats within one contact's links: the (contactId, type, value) unique
+ * constraint would otherwise abort the whole insert.
+ */
+function dedupeLinks(links: Array<z.infer<typeof ContactLinkInputSchema>>) {
+  const seen = new Set<string>();
+  return links.filter((l) => {
+    const key = `${l.type} ${l.value}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
  * Replace all social-typed channels for a contact with the given set.
- * Input is deduped first: the (contactId, type, value) unique constraint
- * would otherwise abort the insert after existing rows were deleted.
  */
 async function replaceContactLinks(
   db: DatabaseClient,
@@ -161,13 +176,7 @@ async function replaceContactLinks(
         inArray(contactChannels.type, [...SOCIAL_LINK_TYPES]) as SQL,
       ),
     );
-  const seen = new Set<string>();
-  const deduped = links.filter((l) => {
-    const key = `${l.type} ${l.value}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  const deduped = dedupeLinks(links);
   if (deduped.length) {
     await db
       .insert(contactChannels)
@@ -500,6 +509,16 @@ export const createContact = authProc
     });
   });
 
+// Cloudflare D1 caps bound parameters per query (100), so a bulk insert has to
+// be split into batches sized by the columns each row binds — the explicit
+// columns plus the client-generated `pk()` id (a $defaultFn value IS bound;
+// only SQL-level defaults like unixepoch() are not). Per row: contacts bind 13
+// (12 explicit + id), contact_channels bind 5 (4 explicit + id), contact_tags
+// bind 3 (composite PK, no generated id). Sizes leave headroom under the cap.
+const CONTACT_ROW_BATCH = 7; // 13 × 7 = 91
+const CHANNEL_ROW_BATCH = 16; // 5 × 16 = 80
+const TAG_ROW_BATCH = 30; // 3 × 30 = 90
+
 /**
  * Bulk create contacts directly as active contacts
  */
@@ -515,12 +534,22 @@ export const bulkCreateContacts = authProc
   .handler(async ({ input, context }) => {
     const { db, user } = context;
 
-    const values = input.contacts.map((c) => {
+    // Pair each input contact with a pre-generated id up front. SQLite leaves
+    // the row order of a multi-row `INSERT ... RETURNING` undefined, so nothing
+    // in this handler may pair arrays by position — every derived row (links,
+    // tags, search docs) and the response itself key off these entries instead.
+    const entries = input.contacts.map((contact) => ({
+      contact,
+      id: generateId(),
+    }));
+
+    const values = entries.map(({ contact: c, id }) => {
       const { notes: encNotes, notesEncrypted } = encryptNotes(
         c.notes,
         user.id,
       );
       return {
+        id,
         userId: user.id,
         name: c.name,
         email: c.email ?? null,
@@ -536,7 +565,61 @@ export const bulkCreateContacts = authProc
       };
     });
 
-    const created = await db.insert(contacts).values(values).returning();
+    // The batches are NOT one transaction: a mid-stream failure leaves the
+    // earlier batches persisted (possibly without their links/tags) while the
+    // client sees an error, and a blind retry of the same payload duplicates
+    // them. Accepted for now — the import flow is user-driven and re-runnable —
+    // but worth revisiting with D1's batch() API if it starts to bite.
+    const insertedById = new Map<string, Contact>();
+    for (const batch of chunk(values, CONTACT_ROW_BATCH)) {
+      for (const row of await db.insert(contacts).values(batch).returning()) {
+        insertedById.set(row.id, row);
+      }
+    }
+    // Restore request order, which RETURNING does not guarantee. The client
+    // pairs this response with its own list by index to upload avatars. The
+    // throw is an invariant assertion (an insert without conflict handling
+    // returns every row or throws); it also guarantees the `.get(id)!` below.
+    const created = entries.map(({ id }) => {
+      const row = insertedById.get(id);
+      if (!row) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR", {
+          message: "Bulk insert did not return every contact",
+        });
+      }
+      return row;
+    });
+
+    const linkRows = entries.flatMap(({ contact, id }) =>
+      dedupeLinks(contact.links ?? []).map((l) => ({
+        contactId: id,
+        type: l.type,
+        value: l.value,
+        label: l.label ?? null,
+      })),
+    );
+    for (const batch of chunk(linkRows, CHANNEL_ROW_BATCH)) {
+      await db.insert(contactChannels).values(batch).onConflictDoNothing();
+    }
+
+    // Resolve the whole payload's tag names in one pass — they repeat heavily
+    // across an import, and resolution is set-based rather than per-name. The
+    // map is keyed by trimmed name, so look up with the trimmed name too. An
+    // empty payload resolves to an empty map without touching the database.
+    const idByName = await resolveTagIdMap(
+      db,
+      user.id,
+      entries.flatMap(({ contact }) => contact.tags ?? []),
+    );
+    const tagRows = entries.flatMap(({ contact, id }) =>
+      (contact.tags ?? [])
+        .map((name) => idByName.get(name.trim()))
+        .filter((tagId): tagId is string => !!tagId)
+        .map((tagId) => ({ contactId: id, tagId, isDynamic: false })),
+    );
+    for (const batch of chunk(tagRows, TAG_ROW_BATCH)) {
+      await db.insert(contactTags).values(batch).onConflictDoNothing();
+    }
 
     const initialDelayHours = await getPreferenceValue(
       db,
@@ -549,9 +632,26 @@ export const bulkCreateContacts = authProc
         generateRepsForNewContact(db, user.id, contact.id, initialDelayHours),
       );
     }
-    context.waitUntil(meilisearchService.indexContacts(created));
+    // Index each contact with the static tags just assigned to it (the names
+    // that actually resolved, deduped after trimming). Dynamic tags don't
+    // exist here — bulk skips finalizeContactWrite entirely, since up to 500
+    // rounds of LLM enrichment is not something to do inside one request.
+    context.waitUntil(
+      meilisearchService.indexContactBatch(
+        entries.map(({ contact, id }) => ({
+          contact: insertedById.get(id)!,
+          tags: [
+            ...new Set(
+              (contact.tags ?? [])
+                .map((name) => name.trim())
+                .filter((name) => idByName.has(name)),
+            ),
+          ],
+        })),
+      ),
+    );
 
-    return created;
+    return created.map((contact) => decryptContact(contact, user.id));
   });
 
 /**

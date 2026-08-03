@@ -138,22 +138,9 @@ class MeilisearchService {
       .addDocuments([this.toDocument(contact, tagNames)], { primaryKey: "id" });
   }
 
-  // Index many contacts in a single request — used by bulk create. Tags are not
-  // assigned during bulk create, so documents are indexed without them.
-  async indexContacts(contacts: IndexableContact[]): Promise<void> {
-    if (!isConfigured() || contacts.length === 0) return;
-
-    await this.ensureIndexConfigured();
-    await this.client()
-      .index(INDEX_NAME)
-      .addDocuments(
-        contacts.map((c) => this.toDocument(c, [])),
-        { primaryKey: "id" },
-      );
-  }
-
-  // Index many contacts with their tag names — used to backfill/reindex existing
-  // contacts. Sent in one request per chunk; Meilisearch upserts by primary key.
+  // Index many contacts with their tag names — used by bulk create and by
+  // reindex/backfill. Sent in one request per chunk; Meilisearch upserts by
+  // primary key.
   async indexContactBatch(
     items: { contact: IndexableContact; tags: string[] }[],
   ): Promise<void> {
