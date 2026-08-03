@@ -21,10 +21,14 @@ export type ParsedVCard = {
   notes?: string;
   birthday?: string;
   urls?: string[];
+  extras?: VCardExtra[];
   photoUrl?: string;
   photoBase64?: string;
   photoMimeType?: string;
 };
+
+/** A vCard value Orbital has no column for, labelled for the notes field. */
+export type VCardExtra = { label: string; value: string };
 
 /** React Query cache key for a parsed vCard, so the share handler can parse
  * once and the destination screen reuses the result instead of re-reading. */
@@ -97,11 +101,128 @@ function firstValue(card: vCard, key: string): string | undefined {
   return v ? v : undefined;
 }
 
-function allValues(card: vCard, key: string): string[] {
+function allProps(card: vCard, key: string): vCard.Property[] {
   const prop = card.get(key);
   if (prop == null) return [];
-  const list = Array.isArray(prop) ? prop : [prop];
-  return list.map((p) => p.valueOf().trim()).filter(Boolean);
+  return Array.isArray(prop) ? prop : [prop];
+}
+
+function allValues(card: vCard, key: string): string[] {
+  return allProps(card, key)
+    .map((p) => p.valueOf().trim())
+    .filter(Boolean);
+}
+
+/** A property's parameters, e.g. `{ type: ["work", "voice"], pref: "1" }`.
+ * The parser lowercases and comma-splits TYPE, so `type` is string|string[]. */
+function params(prop: vCard.Property): Record<string, string | string[]> {
+  return prop.toJSON()[1] as Record<string, string | string[]>;
+}
+
+// TYPE values that describe the transport rather than which number this is.
+// Skipped when labelling, so `TYPE=WORK,VOICE` reads "(work)", not "(voice)".
+const NOISE_TYPES = new Set(["voice", "pref", "internet", "text", "uri"]);
+
+/** Label a property with its first meaningful TYPE, e.g. `Phone (work)`. */
+function labelled(base: string, prop: vCard.Property): string {
+  const type = params(prop).type;
+  const list = Array.isArray(type) ? type : type ? [type] : [];
+  const meaningful = list.find(
+    (t) => !NOISE_TYPES.has(t) && !t.startsWith("x-"),
+  );
+  return meaningful ? `${base} (${meaningful})` : base;
+}
+
+/** A TEL/EMAIL property paired with its cleaned value. vCard 4.0 writes these
+ * as URIs (`TEL;VALUE=uri:tel:+1-555-0100`), so the scheme is dropped before
+ * the value reaches a phone/email column. */
+type Channel = { prop: vCard.Property; value: string };
+
+/** All non-empty TEL/EMAIL properties for a key, values cleaned once. */
+function channels(card: vCard, key: string): Channel[] {
+  return allProps(card, key)
+    .map((prop) => ({
+      prop,
+      value: unescape(prop.valueOf().trim()).replace(/^(?:tel|mailto):/i, ""),
+    }))
+    .filter((c) => c.value);
+}
+
+/**
+ * Split a structured vCard value on its unescaped `;` delimiters, leaving
+ * escape sequences intact for `unescape` to resolve afterwards.
+ *
+ * Needed because the parser's own pre-split (`toJSON()[3]`) treats an escaped
+ * `\;` as a delimiter, so a street like `Suite 1\; Building A` arrives already
+ * broken into `Suite 1\` and ` Building A`. The raw `valueOf()` still carries
+ * the backslash, so splitting it ourselves is the only way to keep the
+ * component whole.
+ */
+function splitComponents(value: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    if (ch === "\\" && i + 1 < value.length) {
+      current += ch + value[i + 1];
+      i++; // consume the escaped character verbatim
+    } else if (ch === ";") {
+      parts.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  parts.push(current);
+  return parts;
+}
+
+/** ADR is `;`-delimited: pobox;ext;street;locality;region;postal;country. */
+function formatAddress(prop: vCard.Property): string {
+  return splitComponents(prop.valueOf().trim())
+    .map((p) => unescape(p.trim()))
+    .filter(Boolean)
+    .join(", ");
+}
+
+/**
+ * The values a card carries that Orbital has no column for: every TEL/EMAIL
+ * past the first, plus addresses, nicknames and roles. The import funnel
+ * appends these to the notes.
+ *
+ * Extras are ordered here rather than following the card's own property order,
+ * so the same card always produces the same notes text. Vendor `X-*` properties
+ * and IMPP are dropped. Additional phones/emails are identified by position
+ * (the primary is index 0) — never by comparing values, since 4.0's `tel:`
+ * prefixes and formatting differences would defeat a string match.
+ */
+function collectExtras(
+  card: vCard,
+  tels: Channel[],
+  emails: Channel[],
+): VCardExtra[] | undefined {
+  const extras: VCardExtra[] = [
+    ...tels.slice(1).map((c) => ({
+      label: labelled("Phone", c.prop),
+      value: c.value,
+    })),
+    ...emails.slice(1).map((c) => ({
+      label: labelled("Email", c.prop),
+      value: c.value,
+    })),
+    ...allProps(card, "adr")
+      .map((p) => ({ label: labelled("Address", p), value: formatAddress(p) }))
+      .filter((e) => e.value),
+    ...allValues(card, "nickname").map((v) => ({
+      label: "Nickname",
+      value: unescape(v),
+    })),
+    ...allValues(card, "role").map((v) => ({
+      label: "Role",
+      value: unescape(v),
+    })),
+  ];
+  return extras.length ? extras : undefined;
 }
 
 /** vCard text values escape `\n`, `\,`, `\;` and `\\`. */
@@ -113,10 +234,15 @@ function unescape(value: string): string {
 
 function mapCard(card: vCard): ParsedVCard {
   const photo = mapPhoto(card);
+  // Read TEL/EMAIL as lists: the first of each gets a column, the rest become
+  // extras. Empty properties are dropped first so they can't claim the primary
+  // slot and push a real number into the notes.
+  const tels = channels(card, "tel");
+  const emails = channels(card, "email");
   return {
     name: mapName(card),
-    email: firstValue(card, "email"),
-    phone: firstValue(card, "tel"),
+    email: emails[0]?.value,
+    phone: tels[0]?.value,
     company: firstValue(card, "org")?.split(";")[0]?.trim() || undefined,
     jobTitle: firstValue(card, "title"),
     notes: (() => {
@@ -125,6 +251,7 @@ function mapCard(card: vCard): ParsedVCard {
     })(),
     birthday: normalizeBirthday(firstValue(card, "bday")),
     urls: allValues(card, "url"),
+    extras: collectExtras(card, tels, emails),
     ...photo,
   };
 }

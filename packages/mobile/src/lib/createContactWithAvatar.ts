@@ -8,6 +8,11 @@ export async function createContactWithAvatar(
   params: {
     name: string;
     email?: string;
+    phone?: string;
+    company?: string;
+    jobTitle?: string;
+    /** "YYYY-MM-DD" or "MM-DD"; the API rejects anything else. */
+    birthday?: string;
     notes?: string;
     strength?: number;
     avatarUrl?: string;
@@ -20,6 +25,10 @@ export async function createContactWithAvatar(
   const result = await createContact({
     name: params.name,
     email: params.email,
+    phone: params.phone,
+    company: params.company,
+    jobTitle: params.jobTitle,
+    birthday: params.birthday,
     notes: params.notes,
     strength: params.strength,
     avatarUrl: isLocal ? undefined : params.avatarUrl,

@@ -33,7 +33,14 @@ import { contactKeys } from "../src/queries/contacts";
 import { createContactWithAvatar } from "../src/lib/createContactWithAvatar";
 import { backgroundUploadAvatar } from "../src/lib/uploadAvatar";
 import Constants from "expo-constants";
-import { colors, spacing, borderRadius, shadows } from "../src/theme";
+import {
+  colors,
+  spacing,
+  borderRadius,
+  shadows,
+  inputStyle,
+} from "../src/theme";
+import { FormField } from "../src/components";
 import {
   fetchMetadata,
   isUrl,
@@ -49,11 +56,71 @@ import { WebCaptureModal } from "../src/components/WebCaptureModal";
 import { ContactPickerModal } from "../src/components/ContactPickerModal";
 import { StrengthSelector } from "../src/components/StrengthSelector";
 import { useVCardQuery } from "../src/hooks/useVCardQuery";
-import { planPrefill } from "../src/import/funnel";
+import {
+  BIRTHDAY_RE,
+  planPrefill,
+  toImportedContact,
+} from "../src/import/funnel";
 import type { ImportedContact } from "../src/import/types";
 
 // Device user agent for link-metadata fetches; falls back to the lib default.
 const USER_AGENT = Constants.userAgent ?? undefined;
+
+/**
+ * Contact fields that have their own column but no place in the minimal add
+ * flow. An import reveals the ones it actually filled — see `revealedDetails`.
+ * Labels and placeholders mirror the edit screen so the same field looks the
+ * same in both places.
+ */
+const DETAIL_FIELDS = [
+  {
+    key: "phone",
+    label: "Phone",
+    placeholder: "+1 (555) 000-0000",
+    keyboardType: "phone-pad",
+  },
+  {
+    key: "jobTitle",
+    label: "Job Title",
+    placeholder: "e.g., Software Engineer",
+    keyboardType: "default",
+  },
+  {
+    key: "company",
+    label: "Company",
+    placeholder: "Company name",
+    keyboardType: "default",
+  },
+  {
+    key: "birthday",
+    label: "Birthday",
+    placeholder: "YYYY-MM-DD",
+    keyboardType: "default",
+  },
+] as const;
+
+type DetailKey = (typeof DETAIL_FIELDS)[number]["key"];
+type Details = Record<DetailKey, string>;
+
+const NO_DETAILS: Details = {
+  phone: "",
+  jobTitle: "",
+  company: "",
+  birthday: "",
+};
+
+/** Details as the create/merge payload wants them: trimmed, blanks omitted,
+ * and a half-typed birthday dropped rather than failing the whole write. */
+function detailPayload(details: Details) {
+  const trim = (v: string) => v.trim() || undefined;
+  const birthday = trim(details.birthday);
+  return {
+    phone: trim(details.phone),
+    jobTitle: trim(details.jobTitle),
+    company: trim(details.company),
+    birthday: birthday && BIRTHDAY_RE.test(birthday) ? birthday : undefined,
+  };
+}
 
 export default function AddContactScreen() {
   const {
@@ -86,6 +153,13 @@ export default function AddContactScreen() {
 
   const [showResults, setShowResults] = useState(false);
   const [notes, setNotes] = useState("");
+  const [details, setDetails] = useState<Details>(NO_DETAILS);
+  // Which detail inputs are on screen. Tracked separately from the values so
+  // clearing an input doesn't unmount it mid-edit; a field stays revealed until
+  // the selection itself is reset.
+  const [revealedDetails, setRevealedDetails] = useState<Set<DetailKey>>(
+    new Set(),
+  );
   const [strength, setStrength] = useState(0);
   const [isExtractingImage, setIsExtractingImage] = useState(false);
   const [avatarMimeType, setAvatarMimeType] = useState<string | null>(null);
@@ -108,9 +182,9 @@ export default function AddContactScreen() {
     isError: isExtractionError,
   } = useExtractImageQuery(sharedImageUri, sharedImageMimeType);
 
-  // Prefill the form from any import source. All folding (extras + notes +
-  // birthday into the notes field), link detection, and avatar mime handling
-  // happens once in `planPrefill`; this just applies the result to UI state.
+  // Prefill the form from any import source. Notes composition, link detection,
+  // and avatar mime handling happen once in `planPrefill`; this just applies the
+  // result to UI state, revealing an input for each detail the source supplied.
   function applyImportedContact(contact: ImportedContact) {
     const plan = planPrefill(contact);
     setSearchText(plan.name);
@@ -122,8 +196,32 @@ export default function AddContactScreen() {
     });
     setAvatarMimeType(plan.avatarMimeType);
     setShowResults(false);
-    if (plan.notes) setNotes(plan.notes);
-    if (plan.detectedLink) setDetectedLink(plan.detectedLink);
+    const imported: Details = {
+      phone: plan.phone ?? "",
+      jobTitle: plan.jobTitle ?? "",
+      company: plan.company ?? "",
+      birthday: plan.birthday ?? "",
+    };
+    setDetails(imported);
+    setRevealedDetails(
+      new Set(DETAIL_FIELDS.map((f) => f.key).filter((k) => imported[k])),
+    );
+    // Unconditional, like every setter above: each import fully replaces the
+    // prefill. A conditional `if (plan.notes)` here would leave a prior
+    // import's notes/link stuck on a contact that came from a source with
+    // none of its own — composeNotes legitimately returns "" whenever a
+    // source has no NOTE and no overflow extras, which most non-vCard imports
+    // never had a case to exercise before.
+    setNotes(plan.notes);
+    setDetectedLink(plan.detectedLink);
+  }
+
+  /** Drop imported details when the imported person is dismissed outright — the
+   * X on the selected card, or picking a different contact — so they can't be
+   * saved onto someone else. Merely editing the name is not a dismissal. */
+  function clearDetails() {
+    setDetails(NO_DETAILS);
+    setRevealedDetails(new Set());
   }
 
   // Pre-fill from deep link url param on mount. When arriving back from the
@@ -154,23 +252,9 @@ export default function AddContactScreen() {
   // which also materializes its avatar) into the shared import funnel.
   const { data: vcards } = useVCardQuery(vcfUri);
   useEffect(() => {
-    if (!vcards) return;
+    if (!vcards?.length) return;
     const { card, avatar } = vcards[0];
-    applyImportedContact({
-      name: card.name,
-      email: card.email,
-      phone: card.phone,
-      company: card.company,
-      jobTitle: card.jobTitle,
-      birthday: card.birthday,
-      notes: card.notes,
-      rawLinks: card.urls,
-      avatar: avatar
-        ? avatar.uri.startsWith("http")
-          ? { kind: "remote", url: avatar.uri }
-          : { kind: "local", uri: avatar.uri, mimeType: avatar.mimeType }
-        : undefined,
-    });
+    applyImportedContact(toImportedContact(card, avatar));
   }, [vcards]);
 
   // Populate form when shared-image extraction completes (may be instant from cache)
@@ -298,6 +382,7 @@ export default function AddContactScreen() {
     userEditedRef.current = true;
     setSelectedContact(contact);
     setAvatarMimeType(null);
+    clearDetails();
     setSearchText(contact.name);
     setShowResults(false);
   };
@@ -374,6 +459,7 @@ export default function AddContactScreen() {
       const res = await mergeNewContact(destinationId, {
         source: {
           email: selectedContact?.email || undefined,
+          ...detailPayload(details),
           notes: notes || undefined,
           strength,
           avatarUrl: avatar && !avatarIsLocal ? avatar : undefined,
@@ -458,6 +544,7 @@ export default function AddContactScreen() {
       const created = await createContactWithAvatar(queryClient, {
         name,
         email: selectedContact?.email || undefined,
+        ...detailPayload(details),
         notes: notes || undefined,
         strength,
         avatarUrl: selectedContact?.avatarUrl ?? undefined,
@@ -640,7 +727,13 @@ export default function AddContactScreen() {
                   userEditedRef.current = true;
                   setSearchText(text);
                   setShowResults(true);
-                  // Clear selection if user types
+                  // Typing drops the selection so the search results come back,
+                  // but it deliberately keeps the imported details: correcting a
+                  // typo in an imported name is the common case, and wiping
+                  // phone/company/title for it would silently drop them from the
+                  // create. Notes and the detected link already survive this for
+                  // the same reason. Dismissing the contact outright — the X on
+                  // the card, or picking a different one — still clears them.
                   if (selectedContact && text !== selectedContact.name) {
                     setSelectedContact(null);
                   }
@@ -923,9 +1016,12 @@ export default function AddContactScreen() {
                 </View>
               </View>
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Clear selected contact"
                 onPress={() => {
                   setSelectedContact(null);
                   setAvatarMimeType(null);
+                  clearDetails();
                   setSearchText("");
                   setDetectedLink(null);
                 }}
@@ -983,6 +1079,25 @@ export default function AddContactScreen() {
               />
             </Pressable>
           )}
+
+          {/* Details carried in by an import. Hidden until something fills
+              them, so the plain add flow stays a name and a note. */}
+          {DETAIL_FIELDS.filter((f) => revealedDetails.has(f.key)).map((f) => (
+            <FormField key={f.key} label={f.label}>
+              <TextInput
+                accessibilityLabel={f.label}
+                placeholder={f.placeholder}
+                placeholderTextColor={colors.textTertiary}
+                value={details[f.key]}
+                onChangeText={(text) => {
+                  userEditedRef.current = true;
+                  setDetails((prev) => ({ ...prev, [f.key]: text }));
+                }}
+                keyboardType={f.keyboardType}
+                style={inputStyle}
+              />
+            </FormField>
+          ))}
 
           {/* Notes Field */}
           <View>

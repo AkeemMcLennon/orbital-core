@@ -1,8 +1,8 @@
-import { planPrefill } from "../../src/import/funnel";
+import { composeNotes, planPrefill } from "../../src/import/funnel";
 import type { ImportedContact } from "../../src/import/types";
 
 describe("planPrefill", () => {
-  it("folds extras, source notes, and birthday in order", () => {
+  it("keeps fields with a column out of the notes", () => {
     const c: ImportedContact = {
       name: "Jane",
       phone: "+1",
@@ -11,9 +11,23 @@ describe("planPrefill", () => {
       notes: "met at conf",
       birthday: "1990-01-02",
     };
-    expect(planPrefill(c).notes).toBe(
-      "Phone: +1\nCompany: Acme\nTitle: CEO\nmet at conf\nBirthday: 1990-01-02",
-    );
+    const plan = planPrefill(c);
+    expect(plan).toMatchObject({
+      phone: "+1",
+      company: "Acme",
+      jobTitle: "CEO",
+      birthday: "1990-01-02",
+    });
+    expect(plan.notes).toBe("met at conf");
+  });
+
+  it("coerces missing column fields to null", () => {
+    expect(planPrefill({ name: "X" })).toMatchObject({
+      phone: null,
+      company: null,
+      jobTitle: null,
+      birthday: null,
+    });
   });
 
   it("coerces a missing email to null", () => {
@@ -51,5 +65,35 @@ describe("planPrefill", () => {
     });
     expect(plan.avatarUrl).toBe("https://cdn/a.jpg");
     expect(plan.avatarMimeType).toBeNull();
+  });
+});
+
+describe("composeNotes", () => {
+  it("puts labelled extras above the source notes", () => {
+    expect(
+      composeNotes({
+        name: "Jane",
+        notes: "met at conf",
+        extras: [
+          { label: "Phone (work)", value: "+1 555" },
+          { label: "Nickname", value: "Janey" },
+        ],
+      }),
+    ).toBe("Phone (work): +1 555\nNickname: Janey\nmet at conf");
+  });
+
+  it("returns extras alone when the source has no notes", () => {
+    expect(
+      composeNotes({
+        name: "Jane",
+        extras: [{ label: "Role", value: "Engineer" }],
+      }),
+    ).toBe("Role: Engineer");
+  });
+
+  it("returns an empty string when there is nothing to say", () => {
+    expect(composeNotes({ name: "Jane", phone: "+1", company: "Acme" })).toBe(
+      "",
+    );
   });
 });

@@ -8,7 +8,14 @@ const V3 = [
   "ORG:Acme Inc.;Engineering",
   "TITLE:CTO",
   "TEL;TYPE=CELL:+1-555-1234",
+  "TEL;TYPE=WORK,VOICE:+1-555-9999",
   "EMAIL;TYPE=WORK:jane@acme.com",
+  "EMAIL;TYPE=INTERNET,HOME:jane@home.com",
+  "ADR;TYPE=WORK:;;123 Main St;Springfield;IL;62704;USA",
+  "NICKNAME:Janey",
+  "ROLE:Engineer",
+  "IMPP:xmpp:jane@im.example",
+  "X-SOCIALPROFILE;TYPE=twitter:https://twitter.com/janedoe",
   "NOTE:Met at conf\\nFollow up\\, soon",
   "BDAY:1985-03-15",
   "URL:https://linkedin.com/in/janedoe",
@@ -42,6 +49,66 @@ describe("parseVCards", () => {
   it("unescapes vCard text escapes in notes", () => {
     const [c] = parseVCards(V3);
     expect(c.notes).toBe("Met at conf\nFollow up, soon");
+  });
+
+  it("collects values with no column as labelled extras", () => {
+    const [c] = parseVCards(V3);
+    expect(c.extras).toEqual([
+      { label: "Phone (work)", value: "+1-555-9999" },
+      { label: "Email (home)", value: "jane@home.com" },
+      {
+        label: "Address (work)",
+        value: "123 Main St, Springfield, IL, 62704, USA",
+      },
+      { label: "Nickname", value: "Janey" },
+      { label: "Role", value: "Engineer" },
+    ]);
+  });
+
+  it("keeps an escaped semicolon inside an address component", () => {
+    // String.raw so the fixture carries a real backslash: the vCard escape
+    // `\;` is a literal semicolon inside the street, not a field delimiter.
+    const card = [
+      "BEGIN:VCARD",
+      "VERSION:3.0",
+      "FN:Escaped Addr",
+      String.raw`ADR;TYPE=WORK:;;Suite 1\; Building A;Springfield;IL;62704;USA`,
+      "END:VCARD",
+    ].join("\r\n");
+    const [c] = parseVCards(card);
+    expect(c.extras).toEqual([
+      {
+        label: "Address (work)",
+        value: "Suite 1; Building A, Springfield, IL, 62704, USA",
+      },
+    ]);
+  });
+
+  it("omits extras for a card with a single phone and email", () => {
+    const card = [
+      "BEGIN:VCARD",
+      "VERSION:3.0",
+      "FN:Solo Person",
+      "TEL:+1-555-0000",
+      "EMAIL:solo@x.com",
+      "END:VCARD",
+    ].join("\r\n");
+    const [c] = parseVCards(card);
+    expect(c.extras).toBeUndefined();
+  });
+
+  it("strips the tel:/mailto: scheme from v4.0 URI values", () => {
+    const card = [
+      "BEGIN:VCARD",
+      "VERSION:4.0",
+      "FN:Uri Person",
+      'TEL;VALUE=uri;TYPE="work,voice";PREF=1:tel:+1-555-0100',
+      "EMAIL:mailto:uri@x.com",
+      "END:VCARD",
+    ].join("\r\n");
+    const [c] = parseVCards(card);
+    expect(c.phone).toBe("+1-555-0100");
+    expect(c.email).toBe("uri@x.com");
   });
 
   it("extracts a v3.0 inline base64 photo with its mime", () => {

@@ -8,6 +8,12 @@ import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { bulkCreateContacts, integrationsGoogleConnect } from "@orbital/client";
+import {
+  BIRTHDAY_RE,
+  composeNotes,
+  resolveLink,
+  toImportedContact,
+} from "../../src/import/funnel";
 import { useVCardQuery } from "../../src/hooks/useVCardQuery";
 import { uploadAvatar } from "../../src/lib/uploadAvatar";
 import { colors, spacing, borderRadius, typography } from "../../src/theme";
@@ -25,6 +31,29 @@ const CONTACT_FIELDS = [
   Contacts.Fields.Image,
   Contacts.Fields.Company,
 ];
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** One contact as the bulk endpoint wants it. Values the API would reject are
+ * dropped rather than sent: a single malformed address in a 500-strong import
+ * would otherwise 400 the entire batch. Old exports really do contain
+ * `EMAIL:jane@acme` and partial birthdays. */
+function toBulkPayload(c: SelectableContact) {
+  const link = resolveLink(c);
+  const notes = composeNotes(c);
+  return {
+    name: c.name,
+    email: c.email && EMAIL_RE.test(c.email) ? c.email : undefined,
+    phone: c.phone,
+    company: c.company,
+    jobTitle: c.jobTitle,
+    birthday:
+      c.birthday && BIRTHDAY_RE.test(c.birthday) ? c.birthday : undefined,
+    notes: notes || undefined,
+    links: link ? [link] : undefined,
+    avatarUrl: c.avatar?.kind === "remote" ? c.avatar.url : undefined,
+  };
+}
 
 async function fetchDeviceContacts(): Promise<SelectableContact[]> {
   const { data } = await Contacts.getContactsAsync({ fields: CONTACT_FIELDS });
@@ -63,15 +92,7 @@ export default function ImportContactsScreen() {
       for (let i = 0; i < contacts.length; i += 500) {
         const slice = contacts.slice(i, i + 500);
         const response = await bulkCreateContacts({
-          contacts: slice.map((c) => ({
-            name: c.name,
-            email: c.email,
-            phone: c.phone,
-            company: c.company,
-            jobTitle: c.jobTitle,
-            birthday: c.birthday,
-            avatarUrl: c.avatar?.kind === "remote" ? c.avatar.url : undefined,
-          })),
+          contacts: slice.map(toBulkPayload),
         });
         if (response.status !== 200) continue;
         created.push(...response.data);
@@ -118,23 +139,7 @@ export default function ImportContactsScreen() {
       return;
     }
     const list: SelectableContact[] = vcards.map(({ card, avatar }, i) => ({
-      name: card.name,
-      email: card.email,
-      phone: card.phone,
-      company: card.company,
-      jobTitle: card.jobTitle,
-      birthday: card.birthday,
-      notes: card.notes,
-      rawLinks: card.urls,
-      avatar: avatar
-        ? avatar.uri.startsWith("http")
-          ? { kind: "remote" as const, url: avatar.uri }
-          : {
-              kind: "local" as const,
-              uri: avatar.uri,
-              mimeType: avatar.mimeType,
-            }
-        : undefined,
+      ...toImportedContact(card, avatar),
       id: `vcf-${i}`,
     }));
     setScreen("select-device");

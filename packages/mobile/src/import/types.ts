@@ -21,6 +21,12 @@ export type ImportedContact = {
   birthday?: string;
   /** Source-provided freeform notes (vCard NOTE, metadata description). */
   notes?: string;
+  /**
+   * Labelled values the source carried that Orbital has no column for (extra
+   * phones/emails, addresses, nicknames). `composeNotes` appends them to the
+   * notes — they are the only thing that belongs there beyond `notes` itself.
+   */
+  extras?: { label: string; value: string }[];
   /** Already-resolved links — the funnel attaches the first one. */
   links?: { type: SocialLinkType; value: string }[];
   /** Unresolved URLs the funnel runs `detectChannelFromUrl` over (first match wins). */
