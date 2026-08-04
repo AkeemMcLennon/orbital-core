@@ -1185,7 +1185,9 @@ export default function AddContactScreen() {
             onPress={handleAddContact}
             disabled={(!selectedContact && !searchText.trim()) || isSubmitting}
             accessibilityRole="button"
-            accessibilityLabel="Add Contact"
+            // Not just "Add Contact" — the screen header renders that string
+            // too, and the pair is otherwise only separable by position.
+            accessibilityLabel="Add Contact to network"
             style={{
               flex: 1,
               paddingVertical: spacing.md,

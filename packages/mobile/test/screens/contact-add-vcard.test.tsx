@@ -134,7 +134,7 @@ describe("Add Contact screen, vCard prefill", () => {
     expect(screen.getByDisplayValue("Acme Inc.")).toBeTruthy();
     expect(screen.getByDisplayValue("CTO")).toBeTruthy();
 
-    fireEvent.press(screen.getByLabelText("Add Contact"));
+    fireEvent.press(screen.getByLabelText("Add Contact to network"));
 
     await waitFor(() => {
       expect(mockCreateContact).toHaveBeenCalled();
@@ -170,7 +170,7 @@ describe("Add Contact screen, vCard prefill", () => {
       expect(screen.getByDisplayValue("+1-555-1234")).toBeTruthy();
     }, WAIT_OPTIONS);
 
-    fireEvent.press(screen.getByLabelText("Add Contact"));
+    fireEvent.press(screen.getByLabelText("Add Contact to network"));
 
     await waitFor(() => {
       expect(mockCreateContact).toHaveBeenCalled();

@@ -255,6 +255,15 @@ export default function AuthScreen() {
         <Pressable
           onPress={mode === "login" ? handleSignIn : handleSignUp}
           disabled={isLoading}
+          accessibilityRole="button"
+          // Without this the label is auto-derived as "<icon glyph>, Sign In",
+          // which reads out a garbage glyph and collides with the mode-switch
+          // tab above (also just "Sign In") under any looser match.
+          accessibilityLabel={
+            mode === "login"
+              ? "Sign In to Orbital"
+              : "Create your Orbital account"
+          }
           style={({ pressed }) => ({
             flexDirection: "row",
             alignItems: "center",

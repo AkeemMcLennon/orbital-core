@@ -17,6 +17,13 @@
       "distribution": "store",
       "autoIncrement": true,
       "channel": "production"
+    },
+    "e2e-simulator": {
+      "extends": "preview",
+      "withoutCredentials": true,
+      "ios": {
+        "simulator": true
+      }
     }
   },
   "submit": {

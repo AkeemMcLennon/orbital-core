@@ -149,6 +149,10 @@ function DailyOrbitScreen() {
             <Ionicons name="menu" size={24} color={colors.textMain} />
           </Pressable>
           <Text
+            accessibilityRole="header"
+            // "Orbital" alone is a weak anchor — the search bar below reads
+            // "Ask Orbital".
+            accessibilityLabel="Orbital dashboard"
             style={{
               fontSize: 20,
               fontWeight: "700",
