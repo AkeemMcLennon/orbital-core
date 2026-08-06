@@ -1,3 +1,4 @@
+import { DateInput, formatTimelineTime } from "@orbital/utils/date";
 import { Link, RelativePathString, ExternalPathString } from "expo-router";
 import React from "react";
 import { Pressable, Text, View } from "react-native";
@@ -6,7 +7,7 @@ import { FaceAvatar } from "./FaceAvatar";
 interface TimelineItemProps {
   contactName: string;
   avatar?: string;
-  time: string;
+  time: DateInput | null | undefined;
   description: string;
   type: "interaction" | "action" | "event";
   isLast?: boolean;
@@ -25,6 +26,7 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
   const avatarSize = 44;
   const lineWidth = 2;
   const lineColor = colors.border;
+  const formattedTime = formatTimelineTime(time);
 
   const getTypeColor = (itemType: string) => {
     switch (itemType) {
@@ -103,15 +105,17 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
         >
           {contactName}
         </Text>
-        <Text
-          style={{
-            fontSize: 12,
-            color: colors.textTertiary,
-            marginBottom: spacing.xs,
-          }}
-        >
-          {time}
-        </Text>
+        {formattedTime && (
+          <Text
+            style={{
+              fontSize: 12,
+              color: colors.textTertiary,
+              marginBottom: spacing.xs,
+            }}
+          >
+            {formattedTime}
+          </Text>
+        )}
         <Text
           style={{
             fontSize: 13,

@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import type { DateInput } from "@orbital/utils/date";
 import { useQueryClient } from "@tanstack/react-query";
 import { Redirect, RelativePathString, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -395,7 +396,9 @@ function DailyOrbitScreen() {
               key={item.id}
               contactName={item.name}
               avatar={item.avatarUrl ?? undefined}
-              time={(item.lastInteractionAt || item.createdAt) as string}
+              // Orval types both of these `unknown`, so this cast asserts
+              // nothing — formatTimelineTime validates at runtime instead.
+              time={(item.lastInteractionAt || item.createdAt) as DateInput}
               description={item.notes ?? ""}
               type="interaction"
               isLast={index === contacts.length - 1}

@@ -130,6 +130,7 @@
         "@infinitered/react-native-mlkit-face-detection": "^5.0.0",
         "@orbital/client": "workspace:*",
         "@orbital/types": "workspace:*",
+        "@orbital/utils": "workspace:*",
         "@react-native-picker/picker": "^2.11.4",
         "@react-navigation/bottom-tabs": "^7.4.0",
         "@react-navigation/drawer": "^7.1.0",
