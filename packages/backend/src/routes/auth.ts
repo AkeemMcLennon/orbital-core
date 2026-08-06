@@ -1,5 +1,6 @@
 import { authProc } from "../middleware/auth";
 import * as z from "zod";
+import { dateField } from "./schema-helpers";
 
 /**
  * Get current authenticated user information
@@ -18,9 +19,7 @@ export const me = authProc
       tenantId: z.string().nullable(),
       email: z.string(),
       name: z.string().nullable(),
-      createdAt: z
-        .union([z.date(), z.string().datetime()])
-        .transform((val) => (val instanceof Date ? val.toISOString() : val)),
+      createdAt: dateField(),
     }),
   )
   .handler(async ({ context }) => {

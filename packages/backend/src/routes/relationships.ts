@@ -9,12 +9,7 @@ import {
   fivePointScaleSchema,
   fivePointScaleQuerySchema,
 } from "../utils/scale";
-
-// Helper for date fields that can be Date objects or ISO strings
-const dateField = () =>
-  z
-    .union([z.date(), z.string().datetime()])
-    .transform((val) => (val instanceof Date ? val.toISOString() : val));
+import { dateField } from "./schema-helpers";
 
 // Output schema for a relationship
 const RelationshipOutputSchema = z.object({

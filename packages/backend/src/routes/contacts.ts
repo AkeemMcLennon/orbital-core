@@ -28,6 +28,7 @@ import { ORPCError } from "@orpc/server";
 import { base58IdSchema } from "@orbital/utils";
 import { PaginationInputSchema, paginatedSchema } from "../utils/pagination";
 import { fivePointScaleSchema } from "../utils/scale";
+import { dateField } from "./schema-helpers";
 import { StorageService } from "../services/storage";
 import {
   generateRepsForNewContact,
@@ -93,12 +94,6 @@ const IMAGE_EXT: Record<AllowedImageType, string> = {
   "image/webp": "webp",
   "image/gif": "gif",
 };
-
-// Helper for date fields that can be Date objects or ISO strings
-const dateField = () =>
-  z
-    .union([z.date(), z.string().datetime()])
-    .transform((val) => (val instanceof Date ? val.toISOString() : val));
 
 const SOCIAL_LINK_TYPES = [
   "linkedin",
