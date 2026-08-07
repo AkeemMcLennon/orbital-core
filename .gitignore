@@ -52,3 +52,6 @@ local.db
 
 # Copybara preview output
 cb-out/
+
+# Generated store screenshots (regenerate with `bun run screenshots:mobile`)
+ops/screenshots/
