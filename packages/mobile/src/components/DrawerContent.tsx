@@ -95,7 +95,9 @@ export function DrawerContent({
             <Pressable
               key={item.id}
               accessibilityRole="button"
-              accessibilityLabel={item.label}
+              // Not the bare label: on the Contacts and Tags screens it is also
+              // the header title, so "Contacts" would name two elements at once.
+              accessibilityLabel={`Go to ${item.label}`}
               onPress={() => {
                 router.push(item.route as any);
                 navigation.dispatch(DrawerActions.closeDrawer());

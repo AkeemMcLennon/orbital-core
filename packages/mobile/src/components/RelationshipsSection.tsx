@@ -6,6 +6,7 @@ import {
   TextInput,
   Modal,
   FlatList,
+  ScrollView,
   ActivityIndicator,
   Alert,
 } from "react-native";
@@ -97,6 +98,8 @@ export function RelationshipsSection({
         </Text>
         <Pressable
           onPress={() => setShowAddModal(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Add relationship"
           style={{
             width: 28,
             height: 28,
@@ -220,6 +223,10 @@ export function RelationshipsSection({
               </Pressable>
               <Pressable
                 onPress={() => handleDelete(rel)}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove relationship with ${
+                  rel.relatedContact?.name ?? "this contact"
+                }`}
                 hitSlop={8}
                 style={{ padding: spacing.xs }}
               >
@@ -354,223 +361,234 @@ function AddRelationshipModal({
             </Pressable>
           </View>
 
-          <View style={{ padding: spacing.lg }}>
-            {/* Step 1: Select contact */}
-            {!selectedContactId ? (
-              <View>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "600",
-                    color: colors.textMain,
-                    marginBottom: spacing.sm,
-                  }}
-                >
-                  Who is {contactName} connected to?
-                </Text>
-                <TextInput
-                  style={{
-                    backgroundColor: colors.card,
-                    borderRadius: borderRadius.md,
-                    borderColor: colors.border,
-                    borderWidth: 1,
-                    padding: spacing.sm,
-                    fontSize: 14,
-                    color: colors.textMain,
-                    marginBottom: spacing.sm,
-                  }}
-                  placeholder="Search contacts..."
-                  placeholderTextColor={colors.textTertiary}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                />
-                <FlatList
-                  data={filteredContacts}
-                  keyExtractor={(item) => item.id}
-                  style={{ maxHeight: 250 }}
-                  renderItem={({ item }) => (
-                    <Pressable
-                      onPress={() => {
-                        setSelectedContactId(item.id);
-                        setSelectedContactName(item.name);
-                      }}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        padding: spacing.sm,
-                        borderBottomColor: colors.border,
-                        borderBottomWidth: 1,
-                      }}
-                    >
-                      <FaceAvatar
-                        name={item.name}
-                        avatar={item.avatarUrl ?? ""}
-                        size={32}
-                        showLabel={false}
-                        noMargin
-                      />
-                      <Text
-                        style={{
-                          marginLeft: spacing.sm,
-                          fontSize: 14,
-                          color: colors.textMain,
-                        }}
-                      >
-                        {item.name}
-                      </Text>
-                    </Pressable>
-                  )}
-                  ListEmptyComponent={
-                    <Text
-                      style={{
-                        textAlign: "center",
-                        color: colors.textTertiary,
-                        padding: spacing.lg,
-                      }}
-                    >
-                      No contacts found
-                    </Text>
-                  }
-                />
-              </View>
-            ) : (
-              <View>
-                {/* Selected contact pill */}
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    backgroundColor: colors.primaryLight,
-                    borderRadius: borderRadius.md,
-                    padding: spacing.sm,
-                    marginBottom: spacing.md,
-                  }}
-                >
-                  <Text
-                    style={{
-                      flex: 1,
-                      fontSize: 14,
-                      color: colors.primary,
-                      fontWeight: "600",
-                    }}
-                  >
-                    {contactName} & {selectedContactName}
-                  </Text>
+          {/* Step 1: Select contact */}
+          {!selectedContactId ? (
+            <View style={{ padding: spacing.lg }}>
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: "600",
+                  color: colors.textMain,
+                  marginBottom: spacing.sm,
+                }}
+              >
+                Who is {contactName} connected to?
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: colors.card,
+                  borderRadius: borderRadius.md,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                  padding: spacing.sm,
+                  fontSize: 14,
+                  color: colors.textMain,
+                  marginBottom: spacing.sm,
+                }}
+                placeholder="Search contacts..."
+                placeholderTextColor={colors.textTertiary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              <FlatList
+                data={filteredContacts}
+                keyExtractor={(item) => item.id}
+                style={{ maxHeight: 250 }}
+                renderItem={({ item }) => (
                   <Pressable
                     onPress={() => {
-                      setSelectedContactId(null);
-                      setSelectedContactName("");
+                      setSelectedContactId(item.id);
+                      setSelectedContactName(item.name);
+                    }}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      padding: spacing.sm,
+                      borderBottomColor: colors.border,
+                      borderBottomWidth: 1,
                     }}
                   >
-                    <Ionicons
-                      name="close-circle"
-                      size={20}
-                      color={colors.primary}
+                    <FaceAvatar
+                      name={item.name}
+                      avatar={item.avatarUrl ?? ""}
+                      size={32}
+                      showLabel={false}
+                      noMargin
                     />
-                  </Pressable>
-                </View>
-
-                {/* Relationship type */}
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "600",
-                    color: colors.textMain,
-                    marginBottom: spacing.xs,
-                  }}
-                >
-                  Relationship Type
-                </Text>
-                <TextInput
-                  style={{
-                    backgroundColor: colors.card,
-                    borderRadius: borderRadius.md,
-                    borderColor: colors.border,
-                    borderWidth: 1,
-                    padding: spacing.sm,
-                    fontSize: 14,
-                    color: colors.textMain,
-                    marginBottom: spacing.md,
-                  }}
-                  placeholder="e.g. friend, colleague, mentor..."
-                  placeholderTextColor={colors.textTertiary}
-                  value={type}
-                  onChangeText={setType}
-                />
-
-                {/* Sentiment */}
-                <View style={{ marginBottom: spacing.md }}>
-                  <ScaleSelector
-                    options={SENTIMENT_OPTIONS}
-                    value={sentiment}
-                    onChange={setSentiment}
-                    colorFor={sentimentColor}
-                    label="Sentiment"
-                  />
-                </View>
-
-                {/* Description */}
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "600",
-                    color: colors.textMain,
-                    marginBottom: spacing.xs,
-                  }}
-                >
-                  Description (optional)
-                </Text>
-                <TextInput
-                  style={{
-                    backgroundColor: colors.card,
-                    borderRadius: borderRadius.md,
-                    borderColor: colors.border,
-                    borderWidth: 1,
-                    padding: spacing.sm,
-                    fontSize: 14,
-                    color: colors.textMain,
-                    minHeight: 60,
-                    textAlignVertical: "top",
-                    marginBottom: spacing.lg,
-                  }}
-                  placeholder="e.g. Met on a ski trip"
-                  placeholderTextColor={colors.textTertiary}
-                  value={description}
-                  onChangeText={setDescription}
-                  multiline
-                />
-
-                {/* Submit button */}
-                <Pressable
-                  onPress={handleCreate}
-                  disabled={!type.trim() || createMutation.isPending}
-                  style={{
-                    backgroundColor:
-                      !type.trim() || createMutation.isPending
-                        ? colors.textTertiary
-                        : colors.primary,
-                    borderRadius: borderRadius.md,
-                    padding: spacing.md,
-                    alignItems: "center",
-                  }}
-                >
-                  {createMutation.isPending ? (
-                    <ActivityIndicator size="small" color={colors.card} />
-                  ) : (
                     <Text
                       style={{
-                        color: colors.card,
-                        fontWeight: "700",
-                        fontSize: 16,
+                        marginLeft: spacing.sm,
+                        fontSize: 14,
+                        color: colors.textMain,
                       }}
                     >
-                      Add Relationship
+                      {item.name}
                     </Text>
-                  )}
+                  </Pressable>
+                )}
+                ListEmptyComponent={
+                  <Text
+                    style={{
+                      textAlign: "center",
+                      color: colors.textTertiary,
+                      padding: spacing.lg,
+                    }}
+                  >
+                    No contacts found
+                  </Text>
+                }
+              />
+            </View>
+          ) : (
+            // Scrollable, and a direct child of the 85%-capped sheet so it is
+            // actually bounded by it: this step is taller than 85% of a short
+            // viewport (landscape, or a large font scale), which left the
+            // submit button off-screen with no way to reach it — the same
+            // clipping the onboarding carousel had. Only this branch scrolls;
+            // step 1's FlatList does its own, and nesting the two breaks both.
+            <ScrollView
+              contentContainerStyle={{ padding: spacing.lg }}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Selected contact pill */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: colors.primaryLight,
+                  borderRadius: borderRadius.md,
+                  padding: spacing.sm,
+                  marginBottom: spacing.md,
+                }}
+              >
+                <Text
+                  style={{
+                    flex: 1,
+                    fontSize: 14,
+                    color: colors.primary,
+                    fontWeight: "600",
+                  }}
+                >
+                  {contactName} & {selectedContactName}
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    setSelectedContactId(null);
+                    setSelectedContactName("");
+                  }}
+                >
+                  <Ionicons
+                    name="close-circle"
+                    size={20}
+                    color={colors.primary}
+                  />
                 </Pressable>
               </View>
-            )}
-          </View>
+
+              {/* Relationship type */}
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: "600",
+                  color: colors.textMain,
+                  marginBottom: spacing.xs,
+                }}
+              >
+                Relationship Type
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: colors.card,
+                  borderRadius: borderRadius.md,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                  padding: spacing.sm,
+                  fontSize: 14,
+                  color: colors.textMain,
+                  marginBottom: spacing.md,
+                }}
+                placeholder="e.g. friend, colleague, mentor..."
+                placeholderTextColor={colors.textTertiary}
+                value={type}
+                onChangeText={setType}
+              />
+
+              {/* Sentiment */}
+              <View style={{ marginBottom: spacing.md }}>
+                <ScaleSelector
+                  options={SENTIMENT_OPTIONS}
+                  value={sentiment}
+                  onChange={setSentiment}
+                  colorFor={sentimentColor}
+                  label="Sentiment"
+                />
+              </View>
+
+              {/* Description */}
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: "600",
+                  color: colors.textMain,
+                  marginBottom: spacing.xs,
+                }}
+              >
+                Description (optional)
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: colors.card,
+                  borderRadius: borderRadius.md,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                  padding: spacing.sm,
+                  fontSize: 14,
+                  color: colors.textMain,
+                  minHeight: 60,
+                  textAlignVertical: "top",
+                  marginBottom: spacing.lg,
+                }}
+                placeholder="e.g. Met on a ski trip"
+                placeholderTextColor={colors.textTertiary}
+                value={description}
+                onChangeText={setDescription}
+                multiline
+              />
+
+              {/* Submit button */}
+              <Pressable
+                onPress={handleCreate}
+                accessibilityRole="button"
+                // Distinct from the modal's "Add Relationship" heading, the
+                // same way contact-add's submit is "Add Contact to network".
+                accessibilityLabel="Add this relationship"
+                disabled={!type.trim() || createMutation.isPending}
+                style={{
+                  backgroundColor:
+                    !type.trim() || createMutation.isPending
+                      ? colors.textTertiary
+                      : colors.primary,
+                  borderRadius: borderRadius.md,
+                  padding: spacing.md,
+                  alignItems: "center",
+                }}
+              >
+                {createMutation.isPending ? (
+                  <ActivityIndicator size="small" color={colors.card} />
+                ) : (
+                  <Text
+                    style={{
+                      color: colors.card,
+                      fontWeight: "700",
+                      fontSize: 16,
+                    }}
+                  >
+                    Add Relationship
+                  </Text>
+                )}
+              </Pressable>
+            </ScrollView>
+          )}
         </View>
       </View>
     </Modal>

@@ -328,6 +328,13 @@ export default function ContactsScreen() {
           <Pressable
             key={tab}
             onPress={() => setActiveTab(tab)}
+            accessibilityRole="tab"
+            accessibilityLabel={
+              tab === "active" ? "Active contacts" : "Directory contacts"
+            }
+            // Which tab is current is otherwise conveyed by background colour
+            // alone — invisible to a screen reader.
+            accessibilityState={{ selected: activeTab === tab }}
             style={{
               flex: 1,
               paddingVertical: spacing.sm,

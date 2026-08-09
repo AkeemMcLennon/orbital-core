@@ -88,6 +88,8 @@ export function Tag({
       {onRemove && (
         <Pressable
           onPress={onRemove}
+          accessibilityRole="button"
+          accessibilityLabel={`Remove ${name}`}
           style={{ marginLeft: spacing.xs }}
           hitSlop={8}
         >

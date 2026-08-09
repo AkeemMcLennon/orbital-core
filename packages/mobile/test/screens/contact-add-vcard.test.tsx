@@ -116,7 +116,7 @@ describe("Add Contact screen, vCard prefill", () => {
     }, WAIT_OPTIONS);
 
     fireEvent.changeText(screen.getByDisplayValue("+1-555-1234"), "");
-    expect(screen.getByLabelText("Phone")).toBeTruthy();
+    expect(screen.getByLabelText("Edit phone")).toBeTruthy();
   });
 
   it("keeps imported details when the name is edited, and sends them", async () => {

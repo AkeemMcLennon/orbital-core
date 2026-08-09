@@ -179,6 +179,11 @@ function DailyOrbitScreen() {
         >
           <Pressable
             onPress={() => setSearchOpen(true)}
+            accessibilityRole="button"
+            // Named explicitly: the placeholder Text below is the bar's only
+            // other accessible name, and the dialog this opens uses the very
+            // same string for its real input.
+            accessibilityLabel="Open contact search"
             // Hidden while the search dialog is open so it can't peek out behind it.
             pointerEvents={searchOpen ? "none" : "auto"}
             style={{

@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
-import { spacing, colors, borderRadius, shadows } from '../theme';
-import { FaceAvatar } from './FaceAvatar';
+import React, { useState } from "react";
+import { View, Text, Pressable } from "react-native";
+import { spacing, colors, borderRadius, shadows } from "../theme";
+import { FaceAvatar } from "./FaceAvatar";
 
 interface QuizCardProps {
   question: string;
   options: string[];
   correctAnswer: number;
   contactName: string;
-  questionType?: 'detail' | 'identify';
+  questionType?: "detail" | "identify";
   contactAvatarUrl?: string | null;
   onAnswer?: (selectedAnswer: number, isCorrect: boolean) => void;
 }
@@ -18,14 +18,14 @@ export const QuizCard: React.FC<QuizCardProps> = ({
   options,
   correctAnswer,
   contactName,
-  questionType = 'detail',
+  questionType = "detail",
   contactAvatarUrl,
   onAnswer,
 }) => {
   const [answered, setAnswered] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
 
-  const isIdentify = questionType === 'identify';
+  const isIdentify = questionType === "identify";
 
   const handleAnswer = (index: number) => {
     if (!answered) {
@@ -85,7 +85,7 @@ export const QuizCard: React.FC<QuizCardProps> = ({
     >
       {isIdentify ? (
         /* Identify question: show avatar + "Who is this person?" */
-        <View style={{ alignItems: 'center', marginBottom: spacing.lg }}>
+        <View style={{ alignItems: "center", marginBottom: spacing.lg }}>
           <FaceAvatar
             name={contactName}
             avatar={contactAvatarUrl}
@@ -96,7 +96,7 @@ export const QuizCard: React.FC<QuizCardProps> = ({
           <Text
             style={{
               fontSize: 16,
-              fontWeight: '600',
+              fontWeight: "600",
               color: colors.textMain,
               marginTop: spacing.md,
               lineHeight: 22,
@@ -113,7 +113,7 @@ export const QuizCard: React.FC<QuizCardProps> = ({
               fontSize: 12,
               color: colors.textTertiary,
               marginBottom: spacing.sm,
-              fontWeight: '500',
+              fontWeight: "500",
             }}
           >
             {contactName.toUpperCase()}
@@ -121,7 +121,7 @@ export const QuizCard: React.FC<QuizCardProps> = ({
           <Text
             style={{
               fontSize: 16,
-              fontWeight: '600',
+              fontWeight: "600",
               color: colors.textMain,
               marginBottom: spacing.lg,
               lineHeight: 22,
@@ -135,10 +135,10 @@ export const QuizCard: React.FC<QuizCardProps> = ({
       {/* Options grid (2x2) */}
       <View
         style={{
-          flexDirection: 'row',
-          flexWrap: 'wrap',
+          flexDirection: "row",
+          flexWrap: "wrap",
           gap: spacing.md,
-          justifyContent: 'space-between',
+          justifyContent: "space-between",
         }}
       >
         {options.map((option, index) => {
@@ -150,10 +150,15 @@ export const QuizCard: React.FC<QuizCardProps> = ({
             <Pressable
               key={index}
               onPress={() => handleAnswer(index)}
+              // Announced as an answer choice rather than a bare string — for
+              // identify questions the options are contact names, which also
+              // appear in the Face Stream and timeline on the same screen.
+              accessibilityRole="button"
+              accessibilityLabel={`Memory rep answer: ${option}`}
               disabled={answered}
               style={{
                 flex: 1,
-                minWidth: '45%',
+                minWidth: "45%",
                 paddingVertical: spacing.md,
                 paddingHorizontal: spacing.md,
                 borderRadius: borderRadius.md,
@@ -165,12 +170,12 @@ export const QuizCard: React.FC<QuizCardProps> = ({
             >
               <Text
                 style={{
-                  textAlign: 'center',
+                  textAlign: "center",
                   color:
                     buttonStyle.backgroundColor === colors.border
                       ? colors.textSecondary
                       : colors.card,
-                  fontWeight: '500',
+                  fontWeight: "500",
                   fontSize: 13,
                 }}
               >
@@ -186,17 +191,18 @@ export const QuizCard: React.FC<QuizCardProps> = ({
         <Text
           style={{
             marginTop: spacing.lg,
-            textAlign: 'center',
+            textAlign: "center",
             fontSize: 13,
-            color: selectedAnswer === correctAnswer ? colors.success : colors.error,
-            fontWeight: '500',
+            color:
+              selectedAnswer === correctAnswer ? colors.success : colors.error,
+            fontWeight: "500",
           }}
         >
           {selectedAnswer === correctAnswer
-            ? '✓ Correct!'
+            ? "✓ Correct!"
             : isIdentify
               ? `✗ This is ${contactName}`
-              : '✗ Incorrect'}
+              : "✗ Incorrect"}
         </Text>
       )}
     </View>

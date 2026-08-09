@@ -353,6 +353,10 @@ export default function SettingsScreen() {
                     </Pressable>
                     <Pressable
                       onPress={() => requestDeletion()}
+                      accessibilityRole="button"
+                      // The Danger Zone row behind this modal is also labelled
+                      // "Delete Account".
+                      accessibilityLabel="Delete my account permanently"
                       disabled={!canConfirm}
                       style={({ pressed }) => ({
                         flex: 1,

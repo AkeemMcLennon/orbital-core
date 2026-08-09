@@ -72,7 +72,12 @@ export function TagEditor({ tags, onChange }: TagEditorProps) {
         onChangeText={handleChangeText}
         onSubmitEditing={handleSubmit}
         blurOnSubmit={false}
-        placeholder={tags.length === 0 ? "Add tags, separated by commas..." : ""}
+        // The placeholder is blanked once there are tags, leaving the input
+        // unnamed in exactly the case where it's most used.
+        accessibilityLabel="Add a tag"
+        placeholder={
+          tags.length === 0 ? "Add tags, separated by commas..." : ""
+        }
         placeholderTextColor={colors.textTertiary}
         style={{
           flex: 1,

@@ -1085,7 +1085,9 @@ export default function AddContactScreen() {
           {DETAIL_FIELDS.filter((f) => revealedDetails.has(f.key)).map((f) => (
             <FormField key={f.key} label={f.label}>
               <TextInput
-                accessibilityLabel={f.label}
+                // Not the bare label — FormField renders that as a heading
+                // directly above, so both would answer to e.g. "Company".
+                accessibilityLabel={`Edit ${f.label.toLowerCase()}`}
                 placeholder={f.placeholder}
                 placeholderTextColor={colors.textTertiary}
                 value={details[f.key]}

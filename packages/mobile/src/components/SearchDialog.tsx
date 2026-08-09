@@ -156,6 +156,10 @@ function SearchContent({
         <TextInput
           value={query}
           onChangeText={setQuery}
+          // The dashboard bar that opens this dialog stays mounted behind it and
+          // its placeholder reads "Search contacts..." too; name this one so the
+          // two are tellable apart.
+          accessibilityLabel="Search your contacts"
           placeholder="Search contacts..."
           placeholderTextColor={colors.textTertiary}
           style={{

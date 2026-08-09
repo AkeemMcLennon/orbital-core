@@ -173,6 +173,8 @@ export function ContactDetails({
           >
             <Pressable
               onPress={handleCall}
+              accessibilityRole="button"
+              accessibilityLabel="Call this contact"
               style={{
                 width: 48,
                 height: 48,
@@ -188,6 +190,8 @@ export function ContactDetails({
 
             <Pressable
               onPress={handleMessage}
+              accessibilityRole="button"
+              accessibilityLabel="Text this contact"
               style={{
                 width: 48,
                 height: 48,
@@ -203,6 +207,8 @@ export function ContactDetails({
 
             <Pressable
               onPress={handleEmail}
+              accessibilityRole="button"
+              accessibilityLabel="Email this contact"
               style={{
                 width: 48,
                 height: 48,

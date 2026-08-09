@@ -245,8 +245,14 @@ export default function EditContactScreen() {
             </Text>
           </View>
 
+          {/* Every input below is named explicitly: FormField renders its label
+              as a sibling <Text>, which RN does not associate with the input, so
+              a filled field (the normal case on this screen) is otherwise an
+              anonymous edit box — its placeholder is gone and its value is the
+              contact's data, not a name. */}
           <FormField label="Name *">
             <TextInput
+              accessibilityLabel="Edit name"
               placeholder="Contact name"
               placeholderTextColor={colors.textTertiary}
               value={name}
@@ -257,6 +263,7 @@ export default function EditContactScreen() {
 
           <FormField label="Email">
             <TextInput
+              accessibilityLabel="Edit email"
               placeholder="email@example.com"
               placeholderTextColor={colors.textTertiary}
               value={email}
@@ -268,6 +275,7 @@ export default function EditContactScreen() {
 
           <FormField label="Phone">
             <TextInput
+              accessibilityLabel="Edit phone"
               placeholder="+1 (555) 000-0000"
               placeholderTextColor={colors.textTertiary}
               value={phone}
@@ -279,6 +287,7 @@ export default function EditContactScreen() {
 
           <FormField label="Job Title">
             <TextInput
+              accessibilityLabel="Edit job title"
               placeholder="e.g., Software Engineer"
               placeholderTextColor={colors.textTertiary}
               value={jobTitle}
@@ -289,6 +298,7 @@ export default function EditContactScreen() {
 
           <FormField label="Company">
             <TextInput
+              accessibilityLabel="Edit company"
               placeholder="Company name"
               placeholderTextColor={colors.textTertiary}
               value={company}
@@ -299,6 +309,7 @@ export default function EditContactScreen() {
 
           <FormField label="Group">
             <TextInput
+              accessibilityLabel="Edit group"
               placeholder="e.g., Friends, Colleagues"
               placeholderTextColor={colors.textTertiary}
               value={group}
@@ -318,6 +329,7 @@ export default function EditContactScreen() {
           <FormField label="Notes">
             <View style={{ ...inputStyle, minHeight: 100, paddingVertical: 0 }}>
               <TextInput
+                accessibilityLabel="Edit notes"
                 placeholder="Add notes about this person..."
                 placeholderTextColor={colors.textTertiary}
                 value={notes}
