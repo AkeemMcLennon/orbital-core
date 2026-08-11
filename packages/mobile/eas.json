@@ -24,6 +24,10 @@
       "ios": {
         "simulator": true
       }
+    },
+    "beta": {
+      "extends": "production",
+      "channel": "beta"
     }
   },
   "submit": {
