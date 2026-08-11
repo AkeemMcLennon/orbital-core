@@ -179,6 +179,14 @@ function ContactList<
         ref={listRef}
         sections={sections}
         keyExtractor={(item) => item.id}
+        // The search field above stays focused while you pick a result, so the
+        // keyboard is up when a row is tapped. Without this the list's default
+        // ("never") spends that first tap dismissing the keyboard and the row's
+        // onPress never fires — a real user has to tap twice, and it's why the
+        // add-contact E2E flow couldn't open a contact on iOS. Every other
+        // search-over-list surface (SearchDialog, contact picker, …) already
+        // sets "handled".
+        keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => (
           <ContactRow
             name={item.name}
