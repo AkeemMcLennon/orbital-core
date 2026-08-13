@@ -120,7 +120,11 @@ function DailyOrbitScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: spacing.xxl }}
+        // Twice xxl, not xxl: the floating "Ask Orbital" pill (absolute,
+        // bottom 24 + ~56 tall) overlays the viewport bottom, so anything
+        // inside the last ~80px of content — the final timeline entry, a low
+        // quiz card's feedback line — could never scroll out from behind it.
+        contentContainerStyle={{ paddingBottom: spacing.xxl * 2 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
