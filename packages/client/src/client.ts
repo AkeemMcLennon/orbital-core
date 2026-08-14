@@ -59,6 +59,27 @@ export function isSuccess<T extends { status: number }>(
 }
 
 /**
+ * Await an API call and throw unless it returned 2xx.
+ *
+ * `customFetch` resolves non-2xx responses instead of rejecting, so an awaited
+ * call reads as successful even when the server refused it. Callers that treat
+ * "resolved" as "worked" — most notably react-query's `mutationFn`, whose
+ * `onSuccess` then fires on failure — should route through this instead.
+ *
+ * `action` is used to build the thrown message, e.g. "Delete failed with status 404".
+ */
+export async function unwrapOrThrow<T extends { status: number }>(
+  request: Promise<T>,
+  action: string,
+): Promise<Extract<T, { status: 200 | 201 | 204 }>> {
+  const response = await request;
+  if (!isSuccess(response)) {
+    throw new Error(`${action} failed with status ${response.status}`);
+  }
+  return response;
+}
+
+/**
  * Helper to safely extract data from a successful API response
  */
 export function getSuccessData<T extends { status: number; data?: any }>(

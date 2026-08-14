@@ -3,6 +3,7 @@ import { Pressable, Text, View, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing } from "../src/theme";
+import { useAppToast } from "../src/components";
 import {
   usePreferences,
   useUpdatePreferences,
@@ -20,6 +21,7 @@ const PRESETS: { label: string; hours: number }[] = [
 export default function MemoryRepFrequencyScreen() {
   const { data, isLoading } = usePreferences();
   const { mutate: updatePrefs, isPending } = useUpdatePreferences();
+  const { showError } = useAppToast();
 
   const currentHours = data?.memRepInitialDelayHours;
   const isCustom =
@@ -73,7 +75,18 @@ export default function MemoryRepFrequencyScreen() {
                 key={preset.hours}
                 disabled={isPending || isCustomRow || isSelected}
                 onPress={() =>
-                  updatePrefs({ memRepInitialDelayHours: preset.hours })
+                  updatePrefs(
+                    { memRepInitialDelayHours: preset.hours },
+                    {
+                      // Nothing else marks failure here — the row simply stays
+                      // on the old value as if the tap never happened.
+                      onError: () =>
+                        showError(
+                          "Couldn't Save",
+                          "Unable to update your reminder frequency.",
+                        ),
+                    },
+                  )
                 }
                 style={({ pressed }) => ({
                   flexDirection: "row",

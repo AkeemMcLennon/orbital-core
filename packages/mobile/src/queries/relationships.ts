@@ -4,12 +4,13 @@ import {
   createRelationship,
   deleteRelationship,
   getSuccessData,
+  unwrapOrThrow,
 } from "@orbital/client";
 import type { CreateRelationshipBody } from "@orbital/client";
 
 export const relationshipKeys = {
-  forContact: (contactId: string) =>
-    ["relationships", contactId] as const,
+  all: ["relationships"] as const,
+  forContact: (contactId: string) => ["relationships", contactId] as const,
 };
 
 export function useContactRelationships(contactId: string) {
@@ -26,7 +27,8 @@ export function useCreateRelationship() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (body: CreateRelationshipBody) => createRelationship(body),
+    mutationFn: (body: CreateRelationshipBody) =>
+      unwrapOrThrow(createRelationship(body), "Create relationship"),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
         queryKey: relationshipKeys.forContact(variables.contactId),
@@ -42,7 +44,8 @@ export function useDeleteRelationship(contactId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (relationshipId: string) => deleteRelationship(relationshipId),
+    mutationFn: (relationshipId: string) =>
+      unwrapOrThrow(deleteRelationship(relationshipId), "Delete relationship"),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: relationshipKeys.forContact(contactId),

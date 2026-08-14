@@ -3,6 +3,7 @@ import {
   getPreferences,
   updatePreferences,
   getSuccessData,
+  unwrapOrThrow,
 } from "@orbital/client";
 
 export const preferenceKeys = {
@@ -24,7 +25,7 @@ export function useUpdatePreferences() {
 
   return useMutation({
     mutationFn: (body: { memRepInitialDelayHours?: number }) =>
-      updatePreferences(body),
+      unwrapOrThrow(updatePreferences(body), "Update preferences"),
     onSuccess: (res) => {
       // Write the server's echoed value straight into cache so the UI reflects it immediately
       queryClient.setQueryData(preferenceKeys.all, res);

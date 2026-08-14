@@ -11,7 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, router } from "expo-router";
 import { DrawerActions } from "@react-navigation/native";
-import { Tag } from "../../../src/components";
+import { Tag, useAppToast } from "../../../src/components";
 import { useTags, useCreateTag, useDeleteTag } from "../../../src/queries/tags";
 import { colors, spacing, borderRadius, shadows } from "../../../src/theme";
 
@@ -23,13 +23,24 @@ export default function TagsScreen() {
   const { data: tags, isLoading } = useTags();
   const createMutation = useCreateTag();
   const deleteMutation = useDeleteTag();
+  const { showError } = useAppToast();
 
   const addTag = (raw: string) => {
     const trimmed = raw.trim();
     if (!trimmed) return;
     if (tags?.some((t) => t.name.toLowerCase() === trimmed.toLowerCase()))
       return;
-    createMutation.mutate({ name: trimmed });
+    // mutateAsync, not a mutate-level onError: nothing stops a second add while
+    // this one is in flight, and react-query drops a mutate call's callbacks
+    // once a newer call supersedes it — this promise is retained per add.
+    createMutation.mutateAsync({ name: trimmed }).catch(() => {
+      // The input is cleared optimistically below; put the text back on
+      // failure so the user doesn't silently lose what they typed — but only
+      // if the box is still empty, since a delayed failure must not clobber
+      // the next tag they've already started typing.
+      setInput((current) => (current === "" ? trimmed : current));
+      showError("Couldn't Add Tag", `Unable to create "${trimmed}".`);
+    });
     setInput("");
   };
 
@@ -149,7 +160,19 @@ export default function TagsScreen() {
                   name={tag.name}
                   color={tag.color}
                   size="large"
-                  onRemove={() => deleteMutation.mutate(tag.id)}
+                  onRemove={() =>
+                    // mutateAsync: every tag's X is live in edit mode, so a
+                    // second removal in flight would drop a mutate-level
+                    // onError; the promise is retained per removal.
+                    deleteMutation
+                      .mutateAsync(tag.id)
+                      .catch(() =>
+                        showError(
+                          "Couldn't Remove Tag",
+                          `Unable to remove "${tag.name}".`,
+                        ),
+                      )
+                  }
                 />
               ) : (
                 <Pressable

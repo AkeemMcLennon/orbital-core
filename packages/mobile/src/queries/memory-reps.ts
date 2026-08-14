@@ -4,6 +4,7 @@ import {
   answerMemoryRep,
   generateMemoryReps,
   getSuccessData,
+  unwrapOrThrow,
 } from "@orbital/client";
 
 export const memoryRepKeys = {
@@ -24,8 +25,17 @@ export function useAnswerMemoryRep() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, selectedAnswer }: { id: string; selectedAnswer: number }) =>
-      answerMemoryRep(id, { selectedAnswer }),
+    mutationFn: ({
+      id,
+      selectedAnswer,
+    }: {
+      id: string;
+      selectedAnswer: number;
+    }) =>
+      unwrapOrThrow(
+        answerMemoryRep(id, { selectedAnswer }),
+        "Answer memory rep",
+      ),
     onSuccess: () => {
       // Delay invalidation so user sees feedback before card disappears
       setTimeout(() => {
@@ -40,7 +50,7 @@ export function useGenerateMemoryReps() {
 
   return useMutation({
     mutationFn: (params?: { contactLimit?: number }) =>
-      generateMemoryReps(params ?? {}),
+      unwrapOrThrow(generateMemoryReps(params ?? {}), "Generate memory reps"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: memoryRepKeys.all });
     },

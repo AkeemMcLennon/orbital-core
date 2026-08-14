@@ -207,6 +207,31 @@ jest.mock("tamagui", () => {
   };
 });
 
+// ── @tamagui/toast ──
+// Toasts are fire-and-forget feedback: the controller is a spy and
+// useToastState returns null, so no transient text leaks into the tree of a
+// screen under test. Nothing asserts on a toast today.
+jest.mock("@tamagui/toast", () => {
+  const React = require("react");
+  const { View } = require("react-native");
+
+  const Passthrough = ({ children, ...props }: any) =>
+    React.createElement(View, props, children);
+
+  return {
+    ToastProvider: ({ children }: any) => children,
+    ToastViewport: () => null,
+    Toast: Object.assign(Passthrough, {
+      Title: Passthrough,
+      Description: Passthrough,
+      Action: Passthrough,
+      Close: Passthrough,
+    }),
+    useToastController: () => ({ show: jest.fn(), hide: jest.fn() }),
+    useToastState: () => null,
+  };
+});
+
 // ── @expo/vector-icons ──
 jest.mock("@expo/vector-icons", () => {
   const React = require("react");

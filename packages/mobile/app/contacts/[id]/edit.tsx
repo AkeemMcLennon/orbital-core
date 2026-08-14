@@ -14,8 +14,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { updateContact, mergeContact } from "@orbital/client";
+import {
+  updateContact,
+  mergeContact,
+  deleteContact,
+  unwrapOrThrow,
+} from "@orbital/client";
 import { useContact, contactKeys } from "../../../src/queries/contacts";
+import { relationshipKeys } from "../../../src/queries/relationships";
 import { colors, spacing, borderRadius, inputStyle } from "../../../src/theme";
 import {
   FaceAvatar,
@@ -24,6 +30,7 @@ import {
   SocialLinksEditor,
   ContactPickerModal,
   StrengthSelector,
+  useAppToast,
   type TagItem,
   type SocialLink,
 } from "../../../src/components";
@@ -93,18 +100,25 @@ export default function EditContactScreen() {
   const [showMergePicker, setShowMergePicker] = useState(false);
 
   const { onEdit, isUploading } = useAvatarUpload(id);
+  const { showError } = useAppToast();
 
   const mergeMutation = useMutation({
-    mutationFn: (sourceId: string) => mergeContact(id || "", { sourceId }),
-    onSuccess: () => {
+    mutationFn: (sourceId: string) =>
+      unwrapOrThrow(mergeContact(id || "", { sourceId }), "Merge"),
+    onSuccess: (_response, sourceId) => {
+      // The merge deletes the source contact server-side, so drop its cached
+      // detail entry rather than leaving a tombstone that would 404 on revisit.
+      // The destination (`id`) survives, so going back to it is still correct —
+      // the invalidation below refetches it with the merged fields.
+      queryClient.removeQueries({ queryKey: contactKeys.detail(sourceId) });
       queryClient.invalidateQueries({ queryKey: contactKeys.all });
+      // Relationship rows referencing the source cascade away server-side, but
+      // they live under their own cache prefix that contactKeys can't reach.
+      queryClient.invalidateQueries({ queryKey: relationshipKeys.all });
       router.back();
     },
     onError: () =>
-      Alert.alert(
-        "Merge Failed",
-        "Unable to merge contacts. Please try again.",
-      ),
+      showError("Merge Failed", "Unable to merge contacts. Please try again."),
   });
 
   const handleMergeSelect = (sourceId: string, sourceName: string) => {
@@ -124,16 +138,61 @@ export default function EditContactScreen() {
 
   const updateMutation = useMutation({
     mutationFn: (data: Parameters<typeof updateContact>[1]) =>
-      updateContact(id || "", data),
+      unwrapOrThrow(updateContact(id || "", data), "Update"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: contactKeys.all });
       router.back();
     },
     onError: (error) => {
       console.error("Failed to update contact:", error);
-      alert("Failed to update contact. Please try again.");
+      showError("Save Failed", "Unable to save changes. Please try again.");
     },
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => unwrapOrThrow(deleteContact(id || ""), "Delete"),
+    onSuccess: () => {
+      // Don't go back to the detail screen: it observes contactKeys.detail(id)
+      // and would refetch the contact the server just deleted, stranding the
+      // user on its "Failed to load contact details" screen. Edit is only ever
+      // pushed from detail, so popping both lands on the pre-detail screen no
+      // matter how the user got here (dashboard, contacts list, search) —
+      // dismissTo("/(main)/contacts") can't promise that: when the list isn't
+      // in the stack it replaces only this route, leaving the dead detail
+      // screen one Back-press away.
+      router.dismiss(2);
+      queryClient.removeQueries({ queryKey: contactKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: contactKeys.all });
+      // Relationships referencing this contact cascade away server-side, but
+      // they live under their own cache prefix that contactKeys can't reach.
+      queryClient.invalidateQueries({ queryKey: relationshipKeys.all });
+    },
+    onError: () =>
+      showError("Delete Failed", "Unable to delete contact. Please try again."),
+  });
+
+  // One source of truth for "a mutation is in flight" — every button derives its
+  // disabled and dimmed states from these so they can't drift apart.
+  const isBusy =
+    updateMutation.isPending ||
+    mergeMutation.isPending ||
+    deleteMutation.isPending;
+  const canSave = name.trim().length > 0 && !isBusy;
+
+  const handleDelete = () => {
+    Alert.alert(
+      "Delete Contact",
+      `Are you sure you want to delete "${contact?.name}"? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => deleteMutation.mutate(),
+        },
+      ],
+    );
+  };
 
   const handleSave = () => {
     if (!name.trim()) {
@@ -351,8 +410,10 @@ export default function EditContactScreen() {
 
           {/* Merge */}
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Merge with another contact"
             onPress={() => setShowMergePicker(true)}
-            disabled={mergeMutation.isPending || updateMutation.isPending}
+            disabled={isBusy}
             style={{
               flexDirection: "row",
               alignItems: "center",
@@ -361,8 +422,7 @@ export default function EditContactScreen() {
               borderRadius: borderRadius.md,
               borderWidth: 1,
               borderColor: colors.warning,
-              opacity:
-                mergeMutation.isPending || updateMutation.isPending ? 0.5 : 1,
+              opacity: isBusy ? 0.5 : 1,
             }}
           >
             {mergeMutation.isPending ? (
@@ -392,6 +452,49 @@ export default function EditContactScreen() {
                 : "Merge with Another Contact"}
             </Text>
           </Pressable>
+
+          {/* Delete */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Delete contact"
+            onPress={handleDelete}
+            disabled={isBusy}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginTop: spacing.md,
+              padding: spacing.md,
+              borderRadius: borderRadius.md,
+              borderWidth: 1,
+              borderColor: colors.error,
+              opacity: isBusy ? 0.5 : 1,
+            }}
+          >
+            {deleteMutation.isPending ? (
+              <ActivityIndicator
+                size="small"
+                color={colors.error}
+                style={{ marginRight: spacing.sm }}
+              />
+            ) : (
+              <Ionicons
+                name="trash-outline"
+                size={18}
+                color={colors.error}
+                style={{ marginRight: spacing.sm }}
+              />
+            )}
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "600",
+                color: colors.error,
+                flex: 1,
+              }}
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete Contact"}
+            </Text>
+          </Pressable>
         </ScrollView>
 
         {/* Action Buttons */}
@@ -407,13 +510,13 @@ export default function EditContactScreen() {
         >
           <Pressable
             onPress={() => router.back()}
-            disabled={updateMutation.isPending}
+            disabled={isBusy}
             style={{
               flex: 1,
               paddingVertical: spacing.md,
               borderRadius: borderRadius.lg,
               backgroundColor: colors.border,
-              opacity: updateMutation.isPending ? 0.5 : 1,
+              opacity: isBusy ? 0.5 : 1,
             }}
           >
             <Text
@@ -428,16 +531,13 @@ export default function EditContactScreen() {
           </Pressable>
           <Pressable
             onPress={handleSave}
-            disabled={!name.trim() || updateMutation.isPending}
+            disabled={!canSave}
             style={{
               flex: 1,
               paddingVertical: spacing.md,
               borderRadius: borderRadius.lg,
-              backgroundColor:
-                name.trim() && !updateMutation.isPending
-                  ? colors.primary
-                  : colors.border,
-              opacity: !name.trim() ? 0.5 : 1,
+              backgroundColor: canSave ? colors.primary : colors.border,
+              opacity: canSave ? 1 : 0.5,
               justifyContent: "center",
               alignItems: "center",
               flexDirection: "row",

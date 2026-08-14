@@ -4,6 +4,7 @@ import {
   createTag,
   deleteTag,
   getSuccessData,
+  unwrapOrThrow,
 } from "@orbital/client";
 
 export const tagKeys = { all: ["tags"] as const };
@@ -21,7 +22,8 @@ export function useTags() {
 export function useCreateTag() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: { name: string; color?: string }) => createTag(body),
+    mutationFn: (body: { name: string; color?: string }) =>
+      unwrapOrThrow(createTag(body), "Create tag"),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: tagKeys.all }),
   });
 }
@@ -29,7 +31,7 @@ export function useCreateTag() {
 export function useDeleteTag() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => deleteTag(id),
+    mutationFn: (id: string) => unwrapOrThrow(deleteTag(id), "Delete tag"),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: tagKeys.all }),
   });
 }

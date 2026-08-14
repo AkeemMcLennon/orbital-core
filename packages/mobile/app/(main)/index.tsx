@@ -17,6 +17,7 @@ import {
   QuizCard,
   SearchDialog,
   TimelineItem,
+  useAppToast,
 } from "../../src/components";
 import { useAuthContext } from "../../src/contexts/AuthContext";
 import {
@@ -100,6 +101,7 @@ function DailyOrbitScreen() {
   const answerMutation = useAnswerMemoryRep();
   const { mutate: generateReps, isPending: isGenerating } =
     useGenerateMemoryReps();
+  const { showError } = useAppToast();
   const memoryReps = (repsData?.items || []).filter(
     (rep) => !answeredIds.has(rep.id),
   );
@@ -338,7 +340,18 @@ function DailyOrbitScreen() {
                 Quizzes and reminders will appear here as you add new contacts.
               </Text>
               <Pressable
-                onPress={() => generateReps({})}
+                onPress={() =>
+                  generateReps(
+                    {},
+                    {
+                      onError: () =>
+                        showError(
+                          "Couldn't Generate Quizzes",
+                          "Something went wrong. Please try again.",
+                        ),
+                    },
+                  )
+                }
                 disabled={isGenerating}
                 style={{
                   marginTop: spacing.md,
@@ -373,7 +386,21 @@ function DailyOrbitScreen() {
                 questionType={rep.questionType as "detail" | "identify"}
                 contactAvatarUrl={rep.contactAvatarUrl}
                 onAnswer={(selectedAnswer, _isCorrect) => {
-                  answerMutation.mutate({ id: rep.id, selectedAnswer });
+                  // The card is hidden locally below regardless, so say
+                  // plainly that the answer didn't stick rather than letting
+                  // the question quietly reappear later. mutateAsync (not a
+                  // mutate-level onError): several cards are live at once and
+                  // each disables only itself, and react-query drops a mutate
+                  // call's callbacks as soon as a newer call supersedes it —
+                  // this promise is retained per answer.
+                  answerMutation
+                    .mutateAsync({ id: rep.id, selectedAnswer })
+                    .catch(() =>
+                      showError(
+                        "Answer Not Saved",
+                        "This question will come back around.",
+                      ),
+                    );
                   setTimeout(() => {
                     setAnsweredIds((prev) => new Set(prev).add(rep.id));
                   }, 2500);

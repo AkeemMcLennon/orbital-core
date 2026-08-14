@@ -21,6 +21,8 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { TamaguiProvider } from "tamagui";
+import { ToastProvider } from "@tamagui/toast";
+import { AppToasts, AppToastViewport } from "../src/components";
 import { getContacts, getMemoryReps } from "@orbital/client";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -208,13 +210,25 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <TamaguiProvider config={tamalogui}>
-            <ThemeProvider
-              value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
-            >
-              <AuthProvider>
-                <AuthGate />
-              </AuthProvider>
-            </ThemeProvider>
+            {/*
+              `native={false}`: the native presenters are lossy for what we
+              show here — Android's is `ToastAndroid`, a title-only grey pill
+              that would drop the explanatory second line entirely — and they
+              look nothing like each other across platforms. Rendering our own
+              (see AppToasts) keeps the message and one appearance everywhere,
+              web included.
+            */}
+            <ToastProvider native={false} swipeDirection="up" duration={4000}>
+              <ThemeProvider
+                value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
+              >
+                <AuthProvider>
+                  <AuthGate />
+                </AuthProvider>
+              </ThemeProvider>
+              <AppToasts />
+              <AppToastViewport />
+            </ToastProvider>
           </TamaguiProvider>
         </QueryClientProvider>
       </SafeAreaProvider>

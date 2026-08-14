@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import {
+  Alert,
   Pressable,
   Text,
   View,
@@ -13,7 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation } from "@tanstack/react-query";
-import { requestAccountDeletion } from "@orbital/client";
+import { requestAccountDeletion, unwrapOrThrow } from "@orbital/client";
 import { borderRadius, colors, spacing } from "../src/theme";
 import { useAuthContext } from "../src/contexts/AuthContext";
 
@@ -26,7 +27,8 @@ export default function SettingsScreen() {
   const [confirmed, setConfirmed] = useState(false);
 
   const { mutate: requestDeletion, isPending } = useMutation({
-    mutationFn: () => requestAccountDeletion(),
+    mutationFn: () =>
+      unwrapOrThrow(requestAccountDeletion(), "Account deletion request"),
     onSuccess: () => {
       setConfirmed(true);
       setTimeout(() => {
@@ -34,6 +36,18 @@ export default function SettingsScreen() {
         signOut();
       }, 3000);
     },
+    // Without this the modal just sits there on failure, having shown neither
+    // the confirmation state nor any reason — on the one action the user most
+    // needs confirmed.
+    //
+    // Alert rather than a toast: this fires while the confirmation Modal is
+    // open, and a native Modal renders above the toast viewport — the toast
+    // would be invisible underneath it.
+    onError: () =>
+      Alert.alert(
+        "Request Failed",
+        "We couldn't submit your deletion request. Please try again.",
+      ),
   });
 
   const canConfirm = confirmText === CONFIRM_PHRASE && !isPending;

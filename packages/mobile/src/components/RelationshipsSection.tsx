@@ -13,6 +13,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { FaceAvatar } from "./FaceAvatar";
+import { useAppToast } from "./AppToasts";
 import {
   ScaleSelector,
   fivePointColor,
@@ -53,6 +54,7 @@ export function RelationshipsSection({
     useContactRelationships(contactId);
   const deleteMutation = useDeleteRelationship(contactId);
   const [showAddModal, setShowAddModal] = useState(false);
+  const { showError } = useAppToast();
 
   const relationships = relationshipsData?.items ?? [];
 
@@ -65,7 +67,18 @@ export function RelationshipsSection({
         {
           text: "Remove",
           style: "destructive",
-          onPress: () => deleteMutation.mutate(rel.id),
+          // mutateAsync: nothing blocks confirming a second removal while this
+          // one is in flight, and react-query drops a mutate call's callbacks
+          // once a newer call supersedes it — the promise is retained per call.
+          onPress: () =>
+            deleteMutation
+              .mutateAsync(rel.id)
+              .catch(() =>
+                showError(
+                  "Remove Failed",
+                  "Unable to remove this relationship.",
+                ),
+              ),
         },
       ],
     );
@@ -291,13 +304,27 @@ function AddRelationshipModal({
   const handleCreate = async () => {
     if (!selectedContactId || !type.trim()) return;
 
-    await createMutation.mutateAsync({
-      contactId,
-      relatedContactId: selectedContactId,
-      type: type.trim(),
-      sentiment,
-      description: description.trim() || undefined,
-    });
+    try {
+      await createMutation.mutateAsync({
+        contactId,
+        relatedContactId: selectedContactId,
+        type: type.trim(),
+        sentiment,
+        description: description.trim() || undefined,
+      });
+    } catch {
+      // Keep the modal open with the form intact so the user can retry without
+      // re-entering everything.
+      //
+      // Alert rather than a toast: this fires while the add-relationship
+      // Modal is open, and a native Modal renders above the toast viewport —
+      // the toast would be invisible underneath it.
+      Alert.alert(
+        "Couldn't Add Relationship",
+        "Unable to save this relationship. Please try again.",
+      );
+      return;
+    }
 
     // Reset state and close
     resetForm();
