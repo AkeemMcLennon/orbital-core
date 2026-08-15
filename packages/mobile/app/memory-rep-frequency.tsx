@@ -3,7 +3,7 @@ import { Pressable, Text, View, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing } from "../src/theme";
-import { useAppToast } from "../src/components";
+import { ErrorState } from "../src/components/ErrorState";
 import {
   usePreferences,
   useUpdatePreferences,
@@ -19,9 +19,9 @@ const PRESETS: { label: string; hours: number }[] = [
 ];
 
 export default function MemoryRepFrequencyScreen() {
-  const { data, isLoading } = usePreferences();
+  const { data, isLoading, error, refetch } = usePreferences();
+  // Save failures surface via the hook's onError toast.
   const { mutate: updatePrefs, isPending } = useUpdatePreferences();
-  const { showError } = useAppToast();
 
   const currentHours = data?.memRepInitialDelayHours;
   const isCustom =
@@ -65,6 +65,12 @@ export default function MemoryRepFrequencyScreen() {
         <View style={{ paddingVertical: spacing.xl, alignItems: "center" }}>
           <ActivityIndicator color={colors.primary} />
         </View>
+      ) : error ? (
+        <ErrorState
+          error={error}
+          title="Couldn't load your setting"
+          onRetry={refetch}
+        />
       ) : (
         <View style={{ paddingTop: spacing.md }}>
           {rows.map((preset) => {
@@ -75,18 +81,7 @@ export default function MemoryRepFrequencyScreen() {
                 key={preset.hours}
                 disabled={isPending || isCustomRow || isSelected}
                 onPress={() =>
-                  updatePrefs(
-                    { memRepInitialDelayHours: preset.hours },
-                    {
-                      // Nothing else marks failure here — the row simply stays
-                      // on the old value as if the tap never happened.
-                      onError: () =>
-                        showError(
-                          "Couldn't Save",
-                          "Unable to update your reminder frequency.",
-                        ),
-                    },
-                  )
+                  updatePrefs({ memRepInitialDelayHours: preset.hours })
                 }
                 style={({ pressed }) => ({
                   flexDirection: "row",

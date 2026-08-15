@@ -1,4 +1,4 @@
-import { createContact, isSuccess } from "@orbital/client";
+import { createContact, unwrap } from "@orbital/client";
 import type { QueryClient } from "@tanstack/react-query";
 import { backgroundUploadAvatar } from "./uploadAvatar";
 import type { SocialLinkType } from "../utils/socialLinks";
@@ -22,19 +22,22 @@ export async function createContactWithAvatar(
 ): Promise<{ id: string; avatarUpload?: Promise<void> }> {
   const isLocal = !!params.avatarUrl && !params.avatarUrl.startsWith("http");
 
-  const result = await createContact({
-    name: params.name,
-    email: params.email,
-    phone: params.phone,
-    company: params.company,
-    jobTitle: params.jobTitle,
-    birthday: params.birthday,
-    notes: params.notes,
-    strength: params.strength,
-    avatarUrl: isLocal ? undefined : params.avatarUrl,
-    links: params.links,
-  });
-  if (!isSuccess(result)) throw new Error("Failed to create contact");
+  // unwrap throws an ApiError carrying the status and the server's message,
+  // rather than a generic "Failed to create contact".
+  const contact = unwrap(
+    await createContact({
+      name: params.name,
+      email: params.email,
+      phone: params.phone,
+      company: params.company,
+      jobTitle: params.jobTitle,
+      birthday: params.birthday,
+      notes: params.notes,
+      strength: params.strength,
+      avatarUrl: isLocal ? undefined : params.avatarUrl,
+      links: params.links,
+    }),
+  );
 
   // For a local photo, don't block on the upload: start it in the background
   // (with an optimistic cache preview) and return a promise the caller can
@@ -43,11 +46,11 @@ export async function createContactWithAvatar(
     isLocal && params.avatarUrl
       ? backgroundUploadAvatar(
           queryClient,
-          result.data.id,
+          contact.id,
           params.avatarUrl,
           params.avatarMimeType ?? "image/jpeg",
         )
       : undefined;
 
-  return { id: result.data.id, avatarUpload };
+  return { id: contact.id, avatarUpload };
 }

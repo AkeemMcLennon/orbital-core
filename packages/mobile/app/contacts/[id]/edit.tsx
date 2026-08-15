@@ -18,7 +18,7 @@ import {
   updateContact,
   mergeContact,
   deleteContact,
-  unwrapOrThrow,
+  unwrapAsync,
 } from "@orbital/client";
 import { useContact, contactKeys } from "../../../src/queries/contacts";
 import { relationshipKeys } from "../../../src/queries/relationships";
@@ -30,12 +30,12 @@ import {
   SocialLinksEditor,
   ContactPickerModal,
   StrengthSelector,
-  useAppToast,
   type TagItem,
   type SocialLink,
 } from "../../../src/components";
 import { type SocialLinkType } from "../../../src/utils/socialLinks";
 import { useAvatarUpload } from "../../../src/hooks/useAvatarUpload";
+import { mutationErrorToast } from "../../../src/utils/notify";
 
 export default function EditContactScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -100,11 +100,10 @@ export default function EditContactScreen() {
   const [showMergePicker, setShowMergePicker] = useState(false);
 
   const { onEdit, isUploading } = useAvatarUpload(id);
-  const { showError } = useAppToast();
 
   const mergeMutation = useMutation({
     mutationFn: (sourceId: string) =>
-      unwrapOrThrow(mergeContact(id || "", { sourceId }), "Merge"),
+      unwrapAsync(mergeContact(id || "", { sourceId })),
     onSuccess: (_response, sourceId) => {
       // The merge deletes the source contact server-side, so drop its cached
       // detail entry rather than leaving a tombstone that would 404 on revisit.
@@ -117,8 +116,7 @@ export default function EditContactScreen() {
       queryClient.invalidateQueries({ queryKey: relationshipKeys.all });
       router.back();
     },
-    onError: () =>
-      showError("Merge Failed", "Unable to merge contacts. Please try again."),
+    onError: mutationErrorToast("contacts:merge", "Couldn't merge contacts"),
   });
 
   const handleMergeSelect = (sourceId: string, sourceName: string) => {
@@ -138,19 +136,16 @@ export default function EditContactScreen() {
 
   const updateMutation = useMutation({
     mutationFn: (data: Parameters<typeof updateContact>[1]) =>
-      unwrapOrThrow(updateContact(id || "", data), "Update"),
+      unwrapAsync(updateContact(id || "", data)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: contactKeys.all });
       router.back();
     },
-    onError: (error) => {
-      console.error("Failed to update contact:", error);
-      showError("Save Failed", "Unable to save changes. Please try again.");
-    },
+    onError: mutationErrorToast("contacts:update", "Couldn't save changes"),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => unwrapOrThrow(deleteContact(id || ""), "Delete"),
+    mutationFn: () => unwrapAsync(deleteContact(id || "")),
     onSuccess: () => {
       // Don't go back to the detail screen: it observes contactKeys.detail(id)
       // and would refetch the contact the server just deleted, stranding the
@@ -167,8 +162,7 @@ export default function EditContactScreen() {
       // they live under their own cache prefix that contactKeys can't reach.
       queryClient.invalidateQueries({ queryKey: relationshipKeys.all });
     },
-    onError: () =>
-      showError("Delete Failed", "Unable to delete contact. Please try again."),
+    onError: mutationErrorToast("contacts:delete", "Couldn't delete contact"),
   });
 
   // One source of truth for "a mutation is in flight" — every button derives its

@@ -58,10 +58,15 @@ describe("Contact Detail Screen", () => {
     testRouter.push("/contacts/nonexistent-id");
 
     await waitFor(() => {
-      expect(
-        screen.getByText("Failed to load contact details. Please try again."),
-      ).toBeTruthy();
+      expect(screen.getByTestId("error-state")).toBeTruthy();
     }, WAIT_OPTIONS);
+
+    // A malformed id fails Base58/UUID validation, so the backend answers 400
+    // before any lookup. 4xx messages are authored for humans, so ErrorState
+    // shows the server's text verbatim...
+    expect(screen.getByText("Input validation failed")).toBeTruthy();
+    // ...and a 4xx is deterministic, so it offers no pointless retry.
+    expect(screen.queryByTestId("error-state-retry")).toBeNull();
   });
 
   it("should navigate to edit screen", async () => {

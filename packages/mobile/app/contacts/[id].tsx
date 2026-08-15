@@ -3,12 +3,13 @@ import React from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ContactDetails } from "../../src/components/ContactDetails";
+import { ErrorState } from "../../src/components/ErrorState";
 import { useContact } from "../../src/queries/contacts";
 import { colors, spacing } from "../../src/theme";
 
 export default function ContactDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: contact, isLoading, error } = useContact(id);
+  const { data: contact, isLoading, error, refetch } = useContact(id);
 
   if (isLoading && !contact) {
     return (
@@ -46,15 +47,12 @@ export default function ContactDetailsScreen() {
             paddingHorizontal: spacing.lg,
           }}
         >
-          <Text
-            style={{
-              color: colors.error,
-              fontSize: 16,
-              textAlign: "center",
-            }}
-          >
-            Failed to load contact details. Please try again.
-          </Text>
+          <ErrorState
+            error={error}
+            noun="contact"
+            title="Couldn't load contact"
+            onRetry={refetch}
+          />
         </View>
       </SafeAreaView>
     );

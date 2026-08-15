@@ -13,7 +13,6 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { FaceAvatar } from "./FaceAvatar";
-import { useAppToast } from "./AppToasts";
 import {
   ScaleSelector,
   fivePointColor,
@@ -54,7 +53,6 @@ export function RelationshipsSection({
     useContactRelationships(contactId);
   const deleteMutation = useDeleteRelationship(contactId);
   const [showAddModal, setShowAddModal] = useState(false);
-  const { showError } = useAppToast();
 
   const relationships = relationshipsData?.items ?? [];
 
@@ -67,18 +65,9 @@ export function RelationshipsSection({
         {
           text: "Remove",
           style: "destructive",
-          // mutateAsync: nothing blocks confirming a second removal while this
-          // one is in flight, and react-query drops a mutate call's callbacks
-          // once a newer call supersedes it — the promise is retained per call.
-          onPress: () =>
-            deleteMutation
-              .mutateAsync(rel.id)
-              .catch(() =>
-                showError(
-                  "Remove Failed",
-                  "Unable to remove this relationship.",
-                ),
-              ),
+          // The hook's onError raises the toast, and unlike a mutate-level
+          // callback it survives a second removal superseding this one.
+          onPress: () => deleteMutation.mutate(rel.id),
         },
       ],
     );
@@ -286,7 +275,14 @@ function AddRelationshipModal({
   const [description, setDescription] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: contactsData } = useContactsList({ limit: 50 });
+  // useContactsList shares one cache entry (contactKeys.all) regardless of
+  // params — use the same canonical params as the dashboard and the root
+  // prefetch so every subscriber agrees on what that entry holds.
+  const { data: contactsData } = useContactsList({
+    limit: 50,
+    offset: 0,
+    sort: "date",
+  });
   const createMutation = useCreateRelationship();
 
   const contacts = (contactsData?.items ?? []).filter(

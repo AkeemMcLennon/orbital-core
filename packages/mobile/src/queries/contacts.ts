@@ -1,17 +1,20 @@
-import { useEffect } from "react";
 import {
+  queryOptions,
   useQuery,
   useQueryClient,
-  useInfiniteQuery,
   type QueryClient,
 } from "@tanstack/react-query";
-import { getContacts, getContactById, getSuccessData } from "@orbital/client";
+import {
+  getContacts,
+  getContactById,
+  unwrapAsync,
+  type Unwrapped,
+} from "@orbital/client";
+import { useAllPages } from "./use-all-pages";
 
-const PAGE_SIZE = 100;
-
-type ContactsListData = ReturnType<
-  typeof getSuccessData<Awaited<ReturnType<typeof getContacts>>>
->;
+/** Unwrapped `/contacts` payload — what now sits in the cache. */
+type ContactsListData = Unwrapped<typeof getContacts>;
+type Contact = NonNullable<ContactsListData>["items"][number];
 
 export const contactKeys = {
   all: ["contacts"] as const,
@@ -23,10 +26,9 @@ type CachedContact = { id: string; avatarUrl?: string | null };
 
 /**
  * Structurally patch `avatarUrl` for one contact inside a cached query value.
- * Handles the three shapes that sit in the cache (queries store the RAW client
- * response; `select` unwraps per-hook): a response envelope holding a paginated
- * list (`data.items`), an infinite-query result (`pages` of envelopes), and an
- * envelope holding a single contact.
+ * Handles the three shapes that sit in the cache (queries store the UNWRAPPED
+ * payload): a paginated list (`items`), an infinite-query result (`pages` of
+ * payloads), and a single contact.
  *
  * Only patches when the cached contact's avatar is EMPTY — a real remote URL
  * that has already landed must never be overwritten by a local URI. Returns
@@ -40,7 +42,7 @@ function patchInCachedValue(
 ): unknown {
   if (!value || typeof value !== "object") return undefined;
 
-  // Infinite query: { pages: [envelope, ...], pageParams }
+  // Infinite query: { pages: [payload, ...], pageParams }
   if ("pages" in value && Array.isArray(value.pages)) {
     let changed = false;
     const pages = value.pages.map((page) => {
@@ -51,26 +53,20 @@ function patchInCachedValue(
     return changed ? { ...value, pages } : undefined;
   }
 
-  // Response envelope: { status, data, headers }
-  if ("data" in value) {
-    const d = value.data;
-    if (!d || typeof d !== "object") return undefined;
+  // Paginated list: { items: [...], pagination }
+  if ("items" in value && Array.isArray(value.items)) {
+    const items = value.items as CachedContact[];
+    const idx = items.findIndex((c) => c?.id === contactId && !c.avatarUrl);
+    if (idx === -1) return undefined;
+    const patchedItems = [...items];
+    patchedItems[idx] = { ...patchedItems[idx], avatarUrl };
+    return { ...value, items: patchedItems };
+  }
 
-    // Paginated list: { items: [...], pagination }
-    if ("items" in d && Array.isArray(d.items)) {
-      const items = d.items as CachedContact[];
-      const idx = items.findIndex((c) => c?.id === contactId && !c.avatarUrl);
-      if (idx === -1) return undefined;
-      const patchedItems = [...items];
-      patchedItems[idx] = { ...patchedItems[idx], avatarUrl };
-      return { ...value, data: { ...d, items: patchedItems } };
-    }
-
-    // Single contact
-    const c = d as CachedContact;
-    if (c.id === contactId && !c.avatarUrl) {
-      return { ...value, data: { ...c, avatarUrl } };
-    }
+  // Single contact
+  const contact = value as CachedContact;
+  if (contact.id === contactId && !contact.avatarUrl) {
+    return { ...contact, avatarUrl };
   }
 
   return undefined;
@@ -120,49 +116,39 @@ export function keepContactAvatarPatched(
   });
 }
 
-export function useContactsList(params?: Parameters<typeof getContacts>[0]) {
-  return useQuery({
+/**
+ * Single source of truth for the contacts list query, shared by the hook and
+ * the root layout's prefetch so both can't drift into different cache shapes.
+ */
+export function contactsListOptions(
+  params?: Parameters<typeof getContacts>[0],
+) {
+  return queryOptions({
     queryKey: contactKeys.all,
-    queryFn: () => getContacts(params),
-    select: getSuccessData,
+    queryFn: () => unwrapAsync(getContacts(params)),
     staleTime: 5 * 60 * 1000,
-    throwOnError: false,
   });
 }
 
+export function useContactsList(params?: Parameters<typeof getContacts>[0]) {
+  return useQuery(contactsListOptions(params));
+}
+
 export function useAllContactsList() {
-  const query = useInfiniteQuery({
+  return useAllPages<Contact>({
     queryKey: contactKeys.allPages,
-    queryFn: ({ pageParam }) =>
-      getContacts({ limit: PAGE_SIZE, offset: pageParam, sort: "name" }),
-    getNextPageParam: (lastPage, pages) => {
-      const data = getSuccessData(lastPage);
-      const loaded = pages.length * PAGE_SIZE;
-      return loaded < (data?.pagination.total ?? 0) ? loaded : undefined;
-    },
-    initialPageParam: 0,
-    select: (data) => data.pages.flatMap((p) => getSuccessData(p)?.items ?? []),
-    staleTime: 5 * 60 * 1000,
-    throwOnError: false,
+    fetchPage: (page) => getContacts({ ...page, sort: "name" }),
   });
-
-  useEffect(() => {
-    if (query.hasNextPage && !query.isFetchingNextPage) {
-      query.fetchNextPage();
-    }
-  }, [query.hasNextPage, query.isFetchingNextPage, query.fetchNextPage, query]);
-
-  return query;
 }
 
 export function useContactsByTag(tagId: string) {
   return useQuery({
     queryKey: ["contacts", "by-tag", tagId],
-    queryFn: () => getContacts({ tagId, limit: 100, offset: 0, sort: "name" }),
-    select: (data) => getSuccessData(data)?.items ?? [],
+    queryFn: () =>
+      unwrapAsync(getContacts({ tagId, limit: 100, offset: 0, sort: "name" })),
+    select: (data) => data?.items ?? [],
     staleTime: 5 * 60 * 1000,
     enabled: !!tagId,
-    throwOnError: false,
   });
 }
 
@@ -171,17 +157,22 @@ export function useContact(id: string) {
 
   return useQuery({
     queryKey: contactKeys.detail(id),
-    queryFn: () => getContactById(id),
-    initialData: () => {
+    queryFn: () => unwrapAsync(getContactById(id)),
+    // Seed from the already-loaded list so opening a contact is instant.
+    //
+    // placeholderData, NOT initialData: the list payload is partial (the list
+    // route returns bare rows; only the detail route hydrates tags/links), and
+    // initialData is persisted as fresh — with staleTime 5min that would pin
+    // the partial row and suppress the detail fetch, hiding tags and social
+    // links for up to 5 minutes. placeholderData renders instantly but is
+    // never persisted, so the real fetch always runs. (Screen tests can't
+    // catch a regression here: their QueryClient uses staleTime 0.)
+    placeholderData: () => {
       const listData = queryClient.getQueryData<ContactsListData>(
         contactKeys.all,
       );
-      const match = listData?.items?.find((c) => c.id === id);
-      if (!match) return undefined;
-      return { status: 200 as const, data: match, headers: new Headers() };
+      return listData?.items?.find((c) => c.id === id);
     },
-    select: (data) => getSuccessData(data),
     staleTime: 5 * 60 * 1000,
-    throwOnError: false,
   });
 }

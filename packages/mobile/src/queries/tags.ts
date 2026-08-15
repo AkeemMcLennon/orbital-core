@@ -3,35 +3,37 @@ import {
   listTags,
   createTag,
   deleteTag,
-  getSuccessData,
-  unwrapOrThrow,
+  unwrapAsync,
+  unwrapMutationFn,
 } from "@orbital/client";
+import { mutationErrorToast } from "../utils/notify";
 
 export const tagKeys = { all: ["tags"] as const };
 
 export function useTags() {
   return useQuery({
     queryKey: tagKeys.all,
-    queryFn: listTags,
-    select: getSuccessData,
+    queryFn: () => unwrapAsync(listTags()),
     staleTime: 5 * 60 * 1000,
-    throwOnError: false,
   });
 }
 
 export function useCreateTag() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: { name: string; color?: string }) =>
-      unwrapOrThrow(createTag(body), "Create tag"),
+    mutationFn: unwrapMutationFn(createTag),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: tagKeys.all }),
+    // Previously silent: a duplicate name 409s, and its message is worth
+    // showing verbatim.
+    onError: mutationErrorToast("tags:create", "Couldn't create tag"),
   });
 }
 
 export function useDeleteTag() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => unwrapOrThrow(deleteTag(id), "Delete tag"),
+    mutationFn: unwrapMutationFn(deleteTag),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: tagKeys.all }),
+    onError: mutationErrorToast("tags:delete", "Couldn't delete tag", "tag"),
   });
 }

@@ -22,8 +22,7 @@ import {
   getAvailableContacts,
   contactsExtractFromImage,
   mergeNewContact,
-  isSuccess,
-  getSuccessData,
+  unwrap,
 } from "@orbital/client";
 import {
   useExtractImageQuery,
@@ -31,6 +30,7 @@ import {
 } from "../src/hooks/useExtractImageQuery";
 import { contactKeys } from "../src/queries/contacts";
 import { createContactWithAvatar } from "../src/lib/createContactWithAvatar";
+import { notifyError } from "../src/utils/notify";
 import { backgroundUploadAvatar } from "../src/lib/uploadAvatar";
 import Constants from "expo-constants";
 import {
@@ -407,9 +407,9 @@ export default function AddContactScreen() {
         image: asset.base64!,
         mimeType: (asset.mimeType ?? "image/jpeg") as any,
       });
-      if (!isSuccess(res)) throw new Error("Extraction failed");
-
-      const extracted = res.data as ExtractedContact;
+      // unwrap throws an ApiError carrying the status and server message,
+      // rather than a generic "Extraction failed".
+      const extracted = unwrap(res) as ExtractedContact;
       applyImportedContact({
         name: extracted.name || "Unknown",
         email: extracted.email,
@@ -468,8 +468,9 @@ export default function AddContactScreen() {
             : undefined,
         },
       });
-      const merged = getSuccessData(res);
-      if (!merged) throw new Error("Merge failed");
+      // unwrap throws an ApiError carrying the status and server message,
+      // rather than a generic "Merge failed".
+      const merged = unwrap(res);
 
       // Local avatar: upload only when the merge left the destination without
       // one (the server preserves an existing avatar, so the merged result's
@@ -573,8 +574,10 @@ export default function AddContactScreen() {
         ),
       );
     } catch (err) {
-      console.error("Failed to create contact:", err);
-      alert("Failed to create contact. Please try again.");
+      notifyError(err, {
+        context: "contact-add:create",
+        title: "Couldn't create contact",
+      });
     } finally {
       setIsSubmitting(false);
     }

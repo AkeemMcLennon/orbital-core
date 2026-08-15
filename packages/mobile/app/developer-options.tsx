@@ -17,6 +17,7 @@ import {
   setAuthToken,
 } from "../src/api/auth-helper";
 import { configureMobileApi, getCurrentBaseUrl } from "../src/api/config";
+import { notifyError, notifySuccess } from "../src/utils/notify";
 import { borderRadius, colors, shadows, spacing } from "../src/theme";
 import * as storage from "../src/utils/storage";
 
@@ -59,7 +60,10 @@ export default function DeveloperOptionsScreen() {
           new URL(apiUrl.trim());
           await storage.setItem("dev_api_base_url", apiUrl.trim());
         } catch {
-          alert("Invalid API URL format");
+          notifyError(null, {
+            title: "Invalid URL",
+            message: "That API URL isn't a valid URL.",
+          });
           return;
         }
       } else {
@@ -75,10 +79,12 @@ export default function DeveloperOptionsScreen() {
       const activeUrl = await getCurrentBaseUrl();
       setCurrentActiveUrl(activeUrl);
 
-      alert("Settings saved successfully!");
+      notifySuccess("Settings saved");
     } catch (error) {
-      console.error("Error saving settings:", error);
-      alert("Failed to save settings");
+      notifyError(error, {
+        context: "developer-options:save",
+        title: "Couldn't save settings",
+      });
     }
   };
 
@@ -95,10 +101,12 @@ export default function DeveloperOptionsScreen() {
       const activeUrl = await getCurrentBaseUrl();
       setCurrentActiveUrl(activeUrl);
 
-      alert("Settings cleared - using defaults");
+      notifySuccess("Settings cleared — using defaults");
     } catch (error) {
-      console.error("Error clearing settings:", error);
-      alert("Failed to clear settings");
+      notifyError(error, {
+        context: "developer-options:clear",
+        title: "Couldn't clear settings",
+      });
     }
   };
 
@@ -127,7 +135,10 @@ export default function DeveloperOptionsScreen() {
           borderBottomColor: colors.border,
         }}
       >
-        <Pressable onPress={() => router.back()} style={{ padding: spacing.sm }}>
+        <Pressable
+          onPress={() => router.back()}
+          style={{ padding: spacing.sm }}
+        >
           <Ionicons name="chevron-back" size={24} color={colors.textMain} />
         </Pressable>
         <Text

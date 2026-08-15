@@ -3,10 +3,11 @@ import {
   listContactRelationships,
   createRelationship,
   deleteRelationship,
-  getSuccessData,
-  unwrapOrThrow,
+  unwrapAsync,
+  unwrapMutationFn,
 } from "@orbital/client";
 import type { CreateRelationshipBody } from "@orbital/client";
+import { mutationErrorToast } from "../utils/notify";
 
 export const relationshipKeys = {
   all: ["relationships"] as const,
@@ -16,8 +17,7 @@ export const relationshipKeys = {
 export function useContactRelationships(contactId: string) {
   return useQuery({
     queryKey: relationshipKeys.forContact(contactId),
-    queryFn: () => listContactRelationships(contactId),
-    select: getSuccessData,
+    queryFn: () => unwrapAsync(listContactRelationships(contactId)),
     staleTime: 5 * 60 * 1000,
     enabled: !!contactId,
   });
@@ -27,8 +27,11 @@ export function useCreateRelationship() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    // Inline rather than unwrapMutationFn: `onSuccess` reads `variables`, and
+    // with a pre-built mutationFn TS infers the variables type from there
+    // instead (landing on `void`). The inline arrow anchors it correctly.
     mutationFn: (body: CreateRelationshipBody) =>
-      unwrapOrThrow(createRelationship(body), "Create relationship"),
+      unwrapAsync(createRelationship(body)),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
         queryKey: relationshipKeys.forContact(variables.contactId),
@@ -37,6 +40,10 @@ export function useCreateRelationship() {
         queryKey: relationshipKeys.forContact(variables.relatedContactId),
       });
     },
+    onError: mutationErrorToast(
+      "relationships:create",
+      "Couldn't add relationship",
+    ),
   });
 }
 
@@ -44,12 +51,16 @@ export function useDeleteRelationship(contactId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (relationshipId: string) =>
-      unwrapOrThrow(deleteRelationship(relationshipId), "Delete relationship"),
+    mutationFn: unwrapMutationFn(deleteRelationship),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: relationshipKeys.forContact(contactId),
       });
     },
+    onError: mutationErrorToast(
+      "relationships:delete",
+      "Couldn't remove relationship",
+      "relationship",
+    ),
   });
 }

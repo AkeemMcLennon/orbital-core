@@ -4,6 +4,8 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import {
+  MutationCache,
+  QueryCache,
   QueryClient,
   QueryClientProvider,
   useQueryClient,
@@ -21,15 +23,15 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { TamaguiProvider } from "tamagui";
-import { ToastProvider } from "@tamagui/toast";
-import { AppToasts, AppToastViewport } from "../src/components";
-import { getContacts, getMemoryReps } from "@orbital/client";
+import { isRetryableError } from "@orbital/client";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AuthProvider, useAuthContext } from "../src/contexts/AuthContext";
-import { contactKeys } from "../src/queries/contacts";
-import { memoryRepKeys } from "../src/queries/memory-reps";
+import { contactsListOptions } from "../src/queries/contacts";
+import { memoryRepsListOptions } from "../src/queries/memory-reps";
 import { colors } from "../src/theme";
+import { logApiError } from "../src/utils/errors";
+import { ToastHost } from "../src/components/ToastHost";
 import { tamalogui } from "../tamagui.config";
 import LoginScreen from "./login";
 
@@ -48,8 +50,30 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 1000 * 60 * 5, // 5 minutes
       gcTime: 1000 * 60 * 10, // 10 minutes
+      // Only retry what could plausibly succeed on a second attempt. Without
+      // this, react-query's default (3x exponential) would retry a 404 for
+      // ~7s before the user sees anything, and would re-enter the token
+      // refresh path three extra times on a 401.
+      retry: (count, error) => count < 2 && isRetryableError(error),
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
+      // Query failures render inline via <ErrorState />; they must not blow up
+      // to an error boundary.
+      throwOnError: false,
     },
+    mutations: { retry: 0, throwOnError: false },
   },
+  // Log only. Presentation stays at the call site — alerting here too would
+  // double-report for the mutations that already handle their own onError.
+  queryCache: new QueryCache({
+    onError: (error, query) =>
+      logApiError("query", error, { queryKey: query.queryKey }),
+  }),
+  mutationCache: new MutationCache({
+    onError: (error, _vars, _ctx, mutation) =>
+      logApiError("mutation", error, {
+        mutationKey: mutation.options.mutationKey,
+      }),
+  }),
 });
 
 /** Shared handler for all incoming deep links (VIEW intents and synthesized share intents). */
@@ -140,14 +164,10 @@ function AuthGate() {
 
       if (isAuthenticated) {
         await Promise.all([
-          queryClient.prefetchQuery({
-            queryKey: contactKeys.all,
-            queryFn: () => getContacts({ limit: 50, offset: 0, sort: "date" }),
-          }),
-          queryClient.prefetchQuery({
-            queryKey: memoryRepKeys.all,
-            queryFn: () => getMemoryReps(),
-          }),
+          queryClient.prefetchQuery(
+            contactsListOptions({ limit: 50, offset: 0, sort: "date" }),
+          ),
+          queryClient.prefetchQuery(memoryRepsListOptions()),
         ]);
       }
 
@@ -210,15 +230,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <TamaguiProvider config={tamalogui}>
-            {/*
-              `native={false}`: the native presenters are lossy for what we
-              show here — Android's is `ToastAndroid`, a title-only grey pill
-              that would drop the explanatory second line entirely — and they
-              look nothing like each other across platforms. Rendering our own
-              (see AppToasts) keeps the message and one appearance everywhere,
-              web included.
-            */}
-            <ToastProvider native={false} swipeDirection="up" duration={4000}>
+            <ToastHost>
               <ThemeProvider
                 value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
               >
@@ -226,9 +238,7 @@ export default function RootLayout() {
                   <AuthGate />
                 </AuthProvider>
               </ThemeProvider>
-              <AppToasts />
-              <AppToastViewport />
-            </ToastProvider>
+            </ToastHost>
           </TamaguiProvider>
         </QueryClientProvider>
       </SafeAreaProvider>

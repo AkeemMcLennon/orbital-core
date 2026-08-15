@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { getSettings, getSuccessData, searchContacts } from "@orbital/client";
+import { getSettings, searchContacts, unwrapAsync } from "@orbital/client";
 
 export type SearchConfig = {
   url: string;
@@ -49,8 +49,10 @@ const MEILI_TIMEOUT_MS = 4000;
 // Server-side contact search via the backend (SQL LIKE). Only needs the app's
 // own API host, so it works wherever the rest of the app does.
 async function serverSearch(q: string): Promise<SearchHit[]> {
-  const res = await searchContacts({ query: q, limit: 20, offset: 0 });
-  return (getSuccessData(res)?.items ?? []).map((c) => ({
+  const res = await unwrapAsync(
+    searchContacts({ query: q, limit: 20, offset: 0 }),
+  );
+  return (res?.items ?? []).map((c) => ({
     id: c.id,
     name: c.name,
     email: c.email,
@@ -67,11 +69,10 @@ async function serverSearch(q: string): Promise<SearchHit[]> {
 export function useSearchConfig() {
   return useQuery({
     queryKey: searchKeys.config,
-    queryFn: () => getSettings(),
-    select: (res): SearchConfig | null => getSuccessData(res)?.search ?? null,
+    queryFn: () => unwrapAsync(getSettings()),
+    select: (res): SearchConfig | null => res?.search ?? null,
     // Tenant token is valid for 1h — refetch well before expiry.
     staleTime: 50 * 60 * 1000,
-    throwOnError: false,
   });
 }
 
@@ -85,12 +86,14 @@ export function useContactSearch(query: string, config: SearchConfig | null) {
 
   return useQuery({
     queryKey: searchKeys.results(q),
+    // `config != null` gates this hook; the no-config case is served by
+    // useContactSearchFallback instead.
     enabled: q.length > 0 && config != null,
     staleTime: 30 * 1000,
-    throwOnError: false,
     // Keep the previous results visible while the next query loads (no flicker).
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<SearchHit[]> => {
+      // Non-null by the `enabled` guard above; narrowing only.
       if (!config) return serverSearch(q);
       try {
         const controller = new AbortController();
@@ -146,7 +149,6 @@ export function useContactSearchFallback(query: string, enabled: boolean) {
     queryKey: searchKeys.fallback(q),
     enabled: enabled && q.length > 0,
     staleTime: 30 * 1000,
-    throwOnError: false,
     // Keep the previous results visible while the next query loads (no flicker).
     placeholderData: keepPreviousData,
     queryFn: () => serverSearch(q),

@@ -11,8 +11,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, router } from "expo-router";
 import { DrawerActions } from "@react-navigation/native";
-import { Tag, useAppToast } from "../../../src/components";
+import { Tag } from "../../../src/components";
 import { useTags, useCreateTag, useDeleteTag } from "../../../src/queries/tags";
+import { EmptyState } from "../../../src/components/EmptyState";
+import { ErrorState } from "../../../src/components/ErrorState";
 import { colors, spacing, borderRadius, shadows } from "../../../src/theme";
 
 export default function TagsScreen() {
@@ -20,10 +22,9 @@ export default function TagsScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [input, setInput] = useState("");
 
-  const { data: tags, isLoading } = useTags();
+  const { data: tags, isLoading, error, refetch } = useTags();
   const createMutation = useCreateTag();
   const deleteMutation = useDeleteTag();
-  const { showError } = useAppToast();
 
   const addTag = (raw: string) => {
     const trimmed = raw.trim();
@@ -39,7 +40,6 @@ export default function TagsScreen() {
       // if the box is still empty, since a delayed failure must not clobber
       // the next tag they've already started typing.
       setInput((current) => (current === "" ? trimmed : current));
-      showError("Couldn't Add Tag", `Unable to create "${trimmed}".`);
     });
     setInput("");
   };
@@ -117,32 +117,21 @@ export default function TagsScreen() {
         >
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
+      ) : error ? (
+        // Previously fell through to the empty state, which read as
+        // "you have no tags" when the request had actually failed.
+        <ErrorState
+          error={error}
+          title="Couldn't load tags"
+          onRetry={refetch}
+        />
       ) : !tags || tags.length === 0 ? (
-        <View
-          style={{
-            flex: 1,
-            justifyContent: "center",
-            alignItems: "center",
-            paddingHorizontal: spacing.lg,
-          }}
-        >
-          <Ionicons
-            name="pricetag-outline"
-            size={48}
-            color={colors.textTertiary}
+        <View style={{ flex: 1, justifyContent: "center" }}>
+          <EmptyState
+            icon="pricetag-outline"
+            title={isEditing ? "Add your first tag below." : "No tags yet."}
+            message={isEditing ? undefined : "Tap the pencil to add one."}
           />
-          <Text
-            style={{
-              marginTop: spacing.md,
-              fontSize: 15,
-              color: colors.textSecondary,
-              textAlign: "center",
-            }}
-          >
-            {isEditing
-              ? "Add your first tag below."
-              : "No tags yet. Tap the pencil to add one."}
-          </Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
@@ -161,17 +150,10 @@ export default function TagsScreen() {
                   color={tag.color}
                   size="large"
                   onRemove={() =>
-                    // mutateAsync: every tag's X is live in edit mode, so a
-                    // second removal in flight would drop a mutate-level
-                    // onError; the promise is retained per removal.
-                    deleteMutation
-                      .mutateAsync(tag.id)
-                      .catch(() =>
-                        showError(
-                          "Couldn't Remove Tag",
-                          `Unable to remove "${tag.name}".`,
-                        ),
-                      )
+                    // The hook's onError raises the toast; plain mutate is
+                    // fine because that handler isn't dropped when a second
+                    // removal supersedes this one.
+                    deleteMutation.mutate(tag.id)
                   }
                 />
               ) : (

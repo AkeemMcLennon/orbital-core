@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { authClient } from "../lib/auth-client";
 import { configureMobileApi } from "../api/config";
+// getSuccessData (not unwrap) on purpose: auth treats every failure alike —
+// a null user means "not signed in", so there is nothing to distinguish a 401
+// from a 500 here and no error worth throwing.
 import { getAuthMe, getSuccessData } from "@orbital/client";
 
 export interface UserInfo {

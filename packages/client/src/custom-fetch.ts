@@ -25,6 +25,26 @@ export type APIError = {
 // Deduplication guard for concurrent token refreshes
 let refreshPromise: Promise<string | null> | null = null;
 
+/**
+ * Parse a response body without throwing on an empty or non-JSON payload.
+ *
+ * `response.json()` rejects on e.g. a proxy's HTML 502 or a bodyless response,
+ * which would land in the network-error catch below and be reported to the user
+ * as "check your connection" even though the server did answer.
+ */
+async function readBody(response: Response): Promise<unknown> {
+  const raw = await response.text();
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    // Keep a truncated snippet for diagnostics, but deliberately NOT under
+    // `message`: error messages flow into user-facing copy, and an HTML error
+    // page must never end up on screen. unwrap() falls back to "HTTP <status>".
+    return { raw: raw.slice(0, 200) };
+  }
+}
+
 export async function customFetch<T>(
   url: string,
   options?: RequestInit,
@@ -57,7 +77,7 @@ export async function customFetch<T>(
       headers,
     });
 
-    const data = await response.json();
+    const data = await readBody(response);
 
     if (!response.ok) {
       console.error(
@@ -101,7 +121,7 @@ export async function customFetch<T>(
           headers: retryHeaders,
         });
 
-        const retryData = await retryResponse.json();
+        const retryData = await readBody(retryResponse);
 
         if (!retryResponse.ok) {
           console.error(

@@ -14,7 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation } from "@tanstack/react-query";
-import { requestAccountDeletion, unwrapOrThrow } from "@orbital/client";
+import { requestAccountDeletion, unwrapAsync } from "@orbital/client";
 import { borderRadius, colors, spacing } from "../src/theme";
 import { useAuthContext } from "../src/contexts/AuthContext";
 
@@ -27,8 +27,7 @@ export default function SettingsScreen() {
   const [confirmed, setConfirmed] = useState(false);
 
   const { mutate: requestDeletion, isPending } = useMutation({
-    mutationFn: () =>
-      unwrapOrThrow(requestAccountDeletion(), "Account deletion request"),
+    mutationFn: () => unwrapAsync(requestAccountDeletion()),
     onSuccess: () => {
       setConfirmed(true);
       setTimeout(() => {

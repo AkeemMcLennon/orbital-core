@@ -13,6 +13,7 @@ import { router, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import { ContactRow } from "../../../src/components/ContactRow";
+import { ErrorState } from "../../../src/components/ErrorState";
 import { useAllContactsList } from "../../../src/queries/contacts";
 import { useAllAvailableContactsList } from "../../../src/queries/available-contacts";
 import { colors, spacing, borderRadius } from "../../../src/theme";
@@ -366,25 +367,69 @@ export default function ContactsScreen() {
       </View>
 
       {/* List */}
+      {/* Two distinct failure shapes, so two treatments:
+          - Nothing loaded  → blocking ErrorState. Without it a failed load
+            renders an empty list, which reads as "you have no contacts".
+          - Some pages loaded, a later one failed → these are infinite queries,
+            and react-query retains the earlier pages while ALSO setting
+            `error` (status flips to "error" even though data is present).
+            Blocking there would hide the 100 contacts already fetched, so keep
+            the list and put the retry above it instead. */}
       {activeTab === "active" ? (
-        <ContactList
-          items={filteredActive}
-          isLoading={activeContacts.isLoading}
-          subtitle={(c: ActiveContact) =>
-            c.jobTitle ?? c.company ?? c.email ?? null
-          }
-          query={query}
-          showSidebar={showSidebar}
-          onPress={(id) => router.push(`/contacts/${id}`)}
+        activeContacts.error && !activeContacts.data?.length ? (
+          <ErrorState
+            error={activeContacts.error}
+            title="Couldn't load contacts"
+            onRetry={activeContacts.refetch}
+          />
+        ) : (
+          <>
+            {activeContacts.error && (
+              <ErrorState
+                error={activeContacts.error}
+                title="Couldn't load all contacts"
+                message="Showing the ones loaded so far."
+                onRetry={activeContacts.refetch}
+                compact
+              />
+            )}
+            <ContactList
+              items={filteredActive}
+              isLoading={activeContacts.isLoading}
+              subtitle={(c: ActiveContact) =>
+                c.jobTitle ?? c.company ?? c.email ?? null
+              }
+              query={query}
+              showSidebar={showSidebar}
+              onPress={(id) => router.push(`/contacts/${id}`)}
+            />
+          </>
+        )
+      ) : directoryContacts.error && !directoryContacts.data?.length ? (
+        <ErrorState
+          error={directoryContacts.error}
+          title="Couldn't load your directory"
+          onRetry={directoryContacts.refetch}
         />
       ) : (
-        <ContactList
-          items={filteredDirectory}
-          isLoading={directoryContacts.isLoading}
-          subtitle={(c: DirectoryContact) => c.company ?? c.email ?? null}
-          query={query}
-          showSidebar={showSidebar}
-        />
+        <>
+          {directoryContacts.error && (
+            <ErrorState
+              error={directoryContacts.error}
+              title="Couldn't load your whole directory"
+              message="Showing the entries loaded so far."
+              onRetry={directoryContacts.refetch}
+              compact
+            />
+          )}
+          <ContactList
+            items={filteredDirectory}
+            isLoading={directoryContacts.isLoading}
+            subtitle={(c: DirectoryContact) => c.company ?? c.email ?? null}
+            query={query}
+            showSidebar={showSidebar}
+          />
+        </>
       )}
     </SafeAreaView>
   );

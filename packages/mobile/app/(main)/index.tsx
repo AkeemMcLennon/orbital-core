@@ -17,7 +17,6 @@ import {
   QuizCard,
   SearchDialog,
   TimelineItem,
-  useAppToast,
 } from "../../src/components";
 import { useAuthContext } from "../../src/contexts/AuthContext";
 import {
@@ -31,6 +30,7 @@ import {
   useAnswerMemoryRep,
   useGenerateMemoryReps,
 } from "../../src/queries/memory-reps";
+import { ErrorState } from "../../src/components/ErrorState";
 import { borderRadius, colors, shadows, spacing } from "../../src/theme";
 
 /**
@@ -90,6 +90,7 @@ function DailyOrbitScreen() {
     data: contactsData,
     isLoading,
     error,
+    refetch: refetchContacts,
   } = useContactsList({ limit: 50, offset: 0, sort: "date" });
   const contacts = contactsData?.items || [];
 
@@ -97,11 +98,11 @@ function DailyOrbitScreen() {
     data: repsData,
     isLoading: repsLoading,
     error: repsError,
+    refetch: refetchReps,
   } = useMemoryRepsList();
   const answerMutation = useAnswerMemoryRep();
   const { mutate: generateReps, isPending: isGenerating } =
     useGenerateMemoryReps();
-  const { showError } = useAppToast();
   const memoryReps = (repsData?.items || []).filter(
     (rep) => !answeredIds.has(rep.id),
   );
@@ -249,16 +250,12 @@ function DailyOrbitScreen() {
               <ActivityIndicator size="large" color={colors.primary} />
             </View>
           ) : error ? (
-            <View
-              style={{
-                paddingHorizontal: spacing.lg,
-                paddingVertical: spacing.md,
-              }}
-            >
-              <Text style={{ color: colors.error, textAlign: "center" }}>
-                Failed to load contacts. Please check your connection.
-              </Text>
-            </View>
+            <ErrorState
+              error={error}
+              title="Couldn't load contacts"
+              onRetry={refetchContacts}
+              compact
+            />
           ) : (
             <ScrollView
               horizontal
@@ -306,15 +303,12 @@ function DailyOrbitScreen() {
               <ActivityIndicator size="large" color={colors.primary} />
             </View>
           ) : repsError ? (
-            <Text
-              style={{
-                color: colors.error,
-                textAlign: "center",
-                paddingVertical: spacing.md,
-              }}
-            >
-              Failed to load memory reps.
-            </Text>
+            <ErrorState
+              error={repsError}
+              title="Couldn't load memory reps"
+              onRetry={refetchReps}
+              compact
+            />
           ) : memoryReps.length === 0 ? (
             <View
               style={{
@@ -340,18 +334,7 @@ function DailyOrbitScreen() {
                 Quizzes and reminders will appear here as you add new contacts.
               </Text>
               <Pressable
-                onPress={() =>
-                  generateReps(
-                    {},
-                    {
-                      onError: () =>
-                        showError(
-                          "Couldn't Generate Quizzes",
-                          "Something went wrong. Please try again.",
-                        ),
-                    },
-                  )
-                }
+                onPress={() => generateReps({})}
                 disabled={isGenerating}
                 style={{
                   marginTop: spacing.md,
@@ -386,21 +369,12 @@ function DailyOrbitScreen() {
                 questionType={rep.questionType as "detail" | "identify"}
                 contactAvatarUrl={rep.contactAvatarUrl}
                 onAnswer={(selectedAnswer, _isCorrect) => {
-                  // The card is hidden locally below regardless, so say
-                  // plainly that the answer didn't stick rather than letting
-                  // the question quietly reappear later. mutateAsync (not a
-                  // mutate-level onError): several cards are live at once and
-                  // each disables only itself, and react-query drops a mutate
-                  // call's callbacks as soon as a newer call supersedes it —
-                  // this promise is retained per answer.
-                  answerMutation
-                    .mutateAsync({ id: rep.id, selectedAnswer })
-                    .catch(() =>
-                      showError(
-                        "Answer Not Saved",
-                        "This question will come back around.",
-                      ),
-                    );
+                  // The hook's own onError raises the toast, so plain `mutate`
+                  // is enough here: several cards are live at once and each
+                  // disables only itself, and react-query drops a *mutate*
+                  // call's callbacks once a newer call supersedes it — the
+                  // hook-level handler isn't subject to that.
+                  answerMutation.mutate({ id: rep.id, selectedAnswer });
                   setTimeout(() => {
                     setAnsweredIds((prev) => new Set(prev).add(rep.id));
                   }, 2500);

@@ -4,13 +4,8 @@ import {
   keepContactAvatarPatched,
 } from "../../src/queries/contacts";
 
-// Queries cache the RAW client response; `select` unwraps per-hook.
-const envelope = <T>(data: T) => ({
-  status: 200 as const,
-  data,
-  headers: {} as Headers,
-});
-
+// Queries cache the UNWRAPPED payload (unwrapAsync in queryFn), so cached
+// values are the plain payloads rather than `{status, data}` envelopes.
 const pagination = { total: 2, limit: 100, offset: 0 };
 const LOCAL_URI = "file:///cache/photo.jpg";
 
@@ -24,34 +19,30 @@ const bob = (): TestContact => ({
 });
 
 function seedCaches(qc: QueryClient) {
-  qc.setQueryData(
-    contactKeys.all,
-    envelope({ items: [alice(), bob()], pagination }),
-  );
+  qc.setQueryData(contactKeys.all, { items: [alice(), bob()], pagination });
   qc.setQueryData(contactKeys.allPages, {
     pages: [
-      envelope({ items: [alice()], pagination }),
-      envelope({ items: [bob()], pagination }),
+      { items: [alice()], pagination },
+      { items: [bob()], pagination },
     ],
     pageParams: [0, 100],
   });
-  qc.setQueryData(contactKeys.detail("c1"), envelope(alice()));
-  qc.setQueryData(
-    ["contacts", "by-tag", "t1"],
-    envelope({ items: [alice()], pagination }),
-  );
+  qc.setQueryData(contactKeys.detail("c1"), alice());
+  qc.setQueryData(["contacts", "by-tag", "t1"], {
+    items: [alice()],
+    pagination,
+  });
 }
 
 const listItems = (qc: QueryClient) =>
-  (qc.getQueryData(contactKeys.all) as any).data.items as TestContact[];
+  (qc.getQueryData(contactKeys.all) as any).items as TestContact[];
 const pageItems = (qc: QueryClient, page: number) =>
-  (qc.getQueryData(contactKeys.allPages) as any).pages[page].data
+  (qc.getQueryData(contactKeys.allPages) as any).pages[page]
     .items as TestContact[];
 const detailContact = (qc: QueryClient) =>
-  (qc.getQueryData(contactKeys.detail("c1")) as any).data as TestContact;
+  qc.getQueryData(contactKeys.detail("c1")) as any as TestContact;
 const byTagItems = (qc: QueryClient) =>
-  (qc.getQueryData(["contacts", "by-tag", "t1"]) as any).data
-    .items as TestContact[];
+  (qc.getQueryData(["contacts", "by-tag", "t1"]) as any).items as TestContact[];
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
@@ -106,7 +97,7 @@ describe("keepContactAvatarPatched", () => {
     // still has no avatar until the upload's updateContact completes.
     qc.getQueryCache()
       .find({ queryKey: contactKeys.all })!
-      .setData(envelope({ items: [alice(), bob()], pagination }));
+      .setData({ items: [alice(), bob()], pagination });
     await flush();
 
     expect(listItems(qc).find((c) => c.id === "c1")?.avatarUrl).toBe(LOCAL_URI);
@@ -119,7 +110,7 @@ describe("keepContactAvatarPatched", () => {
 
     qc.getQueryCache()
       .find({ queryKey: contactKeys.all })!
-      .setData(envelope({ items: [alice(), bob()], pagination }));
+      .setData({ items: [alice(), bob()], pagination });
     await flush();
 
     expect(listItems(qc).find((c) => c.id === "c1")?.avatarUrl).toBeNull();
@@ -145,7 +136,7 @@ describe("keepContactAvatarPatched", () => {
     const uploaded = { ...alice(), avatarUrl: "https://r2.example/alice.jpg" };
     qc.getQueryCache()
       .find({ queryKey: contactKeys.all })!
-      .setData(envelope({ items: [uploaded, bob()], pagination }));
+      .setData({ items: [uploaded, bob()], pagination });
     await flush();
 
     expect(listItems(qc).find((c) => c.id === "c1")?.avatarUrl).toBe(

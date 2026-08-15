@@ -7,19 +7,27 @@ jest.mock("../app/_layout", () => {
   const { QueryClient, QueryClientProvider } = require("@tanstack/react-query");
   const { AuthProvider } = require("../src/contexts/AuthContext");
 
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false, staleTime: 0, gcTime: 0 } },
-  });
+  // Named (not inline) so eslint's rules-of-hooks recognizes it as a component.
+  function MockRootLayout() {
+    // A fresh client per mount, so cached data cannot leak from one test to the
+    // next. A module-scoped client is shared across every test in a file, which
+    // makes error-state assertions see stale data from earlier tests.
+    const [queryClient] = React.useState(
+      () =>
+        new QueryClient({
+          defaultOptions: {
+            queries: { retry: false, staleTime: 0, gcTime: 0 },
+          },
+        }),
+    );
+    return React.createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      React.createElement(AuthProvider, null, React.createElement(Slot)),
+    );
+  }
 
-  return {
-    __esModule: true,
-    default: () =>
-      React.createElement(
-        QueryClientProvider,
-        { client: queryClient },
-        React.createElement(AuthProvider, null, React.createElement(Slot)),
-      ),
-  };
+  return { __esModule: true, default: MockRootLayout };
 });
 
 // ── Main (Drawer) layout → minimal Slot ──
@@ -208,27 +216,27 @@ jest.mock("tamagui", () => {
 });
 
 // ── @tamagui/toast ──
-// Toasts are fire-and-forget feedback: the controller is a spy and
-// useToastState returns null, so no transient text leaks into the tree of a
-// screen under test. Nothing asserts on a toast today.
+// ToastHost mounts these at the root; without a mock any screen test that
+// renders the real layout would fail on the missing native/animation deps.
 jest.mock("@tamagui/toast", () => {
   const React = require("react");
-  const { View } = require("react-native");
+  const { View, Text } = require("react-native");
 
   const Passthrough = ({ children, ...props }: any) =>
     React.createElement(View, props, children);
+  const Toast = Object.assign(
+    ({ children, ...props }: any) => React.createElement(View, props, children),
+    { Title: Text, Description: Text },
+  );
 
   return {
+    Toast,
     ToastProvider: ({ children }: any) => children,
     ToastViewport: () => null,
-    Toast: Object.assign(Passthrough, {
-      Title: Passthrough,
-      Description: Passthrough,
-      Action: Passthrough,
-      Close: Passthrough,
-    }),
+    // Records shows so tests can assert on toast content if needed.
     useToastController: () => ({ show: jest.fn(), hide: jest.fn() }),
     useToastState: () => null,
+    ToastImperativeProvider: Passthrough,
   };
 });
 
@@ -374,6 +382,20 @@ jest.mock("react-native-webview", () => {
 // ── react-native-view-shot ──
 jest.mock("react-native-view-shot", () => ({
   captureRef: jest.fn(() => Promise.resolve("file:///tmp/capture.jpg")),
+}));
+
+// ── expo-share-intent ──
+// `app/+native-intent.ts` imports this at module scope, and expo-router's route
+// scan loads that file — which pulls in the real expo-linking and fails on
+// `Cannot find native module 'ExpoLinking'`. Mocking it here is what lets any
+// test that renders the route tree (renderAppRoute) work at all.
+jest.mock("expo-share-intent", () => ({
+  getShareExtensionKey: () => "orbitalShareKey",
+  useShareIntent: () => ({
+    shareIntent: null,
+    resetShareIntent: jest.fn(),
+    error: null,
+  }),
 }));
 
 // ── expo-linking ──

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { File as FSFile } from "expo-file-system";
-import { contactsExtractFromImage, isSuccess } from "@orbital/client";
+import { contactsExtractFromImage, unwrap } from "@orbital/client";
 import { toFileUri } from "../utils/fileUri";
 
 export type ExtractedContact = {
@@ -37,8 +37,9 @@ export function useExtractImageQuery(uri?: string, mimeType?: string) {
         image: base64,
         mimeType: (mimeType ?? "image/jpeg") as any,
       });
-      if (!isSuccess(res)) throw new Error("Extraction failed");
-      return res.data as ExtractedContact;
+      // unwrap throws an ApiError carrying the status and server message,
+      // rather than a generic "Extraction failed".
+      return unwrap(res) as ExtractedContact;
     },
   });
 }
