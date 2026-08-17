@@ -1,69 +1,40 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Hero from '../components/Hero.astro';
-import FeatureList from '../components/FeatureList.astro';
-import StoreButtons from '../components/StoreButtons.astro';
-import PhoneMockup from '../components/PhoneMockup.astro';
+import FeatureSection from '../components/FeatureSection.astro';
+import SourceCards from '../components/SourceCards.astro';
+import CtaBand from '../components/CtaBand.astro';
 import Footer from '../components/Footer.astro';
+
+import addContactScreen from '../assets/screens/add-contact.png';
+import contactDetailScreen from '../assets/screens/contact-detail.png';
 ---
 
-<style>
-  .split-container {
-    display: flex;
-    min-height: 100vh;
-    flex-wrap: wrap;
-  }
+<BaseLayout title="Orbital — Your personal relationship manager">
+  <Hero />
 
-  .side-content {
-    flex: 1;
-    min-width: 50%;
-    padding: 4rem;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-  }
+  <FeatureSection
+    heading="No typing required."
+    body="Share a profile and Orbital fills in the details."
+    image={addContactScreen}
+    alt="The Orbital add-contact screen, pre-filled from a shared Instagram profile"
+    tinted
+  >
+    <SourceCards />
+    <p class="note">
+      You can also scan a business card or import from your phone and Google
+      Contacts.
+    </p>
+  </FeatureSection>
 
-  .side-visual {
-    flex: 1;
-    min-width: 50%;
-    background-color: var(--primary-light);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem;
-    position: relative;
-    overflow: hidden;
-  }
+  <FeatureSection
+    heading="Where you met, what they care about, who they know."
+    body="Jot things down while they're still fresh. Notes, tags, social links, and how your people connect all live on the contact card. All of it searchable."
+    image={contactDetailScreen}
+    alt="An Orbital contact detail screen showing tags, notes, and relationships for a contact"
+    reverse
+  />
 
-  @media (max-width: 1024px) {
-    .side-content, .side-visual {
-      min-width: 100%;
-      padding: 3rem 2rem;
-    }
-    .side-visual { min-height: 400px; }
-  }
-
-  @media (max-width: 600px) {
-    .side-content {
-      padding: 2.5rem 1.5rem;
-    }
-    .side-visual {
-      min-height: 350px;
-      padding: 1.5rem;
-    }
-  }
-</style>
-
-<BaseLayout title="Orbital | PRM for Professionals">
-  <div class="split-container">
-    <div class="side-content">
-      <Hero />
-      <FeatureList />
-      <StoreButtons />
-    </div>
-    <div class="side-visual">
-      <PhoneMockup />
-    </div>
-  </div>
-  <Footer />
+  <CtaBand />
+  <Footer slot="footer" />
 </BaseLayout>

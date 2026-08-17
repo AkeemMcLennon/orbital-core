@@ -1,0 +1,59 @@
+---
+const sources = [
+  {
+    title: 'Share a social link',
+    description: 'Paste a link from LinkedIn, Instagram, or X.',
+  },
+  {
+    title: 'Share a screenshot',
+    description: "Screenshot a profile and we'll read the face and details.",
+  },
+  {
+    title: 'Share a contact card',
+    description: 'Send a contact card (.vcf) straight from your phone.',
+  },
+];
+---
+
+<style>
+  ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+    max-width: 480px;
+  }
+
+  li {
+    background: var(--white);
+    border: 1px solid rgba(var(--primary-rgb), 0.1);
+    border-radius: 0.875rem;
+    padding: 0.875rem 1.125rem;
+  }
+
+  .title {
+    display: block;
+    font-weight: 600;
+    font-size: 0.975rem;
+    color: var(--text);
+    margin-bottom: 0.15rem;
+  }
+
+  .description {
+    display: block;
+    font-size: 0.9rem;
+    color: var(--gray);
+    line-height: 1.5;
+  }
+</style>
+
+<ul role="list">
+  {
+    sources.map((source) => (
+      <li>
+        <span class="title">{source.title}</span>
+        <span class="description">{source.description}</span>
+      </li>
+    ))
+  }
+</ul>

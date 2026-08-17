@@ -1,0 +1,51 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<style>
+  .not-found {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 6rem 2rem;
+    text-align: center;
+  }
+
+  h1 {
+    font-size: 2.5rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 1rem;
+  }
+
+  p {
+    color: var(--gray);
+    margin-bottom: 2rem;
+  }
+
+  a {
+    color: var(--primary);
+    font-weight: 600;
+  }
+
+  @media (max-width: 600px) {
+    .not-found {
+      padding: 4rem 1.5rem;
+    }
+    h1 {
+      font-size: 2rem;
+    }
+  }
+</style>
+
+<BaseLayout
+  title="Page not found | Orbital"
+  description="That page doesn't exist."
+>
+  <div class="not-found">
+    <h1>This page drifted out of orbit.</h1>
+    <p>We couldn't find what you were looking for.</p>
+    <a href="/">Back to Orbital</a>
+  </div>
+  <Footer slot="footer" />
+</BaseLayout>

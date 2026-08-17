@@ -1,9 +1,29 @@
+---
+import { Image } from 'astro:assets';
+import StoreButtons from './StoreButtons.astro';
+import logo from '../assets/logo-trimmed.png';
+import memoryRepsScreen from '../assets/screens/memory-reps.png';
+---
+
 <style>
+  .hero {
+    display: flex;
+    align-items: center;
+    gap: 3rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 5rem 2rem 4rem;
+  }
+
+  .hero-copy {
+    flex: 1 1 480px;
+    min-width: 0;
+  }
+
   .logo {
     width: 180px;
     height: auto;
     margin-bottom: 3rem;
-    object-fit: contain;
   }
 
   h1 {
@@ -19,52 +39,100 @@
     font-size: 1.25rem;
     color: var(--gray);
     margin-bottom: 2.5rem;
-    max-width: 500px;
+    max-width: 520px;
     line-height: 1.7;
   }
 
-  .cta-group {
+  .hero-visual {
+    flex: 0 1 420px;
     display: flex;
-    gap: 1rem;
     align-items: center;
-    margin-bottom: 3rem;
+    justify-content: center;
+    position: relative;
+    padding: 2rem;
   }
 
-  .btn-primary {
-    background-color: var(--primary);
-    color: var(--white);
-    padding: 0.875rem 2rem;
-    border-radius: 0.75rem;
-    font-weight: 600;
-    font-size: 1.1rem;
-    text-decoration: none;
-    transition: all 0.2s;
-    box-shadow: 0 4px 12px rgba(51, 24, 117, 0.25);
-    display: inline-block;
+  /* min() keeps the orbit ring inside its column, so it can never push
+     the document wider than the viewport. */
+  .decor-circle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    translate: -50% -50%;
+    width: min(500px, 100%);
+    aspect-ratio: 1;
+    border: 2px dashed var(--primary);
+    border-radius: 50%;
+    opacity: 0.08;
+    pointer-events: none;
   }
 
-  .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(51, 24, 117, 0.35);
+  .screenshot {
+    position: relative;
+    width: 100%;
+    max-width: 340px;
+    height: auto;
+    border-radius: 1.5rem;
+    box-shadow: 0 24px 60px rgba(var(--primary-rgb), 0.22);
   }
 
   @media (max-width: 1024px) {
-    h1 { font-size: 2.5rem; }
-    .subtitle { font-size: 1.05rem; }
+    .hero {
+      flex-direction: column;
+      padding: 3.5rem 2rem;
+      gap: 2rem;
+    }
+    .hero-copy,
+    .hero-visual {
+      flex: 0 0 auto;
+      width: 100%;
+      max-width: 560px;
+    }
+    h1 {
+      font-size: 2.5rem;
+    }
+    .subtitle {
+      font-size: 1.05rem;
+    }
+    .logo {
+      margin-bottom: 2rem;
+    }
   }
 
   @media (max-width: 600px) {
-    h1 { font-size: 2rem; }
+    .hero {
+      padding: 2.5rem 1.5rem;
+    }
+    h1 {
+      font-size: 2rem;
+    }
+    .screenshot {
+      max-width: 260px;
+    }
   }
 </style>
 
-<img src="/logo-trimmed.png" alt="Orbital Logo" class="logo" />
-<h1>Stay in orbit with your network.</h1>
-<p class="subtitle">
-  A Personal Relationship Manager that helps you maintain your professional and
-  personal connections — without the stress.
-</p>
-
-<div class="cta-group">
-  <a href="#" class="btn-primary">Get Started</a>
-</div>
+<section class="hero">
+  <div class="hero-copy">
+    <Image src={logo} alt="Orbital" class="logo" width={180} densities={[1, 2]} priority />
+    <h1>Stay close to the people you care about.</h1>
+    <p class="subtitle">
+      Orbital is a personal relationship manager. Every new contact turns into a
+      quick quiz, so names and faces stick before you meet again.
+    </p>
+    <StoreButtons />
+    <p class="note">Now in beta on iOS and Android.</p>
+  </div>
+  <div class="hero-visual">
+    <div class="decor-circle" aria-hidden="true"></div>
+    <Image
+      src={memoryRepsScreen}
+      alt="The Orbital dashboard showing memory rep quiz cards asking where you met someone and who a face belongs to"
+      class="screenshot"
+      width={340}
+      widths={[340, 680]}
+      sizes="(max-width: 600px) 260px, 340px"
+      priority
+    />
+  </div>
+</section>

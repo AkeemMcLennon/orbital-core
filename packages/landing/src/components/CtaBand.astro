@@ -1,0 +1,52 @@
+---
+import StoreButtons from './StoreButtons.astro';
+---
+
+<style>
+  .cta-band {
+    background-color: var(--primary);
+    color: var(--white);
+    padding: 4.5rem 2rem;
+    text-align: center;
+  }
+
+  .cta-inner {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  .body {
+    opacity: 0.85;
+    margin-bottom: 2.25rem;
+  }
+
+  .small-print {
+    margin-top: 1.75rem;
+    font-size: 0.85rem;
+    opacity: 0.75;
+  }
+
+  .small-print a {
+    color: inherit;
+    text-decoration: underline;
+  }
+
+  @media (max-width: 600px) {
+    .cta-band {
+      padding: 3rem 1.5rem;
+    }
+  }
+</style>
+
+<section class="cta-band">
+  <div class="cta-inner">
+    <h2 class="section-heading">Join the Orbital beta.</h2>
+    <p class="body section-body">Try it, break it, and tell us what you'd change.</p>
+    <StoreButtons variant="dark" align="center" />
+    <p class="small-print">
+      We don't sell your personal information. Read our <a href="/privacy"
+        >privacy policy</a
+      >.
+    </p>
+  </div>
+</section>

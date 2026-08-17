@@ -1,0 +1,120 @@
+---
+import { Image } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+
+interface Props {
+  heading: string;
+  body: string;
+  image: ImageMetadata;
+  alt: string;
+  reverse?: boolean;
+  tinted?: boolean;
+}
+
+const { heading, body, image, alt, reverse = false, tinted = false } = Astro.props;
+---
+
+<style>
+  .feature {
+    padding: 4.5rem 2rem;
+  }
+
+  .feature.tinted {
+    background-color: var(--primary-light);
+  }
+
+  .feature-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5rem;
+    max-width: 980px;
+    margin: 0 auto;
+  }
+
+  .feature-inner.reverse {
+    flex-direction: row-reverse;
+  }
+
+  .feature-copy {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 520px;
+  }
+
+  h2 {
+    color: var(--text);
+  }
+
+  .body {
+    color: var(--gray);
+    max-width: 480px;
+  }
+
+  .feature-extra {
+    margin-top: 1.75rem;
+  }
+
+  .feature-visual {
+    flex: 0 0 300px;
+    display: flex;
+    justify-content: center;
+  }
+
+  .screenshot {
+    width: 100%;
+    height: auto;
+    border-radius: 1.25rem;
+    box-shadow: 0 18px 44px rgba(var(--primary-rgb), 0.18);
+  }
+
+  @media (max-width: 900px) {
+    .feature-inner,
+    .feature-inner.reverse {
+      flex-direction: column;
+      gap: 2.5rem;
+    }
+    .feature-copy,
+    .feature-visual {
+      flex: 0 0 auto;
+      width: 100%;
+      max-width: 520px;
+    }
+    .screenshot {
+      max-width: 260px;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .feature {
+      padding: 3rem 1.5rem;
+    }
+  }
+</style>
+
+<section class:list={['feature', tinted && 'tinted']}>
+  <div class:list={['feature-inner', reverse && 'reverse']}>
+    <div class="feature-copy">
+      <h2 class="section-heading">{heading}</h2>
+      <p class="body section-body">{body}</p>
+      {
+        Astro.slots.has('default') && (
+          <div class="feature-extra">
+            <slot />
+          </div>
+        )
+      }
+    </div>
+    <div class="feature-visual">
+      <Image
+        src={image}
+        alt={alt}
+        class="screenshot"
+        width={300}
+        widths={[300, 600]}
+        sizes="(max-width: 900px) 260px, 300px"
+        loading="lazy"
+      />
+    </div>
+  </div>
+</section>
