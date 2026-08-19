@@ -6,13 +6,29 @@ interface Props {
 
 const { variant = 'light', align = 'start' } = Astro.props;
 
+// iOS is TestFlight-only for now. Apple's "Download on the App Store" badge may
+// only link to a live App Store listing, and Apple publishes no TestFlight badge
+// of its own, so the iOS CTA uses the community "Available on TestFlight" badge
+// (https://askyourself.app/assets/testflight.png). When the app ships publicly,
+// swap it for Apple's official black App Store badge, placed first:
+// https://toolbox.marketingtools.apple.com/app-store/
 const TESTFLIGHT_URL = 'https://testflight.apple.com/join/yHDqnJPY';
 const PLAY_URL = 'https://play.google.com/store/apps/details?id=diy.orbital.mobile';
 ---
 
 <style>
   .store-buttons {
+    /* Google's badge artwork is 646x250 with the required clear space baked in
+       as transparent margin: the visible badge is 564x168, inset 41px on every
+       side. Scale the untouched file so the visible badge is --cta-height tall,
+       then pull that transparent inset back out of the layout so both badges
+       line up. The 1rem flex gap keeps the clear space. */
+    --cta-height: 3.25rem;
+    --badge-file-height: calc(var(--cta-height) * 250 / 168);
+    --badge-inset: calc(var(--cta-height) * -41 / 168);
+
     display: flex;
+    align-items: center;
     gap: 1rem;
     flex-wrap: wrap;
   }
@@ -21,102 +37,62 @@ const PLAY_URL = 'https://play.google.com/store/apps/details?id=diy.orbital.mobi
     justify-content: center;
   }
 
-  .store-btn {
-    background: var(--primary);
-    color: var(--white);
-    padding: 0.625rem 1.5rem;
-    border-radius: 0.75rem;
+  /* Neither badge takes a hover, shadow or animation: Google's guidelines don't
+     allow its artwork to be altered or animated, and the pair should match. */
+  .badge-link {
     display: flex;
     align-items: center;
     text-decoration: none;
-    border: none;
-    min-width: 195px;
-    justify-content: center;
-    gap: 0.625rem;
   }
 
-  .dark .store-btn {
-    background: var(--white);
-    color: var(--primary);
+  .play-badge {
+    height: var(--badge-file-height);
+    width: auto;
+    margin: var(--badge-inset);
   }
 
-  @media (prefers-reduced-motion: no-preference) {
-    .store-btn {
-      transition:
-        transform 0.2s,
-        box-shadow 0.2s;
-    }
-
-    .store-btn:hover {
-      transform: translateY(-2px);
-    }
-  }
-
-  .store-btn:hover {
-    box-shadow: 0 8px 16px rgba(var(--primary-rgb), 0.25);
-  }
-
-  .dark .store-btn:hover {
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
-  }
-
-  .store-btn-text {
-    display: flex;
-    flex-direction: column;
-    text-align: left;
-    line-height: 1.2;
-  }
-
-  .store-btn-label {
-    font-size: 0.6875rem;
-    font-weight: 400;
-    opacity: 0.85;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  .store-btn-name {
-    font-size: 1rem;
-    font-weight: 600;
+  .testflight-badge {
+    height: var(--cta-height);
+    width: auto;
+    box-sizing: border-box;
+    /* The community badge ships edge-to-edge with no keyline; add the same thin
+       border the Play badge has so the two read as a pair and the black artwork
+       keeps an edge on the dark CTA band. Radius matches the artwork's own
+       (24px on a 150px-tall file). */
+    border: 1px solid #a6a6a6;
+    border-radius: calc(var(--cta-height) * 24 / 150);
   }
 
   @media (max-width: 600px) {
     .store-buttons {
       flex-direction: column;
-      align-items: stretch;
+      align-items: flex-start;
     }
     .store-buttons.center {
       align-items: center;
-    }
-    .store-btn {
-      width: 100%;
-      max-width: 260px;
     }
   }
 </style>
 
 <div class:list={['store-buttons', variant === 'dark' && 'dark', align === 'center' && 'center']}>
-  <a href={TESTFLIGHT_URL} class="store-btn" target="_blank" rel="noopener">
-    <svg width="20" height="20" viewBox="0 0 814 1000" fill="currentColor" aria-hidden="true">
-      <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-37.3-148.9-80.9C113.2 716.4 69 604 69 493.4c0-234.4 145.2-358.3 288.4-358.3 73.5 0 134.8 48.1 180.6 48.1 43.5 0 111.7-51 194.6-51 31.4 0 115.1 2.6 181.3 96.8zM546.5 115.5c34.9-41.5 59.6-99.3 59.6-157.1 0-8.1-.6-16.3-2-23.8-55.9 2.3-121.5 37.2-162.7 80.9-31.4 34.2-61 91.9-61 150.4 0 9 1.3 18 2 20.7 3.5.6 9 1.3 14.5 1.3 49.9 0 108.1-33.5 149.6-72.4z" />
-    </svg>
-    <div class="store-btn-text">
-      <span class="store-btn-label">Join the beta on</span>
-      <span class="store-btn-name">TestFlight</span>
-    </div>
+  <a href={TESTFLIGHT_URL} class="badge-link" target="_blank" rel="noopener">
+    <img
+      src="/badges/testflight-badge.png"
+      alt="Available on TestFlight"
+      width="440"
+      height="150"
+      class="testflight-badge"
+    />
     <span class="sr-only">(opens in a new tab)</span>
   </a>
-  <a href={PLAY_URL} class="store-btn" target="_blank" rel="noopener">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M3.18 23.76a2.1 2.1 0 0 1-1.04-1.86V2.1A2.1 2.1 0 0 1 3.18.24L13.8 12 3.18 23.76z" opacity=".6" />
-      <path d="M17.52 15.9l-3.42-1.97-2.22 2.14 4.1 4.1a2.1 2.1 0 0 0 1.54-3.27z" opacity=".8" />
-      <path d="M17.52 8.1a2.1 2.1 0 0 0-1.54-3.27l-4.1 4.1 2.22 2.14L17.52 8.1z" opacity=".9" />
-      <path d="M13.8 12 3.18.24a2.1 2.1 0 0 0-.82.55l11.22 11.21L13.8 12z" opacity=".4" />
-    </svg>
-    <div class="store-btn-text">
-      <span class="store-btn-label">Get it on</span>
-      <span class="store-btn-name">Google Play</span>
-    </div>
+  <a href={PLAY_URL} class="badge-link" target="_blank" rel="noopener">
+    <img
+      src="/badges/google-play-badge.png"
+      alt="Get it on Google Play"
+      width="646"
+      height="250"
+      class="play-badge"
+    />
     <span class="sr-only">(opens in a new tab)</span>
   </a>
 </div>
